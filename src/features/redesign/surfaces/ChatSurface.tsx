@@ -11,7 +11,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { UniversalComposer, DEFAULT_TIERS, type RouterTier } from "../components/UniversalComposer";
 import { Pill } from "../components/Pill";
 import { StreamingMarkdown } from "../components/StreamingMarkdown";
-import type { ActiveBatchRun, ChatAnswer } from "../fixtures";
+import { sampleAnswer, type ActiveBatchRun, type ChatAnswer } from "../fixtures";
 import { useBatchLive } from "../hooks/useBatchLive";
 import { useLiveArtifacts, type LiveArtifactDetail } from "../hooks/useLiveArtifacts";
 import { ChatThinking } from "../components/ChatThinking";
@@ -545,6 +545,27 @@ export function ChatSurface({
     ];
   }, [liveDetail]);
   const [turns, setTurns] = useState<Turn[]>([]);
+  // QA-only seeded answer state: `?qaState=answer` under the dogfood chrome
+  // flag renders the sampleAnswer fixture as a completed turn. This exists so
+  // the answer moment is photographable (nightly loop, evidence folders) and
+  // contract-forcible without a paid authenticated run. Never reachable
+  // organically: the flag is set only by the QA capture pipeline.
+  const qaAnswerSeededRef = useRef(false);
+  useEffect(() => {
+    if (qaAnswerSeededRef.current) return;
+    if (launchParams.get("qaState") !== "answer") return;
+    try {
+      if (window.localStorage.getItem("nodebench-redesign-qa-chrome") !== "1") return;
+    } catch {
+      return;
+    }
+    qaAnswerSeededRef.current = true;
+    const now = Date.now();
+    setTurns([
+      { id: "qa-u", role: "user", text: "Summarize Orbital Labs. Keep it evidence-led and end with a next action.", createdAt: now },
+      { id: "qa-a", role: "assistant", packet: sampleAnswer, tier: "auto", createdAt: now + 1 },
+    ]);
+  }, [launchParams]);
   const recoveredRunIdRef = useRef<string | null>(null);
   const consumedContinuationRef = useRef<string | null>(null);
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
@@ -1839,7 +1860,7 @@ function AnswerPacket({
       {/* Avatar gutter — parity-studio bot icon pattern */}
       <div className="rd-chat-msg__avatar" aria-hidden="true">✦</div>
 
-      <article className="rd-chat-msg__body" style={{ padding: "var(--rd-s-2) var(--rd-s-3)", display: "flex", flexDirection: "column", gap: "var(--rd-s-2)", background: "var(--rd-paper-warm)", borderRadius: "var(--rd-r-md)", borderBottomLeftRadius: 4 }}>
+      <article className="rd-chat-msg__body rd-answer-arrive" style={{ padding: "var(--rd-s-2) var(--rd-s-3)", display: "flex", flexDirection: "column", gap: "var(--rd-s-2)", background: "var(--rd-paper-warm)", borderRadius: "var(--rd-r-md)", borderBottomLeftRadius: 4 }}>
         <div className="rd-agent-lead">{packet.shortAnswer.length > 60 ? "Research complete" : "NodeBench"}</div>
         <header className="rd-chat-msg__header" style={{ fontSize: 10, color: "var(--rd-ink-faint)" }}>
           <span>{tierMeta.label}</span>

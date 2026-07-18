@@ -1,0 +1,13 @@
+{
+  "schema": "nodebench-ui-contract-v1",
+  "capturedAt": "2026-07-17T22:20:00Z",
+  "slice": "answer-arrival",
+  "app": "nodebench-ai (decision workspace answer moment, /redesign/chat?qaState=answer)",
+  "notes": "The answer moment joins the ember motion identity: the packet settles in on --rd-ease-settle (rd-answer-settle, 480ms) and every section eyebrow carries a 24px terracotta ember tick that sweeps in (rd-ember-sweep, 180ms delay) — the recurring motif that evidence underlines every claim. The thinking state becomes 'the thread being drawn': an ember-tipped hairline grows beneath the phase label on a 1.6s settle loop, dots recolored to ember. prefers-reduced-motion flattens all three systems. NO BEFORE PAIR EXISTS honestly: this state was previously unphotographable without a paid authenticated run — this slice also introduces the QA-gated seeded answer state (?qaState=answer under the nodebench-redesign-qa-chrome flag, sampleAnswer fixture, unreachable organically) that makes the answer moment capturable by the nightly loop and forcible by future contract states. Filmstrip: motion-frame-{40,280,980}ms.png shows the settle-rise + tick sweep mid-flight.",
+  "pages": [
+    { "route": "/redesign/chat?qaState=answer", "viewport": { "width": 1440, "height": 900 }, "theme": "dark", "after": "after-answer-dark-desktop.png" },
+    { "route": "/redesign/chat?qaState=answer", "viewport": { "width": 1440, "height": 900 }, "theme": "dark", "after": "after-answer-dark-desktop-scrolled.png" },
+    { "route": "/redesign/chat?qaState=answer", "viewport": { "width": 1440, "height": 900 }, "theme": "light", "after": "after-answer-light-desktop.png" },
+    { "route": "/redesign/chat?qaState=answer", "viewport": { "width": 390, "height": 844 }, "theme": "dark", "after": "after-answer-dark-mobile.png" }
+  ]
+}

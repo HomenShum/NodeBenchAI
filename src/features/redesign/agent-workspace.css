@@ -371,6 +371,79 @@
   }
 }
 
+/* ── Answer arrival — the threads deliver ────────────────────────────────
+   The packet settles in on the same easing the landing draws with, and each
+   section eyebrow carries a small terracotta ember tick that sweeps in: the
+   recurring motif that evidence, not decoration, underlines every claim. */
+[data-redesign] .rd-answer-arrive {
+  animation: rd-answer-settle var(--rd-dur-move) var(--rd-ease-settle) both;
+}
+
+[data-redesign] .rd-answer-arrive .rd-eyebrow {
+  position: relative;
+  padding-bottom: 3px;
+}
+
+[data-redesign] .rd-answer-arrive .rd-eyebrow::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 24px;
+  height: 1px;
+  background: var(--rd-accent);
+  transform-origin: left center;
+  animation: rd-ember-sweep var(--rd-dur-move) var(--rd-ease-settle) both;
+  animation-delay: 180ms;
+}
+
+@keyframes rd-answer-settle {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes rd-ember-sweep {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* Thinking = the thread being drawn. A hairline grows beneath the phase
+   label on the settle easing, ember-tipped; the dots become embers. */
+[data-redesign] .rd-chat-thinking {
+  position: relative;
+  padding-bottom: 6px;
+}
+
+[data-redesign] .rd-chat-thinking::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 72px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--rd-accent), transparent);
+  transform-origin: left center;
+  animation: rd-thinking-thread 1.6s var(--rd-ease-settle) infinite;
+}
+
+[data-redesign] .rd-chat-thinking__dots span {
+  background: var(--rd-accent);
+}
+
+@keyframes rd-thinking-thread {
+  0% { transform: scaleX(0); opacity: 0.9; }
+  70% { transform: scaleX(1); opacity: 0.9; }
+  100% { transform: scaleX(1); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-redesign] .rd-answer-arrive,
+  [data-redesign] .rd-answer-arrive .rd-eyebrow::after,
+  [data-redesign] .rd-chat-thinking::after {
+    animation: none;
+  }
+}
+
 /* Narrow viewports: quieter constellation, and the two low side nodes give
    their space back to the stacked chips. */
 @media (max-width: 760px) {
