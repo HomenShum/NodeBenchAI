@@ -16,6 +16,10 @@
  * the adopted anatomy can be captured and reviewed as evidence.
  */
 import { createRoot } from "react-dom/client";
+// The app's Tailwind entry — without it the streamdown table/code chrome and
+// inline marks render unstyled, which made the Phase C evidence captures
+// misrepresent the in-app look (recorded as a caveat in that manifest).
+import "../../../../../index.css";
 import type { UIMessage } from "@convex-dev/agent/react";
 import { convexToUIParts } from "../adapters/convexToUIParts";
 import {

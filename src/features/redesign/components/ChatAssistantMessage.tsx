@@ -1031,8 +1031,13 @@ export function ChatAssistantMessage({
                       onMouseLeave={handleCiteLeave}
                     >
                       <span className="rd-cite rd-cite--block" data-cite={e.idx}>[{e.idx}]</span>
+                      {/* Panel evidence rows can honestly carry no quote —
+                          gate on content so the empty paragraph doesn't shove
+                          the source label across a void (polish pass). */}
                       <div className="rd-evidence-row__main">
-                        <p className="rd-body rd-evidence-row__quote">{e.quote}</p>
+                        {e.quote?.trim() && (
+                          <p className="rd-body rd-evidence-row__quote">{e.quote}</p>
+                        )}
                         {trustBadge && (
                           <span
                             className="rd-mono rd-evidence-row__badge"

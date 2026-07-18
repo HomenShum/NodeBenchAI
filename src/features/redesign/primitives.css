@@ -2774,11 +2774,11 @@
 
   /* Full-surface QA — P1 fix: light mode subtitle contrast (Home) — WCAG AA 4.5:1+ */
   @media (prefers-color-scheme: light) {
-    [data-redesign] .rd-v3-home-composer-head p,
-    [data-redesign] .rd-v3-home-halo-head p {
+    [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-v3-home-composer-head p,
+    [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-v3-home-halo-head p {
       color: rgba(0, 0, 0, 0.72);
     }
-    [data-redesign] .rd-v3-home-halo small {
+    [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-v3-home-halo small {
       color: rgba(0, 0, 0, 0.58);
     }
   }
@@ -12293,29 +12293,29 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 
 /* Full-surface QA Round 3+4 — light mode glass card depth + border */
 @media (prefers-color-scheme: light) {
-  [data-redesign] .rd-card {
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-card {
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.06);
     border-color: rgba(0, 0, 0, 0.12);
   }
-  [data-redesign] .rd-card--ghost {
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-card--ghost {
     box-shadow: none;
     border-color: transparent;
   }
   /* Strengthen muted text contrast in light mode */
-  [data-redesign] .rd-muted,
-  [data-redesign] [class*="ink-mute"] {
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-muted,
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) [class*="ink-mute"] {
     color: rgba(0, 0, 0, 0.55);
   }
   /* Light mode pill border visibility */
-  [data-redesign] .rd-pill {
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-pill {
     border-color: rgba(0, 0, 0, 0.12);
   }
   /* Light mode JetBrains Mono contrast boost (4.9:1 → 7:1+) */
-  [data-redesign] .rd-mono {
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-mono {
     color: rgba(0, 0, 0, 0.65);
   }
   /* Override inline color on mono body text for WCAG AA+ */
-  [data-redesign] [style*="font-mono"][style*="ink-mute"] {
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) [style*="font-mono"][style*="ink-mute"] {
     color: rgba(0, 0, 0, 0.62) !important;
   }
 }
@@ -12370,8 +12370,8 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
 
 /* P1-6: Home subheader light-mode contrast — darken --rd-ink-soft overrides */
 @media (prefers-color-scheme: light) {
-  [data-redesign] .rd-v3-home-composer-head [class*="subheader"],
-  [data-redesign] .rd-v3-home-composer-head p {
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-v3-home-composer-head [class*="subheader"],
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-v3-home-composer-head p {
     color: var(--rd-ink-mute);
   }
 }
@@ -12397,8 +12397,8 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   color: var(--rd-ink-soft);
 }
 @media (prefers-color-scheme: light) {
-  [data-redesign] .rd-agent-rail__muted,
-  [data-redesign] .rd-agent-rail__copy {
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-agent-rail__muted,
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-agent-rail__copy {
     color: rgba(0, 0, 0, 0.62);
   }
 }
@@ -12489,14 +12489,14 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   border-radius: 2px;
 }
 @media (prefers-color-scheme: light) {
-  [data-redesign] .rd-progress-bar,
-  [data-redesign] [class*="progress-bar"],
-  [data-redesign] [role="progressbar"] > div {
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-progress-bar,
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) [class*="progress-bar"],
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) [role="progressbar"] > div {
     background: rgba(0, 0, 0, 0.15);
   }
-  [data-redesign] .rd-progress-bar__fill,
-  [data-redesign] [class*="progress-bar"] > [class*="fill"],
-  [data-redesign] [role="progressbar"] > div > div {
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-progress-bar__fill,
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) [class*="progress-bar"] > [class*="fill"],
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) [role="progressbar"] > div > div {
     background: var(--rd-accent-strong);
   }
 }
@@ -12598,18 +12598,18 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   background: var(--rd-line);
 }
 @media (prefers-color-scheme: light) {
-  [data-redesign] .rd-chat-header .rd-btn--ghost,
-  [data-redesign] .rd-v3-chat-hero .rd-btn--ghost,
-  [data-redesign] [class*="chat"] .rd-btn--ghost,
-  [data-redesign] [class*="composer"] .rd-btn--ghost {
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-chat-header .rd-btn--ghost,
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-v3-chat-hero .rd-btn--ghost,
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) [class*="chat"] .rd-btn--ghost,
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) [class*="composer"] .rd-btn--ghost {
     border-color: rgba(0, 0, 0, 0.4);
     color: rgba(0, 0, 0, 0.88);
     background: rgba(0, 0, 0, 0.04);
   }
-  [data-redesign] .rd-chat-header .rd-btn--ghost:hover,
-  [data-redesign] .rd-v3-chat-hero .rd-btn--ghost:hover,
-  [data-redesign] [class*="chat"] .rd-btn--ghost:hover,
-  [data-redesign] [class*="composer"] .rd-btn--ghost:hover {
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-chat-header .rd-btn--ghost:hover,
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-v3-chat-hero .rd-btn--ghost:hover,
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) [class*="chat"] .rd-btn--ghost:hover,
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) [class*="composer"] .rd-btn--ghost:hover {
     border-color: rgba(0, 0, 0, 0.52);
     background: rgba(0, 0, 0, 0.08);
   }
@@ -12692,18 +12692,18 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
    Root cause: accent-strong (#b85a3d) on semi-transparent glass bg drops below 4.5:1.
    Fix: darken accent links in light mode to a fully opaque high-contrast shade. */
 @media (prefers-color-scheme: light) {
-  [data-redesign] a[class*="chat"],
-  [data-redesign] [class*="chat-now"],
-  [data-redesign] .rd-agent-rail a,
-  [data-redesign] .rd-agent-rail__next a,
-  [data-redesign] .rd-link--accent {
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) a[class*="chat"],
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) [class*="chat-now"],
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-agent-rail a,
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-agent-rail__next a,
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-link--accent {
     color: #9e4a30;
     text-decoration-color: rgba(158, 74, 48, 0.35);
   }
-  [data-redesign] a[class*="chat"]:hover,
-  [data-redesign] [class*="chat-now"]:hover,
-  [data-redesign] .rd-agent-rail a:hover,
-  [data-redesign] .rd-link--accent:hover {
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) a[class*="chat"]:hover,
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) [class*="chat-now"]:hover,
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-agent-rail a:hover,
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-link--accent:hover {
     color: #843d28;
     text-decoration-color: rgba(132, 61, 40, 0.55);
   }
@@ -12713,76 +12713,85 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
    Root cause: glass morphism backgrounds (semi-transparent) reduce effective
    contrast ratios for all text and interactive elements. Instead of chasing
    individual Gemini-flagged P1s, this block ensures ALL elements pass WCAG AA
-   when glass backgrounds are present. */
+   when glass backgrounds are present.
+   NOTE: every light-scheme block in this file guards with
+   :where(:not([data-redesign-theme="dark"])) — the media query keys off the
+   OS scheme, but the app themes via data-redesign-theme, so an OS-light user
+   with the app toggled dark must NOT receive these near-black inks. :where()
+   keeps light-mode specificity unchanged. */
 @media (prefers-color-scheme: light) {
   /* All ghost buttons on glass: solid white bg + dark text + visible border */
-  [data-redesign] .rd-btn--ghost {
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-btn--ghost {
     color: #1a1a1a !important;
     border-color: rgba(0, 0, 0, 0.32) !important;
     background: rgba(255, 255, 255, 0.55) !important;
   }
-  [data-redesign] .rd-btn--ghost:hover {
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-btn--ghost:hover {
     background: rgba(255, 255, 255, 0.8) !important;
     border-color: rgba(0, 0, 0, 0.48) !important;
   }
 
   /* All muted/soft text: ensure 4.5:1 minimum on any background */
-  [data-redesign] .rd-ink-mute,
-  [data-redesign] [class*="muted"],
-  [data-redesign] [class*="subtitle"],
-  [data-redesign] .rd-agent-rail__copy,
-  [data-redesign] .rd-agent-rail__muted {
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-ink-mute,
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) [class*="muted"],
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) [class*="subtitle"],
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-agent-rail__copy,
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-agent-rail__muted {
     color: rgba(0, 0, 0, 0.68) !important;
   }
 
   /* Status pills: darken text for amber/yellow variants specifically */
-  [data-redesign] .rd-pill--amber,
-  [data-redesign] [class*="pill"][class*="draft"],
-  [data-redesign] [class*="status"][class*="draft"],
-  [data-redesign] .ar-drawer-status[data-status="drafting"] {
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-pill--amber,
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) [class*="pill"][class*="draft"],
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) [class*="status"][class*="draft"],
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .ar-drawer-status[data-status="drafting"] {
     color: #8a5100 !important;
     border-color: #b26200 !important;
   }
 
   /* Accent links: ensure terracotta links hit 4.5:1 on warm-white glass */
-  [data-redesign] a:not(.rd-btn),
-  [data-redesign] [role="link"] {
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) a:not(.rd-btn),
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) [role="link"] {
     color: #8b4226;
   }
-  [data-redesign] a:not(.rd-btn):hover,
-  [data-redesign] [role="link"]:hover {
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) a:not(.rd-btn):hover,
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) [role="link"]:hover {
     color: #6e3420;
   }
 
   /* Terracotta primary buttons: darken bg so white text passes WCAG AA (4.5:1+)
-     #d97757 + white = ~3.2:1 (FAIL). #b04a2a + white = ~5.2:1 (PASS). */
-  [data-redesign] .rd-btn--primary,
-  [data-redesign] button[class*="primary"],
-  [data-redesign] [class*="run-research"],
-  [data-redesign] [class*="save-report"] {
+     #d97757 + white = ~3.2:1 (FAIL). #b04a2a + white = ~5.2:1 (PASS).
+     Match FILLED primaries only ("bg-primary" / rd-btn--primary): the old
+     [class*="primary"] substring shotgun also caught Tailwind's text-primary
+     utility, force-filling streamdown's markdown link-buttons into shouting
+     terracotta pills (polish pass, 2026-07-18). */
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-btn--primary,
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) button[class*="bg-primary"],
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) [class*="run-research"],
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) [class*="save-report"] {
     background-color: #b04a2a !important;
     color: #fff !important;
   }
-  [data-redesign] .rd-btn--primary:hover,
-  [data-redesign] button[class*="primary"]:hover {
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) .rd-btn--primary:hover,
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) button[class*="bg-primary"]:hover {
     background-color: #963e22 !important;
   }
 
   /* R27-P1: Override --rd-accent itself in light mode so ALL accent uses pass WCAG AA.
      #d97757 on white = ~3.2:1 (FAIL). #c25e3f = ~3.9:1 (still marginal).
      #b04a2a = ~5.2:1 (PASS on pure white), safe on semi-transparent glass. */
-  [data-redesign] {
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) {
     --rd-accent: #b04a2a;
     --rd-accent-strong: #963e22;
   }
 
   /* R27-P1: "Chat now" link — use darker grey for secondary links on Home */
-  [data-redesign] [class*="chat-now"],
-  [data-redesign] button[aria-label="Chat now"] {
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) [class*="chat-now"],
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) button[aria-label="Chat now"] {
     color: #71717a !important;
   }
-  [data-redesign] [class*="chat-now"]:hover,
-  [data-redesign] button[aria-label="Chat now"]:hover {
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) [class*="chat-now"]:hover,
+  [data-redesign]:where(:not([data-redesign-theme="dark"])) button[aria-label="Chat now"]:hover {
     color: #52525b !important;
   }
 }

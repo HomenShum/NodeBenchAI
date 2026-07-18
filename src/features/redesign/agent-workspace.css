@@ -747,6 +747,26 @@
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* Streamdown renders markdown links as <button class="… underline"> for its
+   hover-preview affordance. The app's global base styles bare buttons as
+   filled primary chips with a 44px touch-target minimum, which turned every
+   markdown link into a shouting terracotta pill (polish pass, 2026-07-18).
+   Reset them to read as links: prose speaks, one accent underlines. The
+   .underline discriminator spares the table/code chrome buttons. */
+[data-redesign] .rd-answer-copy--markdown button.underline {
+  min-height: 0;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--rd-accent, #d97757);
+  font: inherit;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
 [data-redesign] .rd-answer-copy--markdown blockquote {
   margin: 0 0 8px;
   padding-left: 12px;
