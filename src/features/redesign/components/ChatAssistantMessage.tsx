@@ -684,8 +684,22 @@ export interface ChatAssistantMessageProps {
   receiptLatencyMs?: number | null;
   /** Receipt override — cost, same semantics as receiptLatencyMs. */
   receiptCostUsd?: number | null;
-  /** "receipt" suppresses the interactive actions toolbar (immutable replay). */
-  variant?: "live" | "receipt";
+  /**
+   * "receipt" suppresses the interactive actions toolbar (immutable replay).
+   * "panel" is the FastAgentPanel adoption variant (Phase B of
+   * ONE_CHAT_INTERFACE): identical to "live" except the Sources collapsible
+   * renders even for compact packets — panel answers have no memo fields
+   * (whyItMatters / risks / nextAction) but their sources are the core trust
+   * surface, so hiding them there would drop honest data, not memo furniture.
+   */
+  variant?: "live" | "receipt" | "panel";
+  /**
+   * Optional override for the tier label on the receipt line. The panel never
+   * routes through the flagship router tiers, so it passes the actual model /
+   * runtime label here instead of claiming a tier it never used. Flagship
+   * callers omit this and keep the DEFAULT_TIERS label.
+   */
+  receiptTierLabel?: string;
   onRegenerate?: (tierOverride?: "free" | "fast" | "deep") => void;
   onPin?: () => void;
   onAddFollowUp?: () => void;
@@ -708,6 +722,7 @@ export function ChatAssistantMessage({
   receiptLatencyMs,
   receiptCostUsd,
   variant = "live",
+  receiptTierLabel,
   onRegenerate,
   onPin,
   onAddFollowUp,
@@ -723,7 +738,10 @@ export function ChatAssistantMessage({
   const [sourcesOpen, setSourcesOpen] = useState(false);
 
   const researchStages = buildResearchStages(toolCalls ?? packet.trace);
-  const isCompactResponse = computeIsCompactResponse(packet);
+  // The "panel" variant never suppresses Sources: panel packets are always
+  // compact-shaped (no memo fields) yet their evidence rows are the core
+  // trust surface, not memo furniture.
+  const isCompactResponse = computeIsCompactResponse(packet) && variant !== "panel";
 
   const handleCiteEnter = (idx: number) => setHoverCite(idx);
   const handleCiteLeave = () => setHoverCite(null);
@@ -752,7 +770,7 @@ export function ChatAssistantMessage({
     receiptLatencyMs !== undefined || receiptCostUsd !== undefined
       ? `${formatMs(receiptLatencyMs ?? null)} · ${formatUsd(receiptCostUsd ?? undefined)}`
       : formatTraceTelemetry(packet);
-  const receiptLine = `${tierMeta.label} · ${packet.sourceCount} source${packet.sourceCount === 1 ? "" : "s"} · ${telemetry}`;
+  const receiptLine = `${receiptTierLabel ?? tierMeta.label} · ${packet.sourceCount} source${packet.sourceCount === 1 ? "" : "s"} · ${telemetry}`;
 
   const hasReasoning =
     researchStages.length > 0 ||

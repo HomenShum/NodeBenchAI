@@ -128,6 +128,12 @@ import {
   type DomainCategory,
   type NormalizedToolPart,
 } from './adapters/convexToUIParts';
+// Phase B (ONE_CHAT_INTERFACE): canonical-answer adoption for overlapping turns
+import {
+  buildCanonicalAnswerProps,
+  describeCanonicalAnswerFit,
+} from './adapters/canonicalAnswer';
+import { PanelCanonicalAnswer } from './PanelCanonicalAnswer';
 
 interface FastAgentUIMessageBubbleProps {
   message: UIMessage;
@@ -151,6 +157,16 @@ interface FastAgentUIMessageBubbleProps {
   fontSize?: number;
   /** Compact presentation for the cockpit sidebar variant. */
   compact?: boolean;
+  /**
+   * Phase B of docs/design/ONE_CHAT_INTERFACE.md — when set, COMPLETED
+   * assistant turns whose shape overlaps the flagship answer anatomy (prose +
+   * plain tool calls + sources) render the canonical ChatAssistantMessage
+   * instead of the legacy bubble internals. Streaming, markdown-rich, and
+   * domain-rendered turns always keep the legacy anatomy. Default off so
+   * existing callers and the legacy-markup contract tests are unchanged
+   * (expand–contract: the legacy internals retire in Phase C).
+   */
+  preferCanonicalAnswer?: boolean;
 }
 
 /**
@@ -1739,8 +1755,18 @@ export function FastAgentUIMessageBubble({
   searchHighlight,
   fontSize,
   compact = false,
+  preferCanonicalAnswer = false,
 }: FastAgentUIMessageBubbleProps) {
   const uiParts = useMemo(() => convexToUIParts(message), [message]);
+  // Phase B (ONE_CHAT_INTERFACE): adopt the canonical answer anatomy for
+  // overlapping completed turns. Computed unconditionally (hooks rule); the
+  // conditional swap happens at the very end of render, after every hook ran.
+  const canonicalAnswer = useMemo(() => {
+    if (!preferCanonicalAnswer || compact) return null;
+    const fit = describeCanonicalAnswerFit(uiParts, message);
+    if (!fit.adoptable) return null;
+    return buildCanonicalAnswerProps(uiParts, message);
+  }, [compact, message, preferCanonicalAnswer, uiParts]);
   const toolRenderParts = useMemo(
     () => uiParts.renderParts.filter(isToolRenderPart),
     [uiParts.renderParts],
@@ -2900,6 +2926,21 @@ export function FastAgentUIMessageBubble({
         part: { type: 'text', text: uiParts.text },
       } as TextRenderPart)
     : null;
+
+  // Phase B (ONE_CHAT_INTERFACE): overlapping completed turns render the ONE
+  // canonical assistant anatomy. Every hook above already ran, so this swap is
+  // hooks-safe; non-overlapping turns fall through to the legacy anatomy.
+  if (canonicalAnswer) {
+    const canRegenerate = Boolean(
+      onRegenerateMessage || (messageKey && contextHandlers.onRegenerateMessage),
+    );
+    return (
+      <PanelCanonicalAnswer
+        {...canonicalAnswer}
+        onRegenerate={canRegenerate ? handleRegenerate : undefined}
+      />
+    );
+  }
 
   return (
     <AIMessage

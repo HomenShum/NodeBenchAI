@@ -1,0 +1,12 @@
+{
+  "schema": "nodebench-ui-contract-v1",
+  "capturedAt": "2026-07-18T12:30:00Z",
+  "slice": "one-chat-phase-b",
+  "app": "nodebench-ai (FastAgentPanel adopted turn, dev harness over the real adapter chain)",
+  "notes": "Phase B of ONE_CHAT_INTERFACE.md: FastAgentPanel adopts the canonical ChatAssistantMessage for overlapping completed turns (plain prose + plain tools + URL sources). Honest-subset discipline held: no fabricated verification badges (panel sources have url+title only -> no badge), trace stays empty (no synthetic 'how we got this answer'), receipt admits 'telemetry not recorded', model-authored bare [N] refused rather than bound arbitrarily, blocked fetch renders as flagged warning + errored tool card. ChatAssistantMessage changes strictly additive (variant='panel' + receiptTierLabel; live/receipt behavior byte-identical, verified in diff). No anonymous full-panel render path exists (needs Convex providers/auth) so captures come from a committed dev-only harness mounting the REAL adapter chain output. Known Phase-C nit: Reasoning trigger reads '0 steps' on adopted turns (honest - trace empty) while holding working notes + derived checklist.",
+  "pages": [
+    { "route": "__harness__/panel-canonical-answer-harness.html", "viewport": { "width": 900, "height": 900 }, "theme": "dark", "after": "after-panel-canonical-dark-expanded.png" },
+    { "route": "__harness__/panel-canonical-answer-harness.html", "viewport": { "width": 900, "height": 900 }, "theme": "light", "after": "after-panel-canonical-light-collapsed.png" },
+    { "route": "__harness__/panel-canonical-answer-harness.html (expanded)", "viewport": { "width": 900, "height": 900 }, "theme": "light", "after": "after-panel-canonical-light-expanded.png" }
+  ]
+}
