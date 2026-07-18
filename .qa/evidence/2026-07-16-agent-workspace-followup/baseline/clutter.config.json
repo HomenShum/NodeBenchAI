@@ -1,0 +1,30 @@
+{
+  "repo": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai",
+  "url": "https://nodebench-ai.vercel.app/redesign/chat?fresh=1",
+  "outDir": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai/.qa/evidence/2026-07-16-agent-workspace-followup/baseline",
+  "contextKey": "anonymous-public-chat-fresh",
+  "rootSelector": "[data-agent-runtime-surface=\"redesign-chat\"]",
+  "readySelector": "textarea[aria-label^=\"Ask anything\"]",
+  "assertText": [
+    { "name": "idle-state", "text": "Waiting for a request." },
+    { "name": "read-scope", "text": "Prompt only" },
+    { "name": "write-scope", "text": "Review mode" },
+    { "name": "checks-state", "text": "No claim checks recorded" }
+  ],
+  "protected": [
+    { "name": "composer", "selector": "textarea[aria-label^=\"Ask anything\"]", "minCount": 1 },
+    { "name": "context-control", "selector": "button[aria-label=\"Change context\"]", "minCount": 1 },
+    { "name": "run-control", "selector": "button[aria-label=\"Run research\"]", "minCount": 1 }
+  ],
+  "states": [
+    { "name": "desktop-light", "viewport": { "width": 1280, "height": 720 }, "scheme": "light" },
+    { "name": "tablet-light", "viewport": { "width": 820, "height": 1180 }, "scheme": "light" },
+    { "name": "mobile-light", "viewport": { "width": 390, "height": 844 }, "scheme": "light" },
+    { "name": "desktop-dark", "viewport": { "width": 1280, "height": 720 }, "scheme": "dark", "clicks": [{ "name": "theme", "selector": "button[aria-label=\"Switch to dark mode\"]" }] },
+    { "name": "tablet-dark", "viewport": { "width": 820, "height": 1180 }, "scheme": "dark", "clicks": [{ "name": "theme", "selector": "button[aria-label=\"Switch to dark mode\"]" }] },
+    { "name": "mobile-dark", "viewport": { "width": 390, "height": 844 }, "scheme": "dark", "clicks": [{ "name": "theme", "selector": "button[aria-label=\"Switch to dark mode\"]" }] }
+  ],
+  "enforceProtected": true,
+  "includeRawSelectors": true,
+  "textMode": "sample"
+}

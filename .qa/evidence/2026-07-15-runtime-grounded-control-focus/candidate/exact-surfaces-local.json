@@ -1,0 +1,78 @@
+{
+  "repo": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai/.worktrees/prod-parity-runtime",
+  "url": "http://127.0.0.1:5187/?surface=ask",
+  "outDir": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai/.worktrees/prod-parity-runtime/.qa/evidence/2026-07-15-runtime-grounded-control-focus/candidate/exact-surfaces",
+  "waitMs": 3000,
+  "shots": [
+    {
+      "name": "home-desktop-light",
+      "url": "http://127.0.0.1:5187/?surface=ask",
+      "scheme": "light",
+      "viewport": { "width": 1512, "height": 900 },
+      "fullPage": true
+    },
+    {
+      "name": "reports-desktop-light",
+      "url": "http://127.0.0.1:5187/?surface=packets",
+      "scheme": "light",
+      "viewport": { "width": 1512, "height": 900 },
+      "fullPage": true
+    },
+    {
+      "name": "chat-desktop-light",
+      "url": "http://127.0.0.1:5187/?surface=workspace",
+      "scheme": "light",
+      "viewport": { "width": 1512, "height": 900 },
+      "fullPage": true
+    },
+    {
+      "name": "inbox-desktop-light",
+      "url": "http://127.0.0.1:5187/?surface=inbox",
+      "scheme": "light",
+      "viewport": { "width": 1512, "height": 900 },
+      "fullPage": true
+    },
+    {
+      "name": "me-desktop-light",
+      "url": "http://127.0.0.1:5187/?surface=me",
+      "scheme": "light",
+      "viewport": { "width": 1512, "height": 900 },
+      "fullPage": true
+    },
+    {
+      "name": "home-mobile-light",
+      "url": "http://127.0.0.1:5187/?surface=ask",
+      "scheme": "light",
+      "viewport": { "width": 390, "height": 844 },
+      "fullPage": true
+    },
+    {
+      "name": "reports-mobile-light",
+      "url": "http://127.0.0.1:5187/?surface=packets",
+      "scheme": "light",
+      "viewport": { "width": 390, "height": 844 },
+      "fullPage": true
+    },
+    {
+      "name": "chat-mobile-light",
+      "url": "http://127.0.0.1:5187/?surface=workspace",
+      "scheme": "light",
+      "viewport": { "width": 390, "height": 844 },
+      "fullPage": true
+    },
+    {
+      "name": "inbox-mobile-light",
+      "url": "http://127.0.0.1:5187/?surface=inbox",
+      "scheme": "light",
+      "viewport": { "width": 390, "height": 844 },
+      "fullPage": true
+    },
+    {
+      "name": "me-mobile-light",
+      "url": "http://127.0.0.1:5187/?surface=me",
+      "scheme": "light",
+      "viewport": { "width": 390, "height": 844 },
+      "fullPage": true
+    }
+  ]
+}

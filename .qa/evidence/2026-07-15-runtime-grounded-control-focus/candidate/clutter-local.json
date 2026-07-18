@@ -1,0 +1,46 @@
+{
+  "repo": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai/.worktrees/prod-parity-runtime",
+  "url": "http://127.0.0.1:5187/agents",
+  "outDir": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai/.worktrees/prod-parity-runtime/.qa/evidence/2026-07-15-runtime-grounded-control-focus/candidate/clutter",
+  "contextKey": "public-guest",
+  "rootSelector": "body",
+  "readySelector": "textarea[aria-label='Message input']",
+  "protected": [
+    {
+      "name": "primary-composer",
+      "selector": "textarea[aria-label='Message input']",
+      "minCount": 1
+    },
+    {
+      "name": "send-control",
+      "selector": "button[aria-label='Send message']",
+      "minCount": 1
+    }
+  ],
+  "assertText": [
+    { "name": "agents-title", "text": "AI Assistants" }
+  ],
+  "states": [
+    {
+      "name": "desktop-light",
+      "viewport": { "width": 1512, "height": 900 },
+      "scheme": "light"
+    },
+    {
+      "name": "desktop-dark",
+      "viewport": { "width": 1512, "height": 900 },
+      "scheme": "dark"
+    },
+    {
+      "name": "mobile-light",
+      "viewport": { "width": 390, "height": 844 },
+      "scheme": "light"
+    },
+    {
+      "name": "mobile-dark",
+      "viewport": { "width": 390, "height": 844 },
+      "scheme": "dark"
+    }
+  ],
+  "enforceProtected": true
+}
