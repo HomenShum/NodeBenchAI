@@ -11,6 +11,10 @@ describe("NodeBench one-surface product contract", () => {
   const header = read("src/features/redesign/components/TopNav.tsx");
   const chat = read("src/features/redesign/surfaces/ChatSurface.tsx");
   const workspaceCss = read("src/features/redesign/agent-workspace.css");
+  // Phase A of docs/design/ONE_CHAT_INTERFACE.md — the answer's trace disclosure
+  // and source-URL parsing live in the one ChatAssistantMessage both renderers
+  // mount; the "same surface" intent is preserved, just at its new home.
+  const chatMsg = read("src/features/redesign/components/ChatAssistantMessage.tsx");
 
   it("mounts only the canonical decision workspace in the primary shell", () => {
     expect(shell).toContain('data-product-surface="decision-workspace"');
@@ -44,8 +48,8 @@ describe("NodeBench one-surface product contract", () => {
     expect(chat).toContain("<LaunchContextCard");
     expect(chat).toContain("buildLiveContextRef(liveDetail, requestedArtifactKey)");
     expect(chat).not.toContain("Review settings");
-    expect(chat).toContain("How we got this answer");
-    expect(chat).toContain("sourceUrlFromText");
+    expect(chatMsg).toContain("How we got this answer");
+    expect(chatMsg).toContain("sourceUrlFromText");
   });
 
   it("keeps read scope visible on mobile", () => {

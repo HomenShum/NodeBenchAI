@@ -15,7 +15,17 @@ import { sampleAnswer, type ActiveBatchRun, type ChatAnswer } from "../fixtures"
 import { useBatchLive } from "../hooks/useBatchLive";
 import { useLiveArtifacts, type LiveArtifactDetail } from "../hooks/useLiveArtifacts";
 import { ChatThinking } from "../components/ChatThinking";
-import { ChatToolCall, type ToolCall } from "../components/ChatToolCall";
+import { type ToolCall } from "../components/ChatToolCall";
+import {
+  ChatAssistantMessage,
+  RuntimeBoard,
+  buildResearchStages,
+  isBlockingClaimCheck,
+  LiveTime,
+  FeedbackButton,
+  FeedbackThumb,
+} from "../components/ChatAssistantMessage";
+import { Message, MessageContent } from "@/components/ai-elements/message";
 
 import { ChatEmptyState } from "../components/ChatEmptyState";
 import { showToast } from "../components/Toast";
@@ -107,24 +117,6 @@ async function shareAnswer(turnId: string, packet: ChatAnswer, tier: RouterTier 
   });
 }
 
-function sourceUrlFromText(source: string): string | null {
-  const match = source.match(/https?:\/\/[^\s)>\]]+/i);
-  if (!match) return null;
-  return match[0].replace(/[.,;:]+$/, "");
-}
-
-function sourceLabel(source: string): string {
-  const url = sourceUrlFromText(source);
-  if (!url) return source;
-  try {
-    const host = new URL(url).hostname.replace(/^www\./, "");
-    const title = source.slice(0, source.indexOf(url)).replace(/\s+[^\w\s]\s*$/g, "").trim();
-    return title ? `${title} - ${host}` : host;
-  } catch {
-    return source;
-  }
-}
-
 interface ChatSurfaceProps {
   contextLabel?: string;
   workspaceDetail?: LiveArtifactDetail;
@@ -163,60 +155,6 @@ function restoredTurns(context: ConversationContextTurn[] | undefined, createdAt
     ...(turn.role === "user" ? { text: turn.text } : { markdown: turn.text }),
     createdAt: createdAt - ((context?.length ?? 0) - index) * 2,
   }));
-}
-
-function compactRunId(runId?: string): string | undefined {
-  if (!runId) return undefined;
-  if (runId.length <= 16) return runId;
-  return `${runId.slice(0, 6)}...${runId.slice(-6)}`;
-}
-
-function isBlockingClaimCheck(check: { status?: string; verified?: boolean; blocking?: boolean; verificationState?: string }): boolean {
-  return check.blocking === true || check.verificationState === "unsupported" || check.status === "source_validation_failed";
-}
-
-function sourceTrustBadge(row: {
-  verified?: boolean;
-  validationError?: string;
-  verificationState?: string;
-  verificationDetail?: string;
-}): { label: string; title: string; color: string } | null {
-  if (row.verified === true || row.verificationState === "verified") {
-    return {
-      label: "verified in source body",
-      title: row.verificationDetail ?? "Quote substring confirmed in source body.",
-      color: "var(--rd-green, #15803d)",
-    };
-  }
-  if (row.verificationState === "cached_reference") {
-    return {
-      label: "cached reference",
-      title: row.verificationDetail ?? "Cached memory/source-cache reference; no URL fetch was available.",
-      color: "var(--rd-amber, #b45309)",
-    };
-  }
-  if (row.verificationState === "fetch_blocked") {
-    return {
-      label: "fetch blocked",
-      title: row.verificationDetail ?? `Publisher fetch blocked post-hoc validation: ${row.validationError ?? "unknown reason"}`,
-      color: "var(--rd-amber, #b45309)",
-    };
-  }
-  if (row.verificationState === "provider_grounded") {
-    return {
-      label: "provider-grounded",
-      title: row.verificationDetail ?? "Search provider supplied the source, but the exact snippet was not found during post-hoc fetch.",
-      color: "var(--rd-amber, #b45309)",
-    };
-  }
-  if (row.verified === false || row.verificationState === "unsupported") {
-    return {
-      label: `unsupported (${row.validationError ?? "no_match"})`,
-      title: row.verificationDetail ?? `Source validation failed: ${row.validationError ?? "unknown reason"}`,
-      color: "var(--rd-red, #b91c1c)",
-    };
-  }
-  return null;
 }
 
 function buildLiveContextRef(detail: LiveArtifactDetail | null, artifactKey?: string | null): string | undefined {
@@ -281,44 +219,6 @@ function buildRunScopeSnapshot(args: {
   };
 }
 
-/**
- * Phase 7 — per-tool-card error boundary so a single ChatToolCall render
- * failure (bad tool name, malformed payload, etc.) doesn't crash the
- * whole AnswerPacket. Renders a quiet inline pill in the failed slot.
- */
-class ToolCallBoundary extends React.Component<
-  { children: ReactNode },
-  { hasError: boolean; message: string }
-> {
-  constructor(props: { children: ReactNode }) {
-    super(props);
-    this.state = { hasError: false, message: "" };
-  }
-  static getDerivedStateFromError(err: any) {
-    return { hasError: true, message: (err?.message || String(err)).slice(0, 80) };
-  }
-  componentDidCatch(err: any) {
-    // Surface to console for debugging but don't propagate
-    if (typeof console !== "undefined") {
-      console.warn("[ChatToolCall render error]", err);
-    }
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div
-          className="rd-card rd-card__pad-tight rd-mono"
-          role="status"
-          style={{ fontSize: 11, color: "var(--rd-amber, #b45309)", padding: "6px 10px" }}
-        >
-          ⚠ tool-call render error: {this.state.message}
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
 function BatchLiveBridge({ onBatch }: { onBatch: (batch: ActiveBatchRun | null) => void }) {
   const { batch } = useBatchLive();
   useEffect(() => {
@@ -379,62 +279,6 @@ ${reason}
 ${context}
 
 ${nextStep}`;
-}
-
-type ResearchTraceLike = { step: string; detail?: string; status?: string; tool?: string };
-
-const RESEARCH_STAGE_TEMPLATE: Array<{ id: ResearchStageId; label: string }> = [
-  { id: "understanding", label: "Understanding the prompt" },
-  { id: "entity", label: "Entity identification" },
-  { id: "memory", label: "Memory check" },
-  { id: "source_plan", label: "Source plan" },
-  { id: "official", label: "Official sources" },
-  { id: "news_web", label: "News / web" },
-  { id: "primary_reading", label: "Primary reading" },
-  { id: "claims", label: "Claims extraction" },
-  { id: "contradictions", label: "Contradictions check" },
-  { id: "graph", label: "Graph build" },
-  { id: "evidence_scoring", label: "Evidence scoring" },
-  { id: "memo_draft", label: "Memo drafting" },
-  { id: "citations", label: "Citations" },
-  { id: "vault_save", label: "Vault save" },
-];
-
-function buildResearchStages(trace: ResearchTraceLike[] = [], running = false): ResearchStage[] {
-  const patterns: Record<ResearchStageId, RegExp> = {
-    understanding: /understand|prompt|goal/,
-    entity: /entity|classif/,
-    memory: /memory|context|artifact/,
-    source_plan: /source plan|retrieval plan/,
-    official: /official source/,
-    news_web: /news|web search/,
-    primary_reading: /primary read|fetch/,
-    claims: /claim extract|claims/,
-    contradictions: /contradiction/,
-    graph: /graph/,
-    evidence_scoring: /evidence scor|verify/,
-    memo_draft: /memo draft|draft memo/,
-    citations: /citation/,
-    vault_save: /vault save|save vault/,
-  };
-
-  const grounded = RESEARCH_STAGE_TEMPLATE.flatMap((stage) => {
-    const matchingTrace = trace.find((item) =>
-      patterns[stage.id].test(`${item.step} ${item.detail ?? ""} ${item.tool ?? ""}`.toLowerCase()),
-    );
-    if (!matchingTrace) return [];
-    const status = matchingTrace.status?.toLowerCase();
-    if (status === "warn" || status === "error" || status === "failed") {
-      return [{ ...stage, state: "warning" as const, detail: matchingTrace.detail, tool: matchingTrace.tool, warning: "Agent step returned a warning" }];
-    }
-    if (status === "running" || status === "pending") {
-      return [{ ...stage, state: "running" as const, detail: matchingTrace.detail, tool: matchingTrace.tool }];
-    }
-    return [{ ...stage, state: "passed" as const, detail: matchingTrace.detail, tool: matchingTrace.tool }];
-  });
-
-  if (grounded.length > 0 || !running) return grounded;
-  return [{ ...RESEARCH_STAGE_TEMPLATE[0], state: "running", detail: "Waiting for the first runtime event" }];
 }
 
 function LaunchContextCard({
@@ -1050,17 +894,25 @@ export function ChatSurface({
         ) : (
           turns.map((t) => {
             const inner = (() => {
-              if (t.role === "user") return <UserBubble text={t.text!} createdAt={t.createdAt} />;
+              if (t.role === "user") return (
+                <Message from="user" className="rd-user-message">
+                  <UserBubble text={t.text!} createdAt={t.createdAt} />
+                </Message>
+              );
+              // Thinking turn — same Message frame as the answer; keeps the
+              // ember run-thread (LiveResearchChecklist .rd-run-thread) alive.
               if (t.thinking) return (
-                <div className="rd-stack" style={{ gap: 10 }}>
-                  <ChatThinking />
-                  <LiveResearchChecklist
-                    compact
-                    title="Live research run"
-                    stages={buildResearchStages(t.toolCalls ?? [], true)}
-                  />
-                  <RuntimeBoard runtime={t.packet?.runtime} />
-                </div>
+                <Message from="assistant" className="rd-chat-msg rd-chat-msg--assistant rd-chat-assistant">
+                  <MessageContent className="rd-chat-msg__body rd-answer-arrive rd-chat-assistant__content rd-stack" style={{ gap: 10 }}>
+                    <ChatThinking />
+                    <LiveResearchChecklist
+                      compact
+                      title="Live research run"
+                      stages={buildResearchStages(t.toolCalls ?? [], true)}
+                    />
+                    <RuntimeBoard runtime={t.packet?.runtime} />
+                  </MessageContent>
+                </Message>
               );
               if (t.markdown) return (
                 <StreamingAnswer
@@ -1073,7 +925,7 @@ export function ChatSurface({
                 />
               );
               return (
-                <AnswerPacket
+                <ChatAssistantMessage
                   packet={t.packet!}
                   tier={t.tier ?? "auto"}
                   toolCalls={t.toolCalls}
@@ -1081,7 +933,6 @@ export function ChatSurface({
                   workingNotesMarkdown={t.liveScratchpad}
                   createdAt={t.createdAt}
                   onRegenerate={(tierOverride) => regenerate(t.id, tierOverride)}
-                  onBranch={() => branchFromTurn(t.id)}
                   onPin={() => pinClaim(t.id, t.packet!, t.tier ?? "auto")}
                   onAddFollowUp={() => addFollowUp(t.id, t.packet!)}
                   onOpenReport={openCurrentReport}
@@ -1717,22 +1568,6 @@ function UserBubble({ text, createdAt }: { text: string; createdAt?: number }) {
   );
 }
 
-/** Live-updating relative timestamp ("just now" → "1m ago" → "5m ago"). */
-function LiveTime({ at }: { at: number }) {
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    const id = window.setInterval(() => setTick((t) => t + 1), 30_000);
-    return () => window.clearInterval(id);
-  }, []);
-  const delta = Date.now() - at;
-  const m = Math.floor(delta / 60_000);
-  if (m < 1) return <>just now</>;
-  if (m < 60) return <>{m}m ago</>;
-  const h = Math.floor(m / 60);
-  if (h < 24) return <>{h}h ago</>;
-  return <>{Math.floor(h / 24)}d ago</>;
-}
-
 /**
  * StreamingAnswer — chat-grade markdown response (parity-studio pattern).
  * Used for free-form follow-up answers that don't need the full structured packet.
@@ -1776,621 +1611,7 @@ function StreamingAnswer({
   );
 }
 
-function AnswerPacket({
-  packet,
-  tier,
-  toolCalls,
-  reportTitle,
-  workingNotesMarkdown,
-  createdAt,
-  onRegenerate,
-  onBranch,
-  onPin,
-  onAddFollowUp,
-  onOpenReport,
-  onCompare,
-  onShare,
-  onReact,
-  onProbeRunWithoutSource,
-}: {
-  packet: ChatAnswer;
-  tier: RouterTier;
-  toolCalls?: ToolCall[];
-  reportTitle?: string;
-  workingNotesMarkdown?: string;
-  createdAt?: number;
-  onRegenerate?: (tierOverride?: "free" | "fast" | "deep") => void;
-  onBranch?: () => void;
-  onPin?: () => void;
-  onAddFollowUp?: () => void;
-  onOpenReport?: () => void;
-  onCompare?: () => void;
-  onShare?: () => void;
-  /** Phase 5 — when set, the 👍/👎 buttons persist via recordReaction. */
-  onReact?: (kind: "up" | "down") => void;
-  /** Phase 5 — when set, "Probe without [N]" calls a real action that
-   *  re-runs the model with that source masked. The handler returns the
-   *  probedRunId so the AnswerPacket can swap into the probed answer. */
-  onProbeRunWithoutSource?: (maskedSourceIdx: number) => void;
-}) {
-  const tierMeta = DEFAULT_TIERS.find((t) => t.id === tier) ?? DEFAULT_TIERS[0];
-  const [hoverCite, setHoverCite] = useState<number | null>(null);
-  // Sprint 2 P0.3 — counterfactual probe state
-  const [maskedIdx, setMaskedIdx] = useState<number | null>(null);
-  const [traceOpen, setTraceOpen] = useState(false);
-  const traceRef = useRef<HTMLDetailsElement | null>(null);
-  const researchStages = buildResearchStages(toolCalls ?? packet.trace);
-  const isCompactResponse =
-    !packet.whyItMatters.trim() &&
-    packet.risks.length === 0 &&
-    !packet.nextAction.trim();
-
-  // Wire citation interactivity: hover [N] in body → highlight matching source row in evidence list
-  const handleCiteEnter = (idx: number) => setHoverCite(idx);
-  const handleCiteLeave = () => setHoverCite(null);
-  const probeWithoutSource = (idx: number) => {
-    // Phase 5 — if a real probe handler is wired (authenticated user with
-    // an active runId on this turn), call the real action.
-    if (onProbeRunWithoutSource) {
-      setMaskedIdx(idx);
-      showToast({
-        tone: "info",
-        message: `Re-running model without source [${idx}]…`,
-      });
-      onProbeRunWithoutSource(idx);
-      return;
-    }
-    showToast({
-      tone: "warning",
-      message: "Counterfactual probing is unavailable without an active runtime run.",
-    });
-  };
-  const restoreProbe = () => {
-    setMaskedIdx(null);
-    showToast({ tone: "success", message: "Source restored. Original answer in view." });
-  };
-  const showTrace = () => {
-    setTraceOpen(true);
-    window.setTimeout(() => {
-      traceRef.current?.scrollIntoView({ block: "nearest", behavior: "auto" });
-    }, 0);
-  };
-  return (
-    <div className="rd-chat-msg rd-chat-msg--assistant" data-hover-cite={hoverCite ?? undefined}>
-      {/* Avatar gutter — parity-studio bot icon pattern */}
-      <div className="rd-chat-msg__avatar" aria-hidden="true">✦</div>
-
-      <article className="rd-chat-msg__body rd-answer-arrive" style={{ padding: "var(--rd-s-2) var(--rd-s-3)", display: "flex", flexDirection: "column", gap: "var(--rd-s-2)", background: "var(--rd-paper-warm)", borderRadius: "var(--rd-r-md)", borderBottomLeftRadius: 4 }}>
-        <div className="rd-agent-lead">{packet.shortAnswer.length > 60 ? "Research complete" : "NodeBench"}</div>
-        <header className="rd-chat-msg__header" style={{ fontSize: 10, color: "var(--rd-ink-faint)" }}>
-          <span>{tierMeta.label}</span>
-          <span>·</span>
-          <span>{packet.sourceCount} sources</span>
-          <span>·</span>
-          <span>{formatTraceTelemetry(packet)}</span>
-          {createdAt && <span className="rd-chat-msg__when"><LiveTime at={createdAt} /></span>}
-        </header>
-
-        {/* Status strip — tool badges (home-v3 parity) */}
-        <div className="rd-tool-badges">
-          {reportTitle && <span className="rd-tool-badge">{reportTitle}</span>}
-          {typeof packet.runtime?.metrics?.memoryHitRate === "number" && (
-            <span className="rd-tool-badge">{Math.round(packet.runtime.metrics.memoryHitRate * 100)}% memory hit</span>
-          )}
-          {typeof packet.paidCalls === "number" && (
-            <span className="rd-tool-badge">{packet.paidCalls} external refresh{packet.paidCalls === 1 ? "" : "es"}</span>
-          )}
-        </div>
-
-        {researchStages.length > 0 && (
-          <LiveResearchChecklist compact title="Research run" stages={researchStages} />
-        )}
-        <RuntimeBoard runtime={packet.runtime} />
-
-        {/* Inline tool-call cards (parity-studio pattern) — render the agent's actual reasoning.
-            Phase 7 — each card wrapped in an error boundary so one failed
-            card render doesn't crash the entire AnswerPacket. */}
-        {toolCalls && toolCalls.length > 0 && (
-          <div className="rd-toolcall-list">
-            {toolCalls.map((c, i) => (
-              <ToolCallBoundary key={i}>
-                <ChatToolCall call={c} />
-              </ToolCallBoundary>
-            ))}
-          </div>
-        )}
-
-        {/* Scratchpad is runtime-derived. No notes render when the run emitted none. */}
-        {workingNotesMarkdown && <WorkingNotes markdown={workingNotesMarkdown} />}
-
-        {/* Sprint 2 P0.3 — counterfactual probe banner (visible when a source is masked) */}
-        {maskedIdx !== null && (
-          <ProbeBanner idx={maskedIdx} onRestore={restoreProbe} />
-        )}
-
-      {/* Short answer — citations clickable + hover-linked to evidence list.
-          JSON/table shapes render as a monospace block: citations never live
-          inside structured bodies (the shape instruction forbids them). */}
-      <section>
-        <div className="rd-eyebrow" style={{ marginBottom: 6 }}>Short answer</div>
-        {isStructuredAnswer(packet.shortAnswer) ? (
-          <pre className="rd-answer-structured">{packet.shortAnswer}</pre>
-        ) : (
-          <TooltipProvider delayDuration={180}>
-            <p className="rd-answer-copy">
-              {renderInlineWithCites(packet.shortAnswer, packet.evidence, handleCiteEnter, handleCiteLeave, onProbeRunWithoutSource ? probeWithoutSource : undefined, maskedIdx)}
-            </p>
-          </TooltipProvider>
-        )}
-      </section>
-
-      {/* Compact response shapes intentionally omit memo-only sections. */}
-      {packet.whyItMatters.trim() && (
-        <section>
-          <div className="rd-eyebrow" style={{ marginBottom: 6 }}>Why useful</div>
-          <p className="rd-body" style={{ color: "var(--rd-ink-mute)", margin: 0 }}>{packet.whyItMatters}</p>
-        </section>
-      )}
-
-      {/* Evidence — rows highlight when matching [N] in body is hovered */}
-      {!isCompactResponse && packet.evidence.length > 0 && <section>
-        <div className="rd-eyebrow" style={{ marginBottom: 8 }}>Evidence ({packet.evidence.length})</div>
-        <ol className="rd-stack" style={{ gap: 8, listStyle: "none", padding: 0, margin: 0 }}>
-          {packet.evidence.map((e) => {
-            const trustBadge = sourceTrustBadge(e);
-            return (
-            <li
-              key={e.idx}
-              className="rd-evidence-row rd-card rd-card__pad-tight"
-              data-cite={e.idx}
-              data-active={hoverCite === e.idx || undefined}
-              data-masked={maskedIdx === e.idx || undefined}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "auto 1fr auto",
-                gap: 10,
-                alignItems: "start",
-                borderRadius: "var(--rd-r-sm)",
-              }}
-              onMouseEnter={() => handleCiteEnter(e.idx)}
-              onMouseLeave={handleCiteLeave}
-            >
-              <span className="rd-cite rd-cite--block" data-cite={e.idx}>[{e.idx}]</span>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
-                <p className="rd-body" style={{ margin: 0, fontSize: 13 }}>{e.quote}</p>
-                {trustBadge && (
-                  <span
-                    className="rd-mono"
-                    title={trustBadge.title}
-                    style={{ fontSize: 10, color: trustBadge.color, display: "inline-flex", alignItems: "center", gap: 4 }}
-                  >
-                    {e.verified === true ? "ok" : e.blocking ? "blocked" : "warn"} - {trustBadge.label}
-                  </span>
-                )}
-              </div>
-              {sourceUrlFromText(e.source) ? (
-                <a
-                  className="rd-mono"
-                  href={sourceUrlFromText(e.source) ?? undefined}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ fontSize: 10.5, color: "var(--rd-accent-strong)", textDecoration: "none", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                >
-                  {sourceLabel(e.source)}
-                </a>
-              ) : (
-                <span className="rd-mono" style={{ fontSize: 10.5, color: "var(--rd-ink-soft)" }}>{e.source}</span>
-              )}
-            </li>
-            );
-          })}
-        </ol>
-      </section>}
-
-      {/* Risks / unknowns */}
-      {packet.risks.length > 0 && <section>
-        <div className="rd-eyebrow" style={{ marginBottom: 8 }}>Risks / unknowns</div>
-        <ul className="rd-stack" style={{ gap: 6, listStyle: "none", padding: 0, margin: 0 }}>
-          {packet.risks.map((r, i) => (
-            <li key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13 }}>
-              <span className="rd-dot rd-dot--review" style={{ marginTop: 6, flexShrink: 0 }} />
-              <span style={{ color: "var(--rd-ink-mute)" }}>{r}</span>
-            </li>
-          ))}
-        </ul>
-      </section>}
-
-      {/* Next action */}
-      {packet.nextAction.trim() && <section className="rd-card" style={{
-        padding: 14,
-        background: "var(--rd-accent-tint)",
-        borderColor: "var(--rd-accent-ring)",
-        borderRadius: "var(--rd-r-sm)",
-      }}>
-        <div className="rd-eyebrow" style={{ color: "var(--rd-accent-strong)", marginBottom: 4 }}>Next action</div>
-        <p className="rd-body" style={{ margin: 0, color: "var(--rd-ink)" }}>{packet.nextAction}</p>
-        <div className="rd-action-chips" style={{ marginTop: 10 }}>
-          <button type="button" className="rd-action-chip rd-action-chip--primary" onClick={onAddFollowUp}>Add to follow-ups</button>
-          <button type="button" className="rd-action-chip" onClick={onOpenReport}>Open {reportTitle ?? "report"}</button>
-          <button type="button" className="rd-action-chip" onClick={onShare}>Export memo</button>
-        </div>
-      </section>}
-
-      {/* Trace */}
-      <details ref={traceRef} open={traceOpen} onToggle={(e) => setTraceOpen((e.currentTarget as HTMLDetailsElement).open)}>
-        <summary className="rd-eyebrow" style={{ cursor: "pointer", listStyle: "none", display: "flex", alignItems: "center", gap: 6 }}>
-          <span>How we got this answer</span>
-          <span className="rd-mono" style={{ fontSize: 10, color: "var(--rd-ink-soft)" }}>{packet.trace.length} steps</span>
-        </summary>
-        <ol className="rd-stack" style={{ marginTop: 10, gap: 4, listStyle: "none", padding: 0 }}>
-          {packet.trace.map((step, i) => (
-            <li key={i} className="rd-row" style={{ gap: 12, fontSize: 12, padding: "6px 8px" }}>
-              <span className="rd-mono" style={{ width: 24, color: "var(--rd-ink-soft)" }}>{String(i + 1).padStart(2, "0")}</span>
-              <span className={`rd-dot rd-dot--${step.status === "ok" ? "live" : step.status === "warn" ? "review" : "watch"}`} />
-              <span style={{ flex: 1, color: "var(--rd-ink)" }}>
-                <strong style={{ fontWeight: 590 }}>{step.step}.</strong>{" "}
-                <span style={{ color: "var(--rd-ink-mute)" }}>{step.detail}</span>
-              </span>
-              <span className="rd-mono" style={{ color: "var(--rd-ink-soft)", fontSize: 10.5 }}>
-                {step.durationMs ? `${step.durationMs}ms` : "—"}
-              </span>
-            </li>
-          ))}
-        </ol>
-      </details>
-
-      {/* Minimal feedback row (home-v3 parity) */}
-      <div className="rd-feedback" role="toolbar" aria-label="Feedback">
-        <FeedbackButton copyText={packet.shortAnswer + "\n\n" + packet.whyItMatters} />
-        <FeedbackThumb kind="up" />
-        <FeedbackThumb kind="down" onRegenerate={onRegenerate} />
-      </div>
-      </article>
-
-    </div>
-  );
-}
-
-/**
- * Sprint 2 P0.2 — collapsible "Working notes" preview of the agent's scratchpad.
- *
- * Mirrors the `agentScratchpads` Convex table shape (per `.claude/rules/scratchpad_first.md`).
- * Once chat is live-wired, this becomes a `useScratchpadLive(runId)` subscription.
- * Today: fixture-driven preview that bridges the gap between thinking dots
- * and the structured AnswerPacket.
- */
-function WorkingNotes({ markdown }: { markdown: string }) {
-  const [open, setOpen] = useState(false);
-  const lineCount = useMemo(() => markdown.split("\n").filter((l) => l.trim()).length, [markdown]);
-  return (
-    <details
-      className="rd-working-notes"
-      open={open}
-      onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
-    >
-      <summary className="rd-working-notes__summary">
-        <span className="rd-eyebrow rd-working-notes__eyebrow">Working notes</span>
-        <span className="rd-working-notes__count">{lineCount} lines</span>
-        <span className="rd-working-notes__chevron" aria-hidden="true">{open ? "▾" : "▸"}</span>
-      </summary>
-      <div className="rd-working-notes__body">
-        {markdown.split("\n").map((line, i) => {
-          if (!line.trim()) return <span key={i} className="rd-working-notes__br" />;
-          if (line.startsWith("**") && line.endsWith("**")) {
-            return (
-              <div key={i} className="rd-working-notes__heading">{line.replace(/\*\*/g, "")}</div>
-            );
-          }
-          return <div key={i} className="rd-working-notes__line">{line}</div>;
-        })}
-      </div>
-    </details>
-  );
-}
-
-/**
- * Sprint 2 P0.3 — counterfactual probe banner shown when a source is masked.
- * The full feature would re-run the model with that source filtered out and
- * diff the answers; today we surface the affordance + a degradation note.
- */
-function RuntimeBoard({ runtime }: { runtime?: ChatAnswer["runtime"] }) {
-  const contextCandidates = runtime?.contextCandidates ?? [];
-  const toolDecisions = runtime?.toolDecisions ?? [];
-  const claimChecks = runtime?.claimChecks ?? [];
-  const metrics = runtime?.metrics;
-  const contextPacket = runtime?.contextPacket;
-  const liveGroundingDecision = runtime?.liveGroundingDecision;
-  const boardState = runtime?.boardState ?? {};
-  if (contextCandidates.length === 0 && toolDecisions.length === 0 && claimChecks.length === 0 && !metrics && !contextPacket) {
-    return null;
-  }
-  const goal = typeof boardState.goal === "string" ? boardState.goal.replace(/_/g, " ") : "answer with cited research";
-  const entity = typeof boardState.entity === "string" ? boardState.entity : "no entity locked";
-  const targetReport = typeof boardState.targetReport === "string" ? boardState.targetReport : "no report selected";
-  return (
-    <details className="rd-runtime-board" data-testid="chat-runtime-board" open>
-      <summary className="rd-runtime-board__summary">
-        <span>
-          <span className="rd-eyebrow">Runtime board</span>
-          <span className="rd-runtime-board__title">{goal}</span>
-        </span>
-        <span className="rd-runtime-board__meta">
-          {contextCandidates.length} context · {toolDecisions.length} decisions · {claimChecks.length} checks
-        </span>
-      </summary>
-      <div className="rd-runtime-board__body">
-        <div className="rd-runtime-board__strip">
-          <RuntimeMetric label="Entity" value={entity} />
-          <RuntimeMetric label="Target" value={targetReport} />
-          <RuntimeMetric label="Cost" value={formatUsd(metrics?.estimatedCostUsd)} />
-          <RuntimeMetric label="Tokens" value={typeof metrics?.totalTokens === "number" ? metrics.totalTokens.toLocaleString() : "pending"} />
-          <RuntimeMetric label="Latency" value={formatMs(metrics?.totalLatencyMs ?? metrics?.timeToFinalMs)} />
-          <RuntimeMetric label="Model" value={metrics?.model ?? "pending"} />
-          <RuntimeMetric label="Provider" value={metrics?.provider ?? "pending"} />
-          <RuntimeMetric label="Receipt" value={compactRunId(metrics?.runtimeReceiptId) ?? "pending"} />
-          <RuntimeMetric label="Memory hit" value={formatPct(metrics?.memoryHitRate)} />
-          <RuntimeMetric label="Live search" value={liveGroundingDecision ? liveGroundingDecision.useLiveGrounding ? "on" : "skipped" : `${metrics?.liveSearchCalls ?? 0}`} />
-        </div>
-        {contextPacket && (
-          <section className="rd-runtime-table">
-            <div className="rd-runtime-table__title">Context runtime packet</div>
-            <div className="rd-runtime-table__rows">
-              <div className="rd-runtime-row">
-                <span className="rd-runtime-row__status" data-status={contextPacket.hasContext ? "selected" : "blocked"}>
-                  {contextPacket.hasContext ? "resolved" : "unresolved"}
-                </span>
-                <span className="rd-runtime-row__main">{contextPacket.title}</span>
-                <span className="rd-runtime-row__detail">
-                  {contextPacket.graph.nodeCount} nodes · {contextPacket.sourceRefs.length} sources · {contextPacket.verification.tier}
-                </span>
-              </div>
-              {contextPacket.graph.clusters.slice(0, 4).map((cluster) => (
-                <div key={cluster.name} className="rd-runtime-row">
-                  <span className="rd-runtime-row__status" data-status={cluster.name === "blocked" && cluster.count > 0 ? "blocked" : "complete"}>
-                    {cluster.name}
-                  </span>
-                  <span className="rd-runtime-row__main">{cluster.count} item{cluster.count === 1 ? "" : "s"}</span>
-                  <span className="rd-runtime-row__detail">{cluster.sample.join(" · ") || "No sample in packet."}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-        <RuntimeArtifactTable title="Context candidates" rows={contextCandidates} />
-        <RuntimeArtifactTable title="Tool decisions" rows={toolDecisions} />
-        {claimChecks.length > 0 && (
-          <section className="rd-runtime-table">
-            <div className="rd-runtime-table__title">Claim checks</div>
-            <div className="rd-runtime-table__rows">
-              {claimChecks.slice(0, 6).map((row, index) => (
-                <div key={`${row.idx}-${row.status}-${index}`} className="rd-runtime-row">
-                  <span className="rd-runtime-row__status" data-status={isBlockingClaimCheck(row) ? "blocked" : row.verified === false ? "warning" : row.status}>{row.status}</span>
-                  <span className="rd-runtime-row__main">Source [{row.idx}]</span>
-                  <span className="rd-runtime-row__detail">{row.verificationDetail ?? row.validationError ?? row.detail ?? row.method ?? "verification queued"}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-      </div>
-    </details>
-  );
-}
-
-function RuntimeArtifactTable({ title, rows }: { title: string; rows: NonNullable<ChatAnswer["runtime"]>["contextCandidates"] }) {
-  if (!rows || rows.length === 0) return null;
-  return (
-    <section className="rd-runtime-table">
-      <div className="rd-runtime-table__title">{title}</div>
-      <div className="rd-runtime-table__rows">
-        {rows.map((row) => (
-          <div key={row.id} className="rd-runtime-row">
-            <span className="rd-runtime-row__status" data-status={row.status}>{row.status}</span>
-            <span className="rd-runtime-row__main">{row.label}</span>
-            <span className="rd-runtime-row__detail">
-              {row.confidence !== undefined ? `${Math.round(row.confidence * 100)}% · ` : ""}
-              {row.riskTier ? `${row.riskTier} risk · ` : ""}
-              {row.detail}
-            </span>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function RuntimeMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <span className="rd-runtime-metric">
-      <span className="rd-runtime-metric__label">{label}</span>
-      <span className="rd-runtime-metric__value">{value}</span>
-    </span>
-  );
-}
-
-function ProbeBanner({ idx, onRestore }: { idx: number; onRestore: () => void }) {
-  return (
-    <div className="rd-probe-banner" role="status" aria-live="polite">
-      <span className="rd-probe-banner__icon" aria-hidden="true">🔬</span>
-      <div className="rd-stack" style={{ gap: 2, flex: 1, minWidth: 0 }}>
-        <span className="rd-probe-banner__title">
-          Probing without source [{idx}]
-        </span>
-        <span className="rd-probe-banner__detail">
-          Re-running without this source. Awaiting a verified result from the active runtime.
-        </span>
-      </div>
-      <button type="button" className="rd-btn rd-btn--quiet rd-btn--sm" onClick={onRestore}>
-        Restore
-      </button>
-    </div>
-  );
-}
-
-/** Runtime telemetry only; missing cost data is never inferred from duration. */
-function formatTraceTelemetry(packet: ChatAnswer): string {
-  if (packet.runtime?.metrics) {
-    const metrics = packet.runtime.metrics;
-    return `${formatMs(metrics.totalLatencyMs ?? metrics.timeToFinalMs)} · ${formatUsd(metrics.estimatedCostUsd)}`;
-  }
-  const recordedDurations = packet.trace
-    .map((step) => step.durationMs)
-    .filter((duration): duration is number => typeof duration === "number" && Number.isFinite(duration));
-  if (recordedDurations.length === 0) return "telemetry not recorded";
-  const totalMs = recordedDurations.reduce((sum, duration) => sum + duration, 0);
-  return `${formatMs(totalMs)} · cost not recorded`;
-}
-
-function formatUsd(value: number | undefined): string {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "pending";
-  return value >= 0.01 ? `$${value.toFixed(3)}` : "<$0.01";
-}
-
-function formatMs(value: number | null | undefined): string {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "pending";
-  return value < 1000 ? `${Math.round(value)}ms` : `${(value / 1000).toFixed(1)}s`;
-}
-
-function formatPct(value: number | undefined): string {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "pending";
-  return `${Math.round(value * 100)}%`;
-}
-
-/**
- * Render text with [N] citation patterns turned into interactive chips.
- *
- * Hover uses the shared Radix tooltip and right-click uses the shared Radix
- * context menu, keeping positioning, dismissal, and keyboard focus primitive-owned.
- * Hovering a [N] also fires the linkage handler so the evidence row highlights.
- */
-function renderInlineWithCites(
-  text: string,
-  evidence: ChatAnswer["evidence"],
-  onEnter: (idx: number) => void,
-  onLeave: () => void,
-  onProbe?: (idx: number) => void,
-  maskedIdx?: number | null,
-): ReactNode[] {
-  const re = /\[(\d+)\]/g;
-  const out: ReactNode[] = [];
-  let last = 0;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(text))) {
-    const idx = Number(m[1]);
-    const cite = evidence.find((e) => e.idx === idx);
-    if (!cite) continue;
-    const sourceUrl = sourceUrlFromText(cite.source);
-    if (m.index > last) out.push(<span key={`t${last}`}>{text.slice(last, m.index)}</span>);
-    out.push(
-      <ContextMenu key={`c${m.index}`}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <ContextMenuTrigger asChild>
-              <a
-                href={sourceUrl ?? `#cite-${idx}`}
-                className="rd-cite"
-                data-cite={idx}
-                data-masked={maskedIdx === idx || undefined}
-                title={onProbe ? "Right-click to probe without this source" : undefined}
-                onMouseEnter={() => onEnter(idx)}
-                onMouseLeave={onLeave}
-                onFocus={() => onEnter(idx)}
-                onBlur={onLeave}
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (sourceUrl) {
-                    window.open(sourceUrl, "_blank", "noopener,noreferrer");
-                    return;
-                  }
-                  const target = document.querySelector(`.rd-evidence-row[data-cite="${idx}"]`);
-                  target?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-                }}
-              >{idx}</a>
-            </ContextMenuTrigger>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-xs bg-[var(--rd-ink)] text-[var(--rd-paper)]">
-            <span className="block">&ldquo;{cite.quote}&rdquo;</span>
-            <span className="mt-1 block opacity-70">{sourceLabel(cite.source)}</span>
-          </TooltipContent>
-        </Tooltip>
-        <ContextMenuContent
-          className="rd-cite-menu min-w-[260px] bg-[var(--rd-paper)] text-[var(--rd-ink)]"
-          portalContainer={typeof document !== "undefined" ? document.querySelector<HTMLElement>("[data-redesign]") : null}
-        >
-          {onProbe ? (
-            <ContextMenuItem className="rd-cite-menu__item" onSelect={() => onProbe(idx)}>
-              <span aria-hidden="true">🔬</span>
-              <span>Probe without source [{idx}]</span>
-              <span className="rd-cite-menu__hint">re-eval the answer if this source were absent</span>
-            </ContextMenuItem>
-          ) : null}
-          <ContextMenuItem
-            className="rd-cite-menu__item"
-            onSelect={() => {
-              const target = document.querySelector(`.rd-evidence-row[data-cite="${idx}"]`);
-              target?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-            }}
-          >
-            <span aria-hidden="true">↓</span>
-            <span>Jump to evidence row</span>
-          </ContextMenuItem>
-        </ContextMenuContent>
-      </ContextMenu>,
-    );
-    last = m.index + m[0].length;
-  }
-  if (last < text.length) out.push(<span key={`tail`}>{text.slice(last)}</span>);
-  return out.length > 0 ? out : [text];
-}
-
-function FeedbackButton({ copyText }: { copyText: string }) {
-  const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(copyText);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1200);
-    } catch { /* sandbox may block */ }
-  };
-  return (
-    <button
-      type="button"
-      className="rd-fb-btn"
-      onClick={copy}
-      title="Copy"
-      aria-label="Copy message"
-    >{copied ? "✓" : "⎘"}</button>
-  );
-}
-
-function FeedbackThumb({ kind, onRegenerate }: { kind: "up" | "down"; onRegenerate?: (tier?: "free" | "fast" | "deep") => void }) {
-  const [active, setActive] = useState(false);
-  return (
-    <button
-      type="button"
-      className="rd-fb-btn"
-      data-active={active || undefined}
-      onClick={() => {
-        setActive((v) => !v);
-        if (kind === "down" && onRegenerate) onRegenerate();
-      }}
-      title={kind === "up" ? "Helpful" : "Not helpful"}
-      aria-label={kind === "up" ? "Thumbs up" : "Thumbs down"}
-      aria-pressed={active}
-    >{kind === "up" ? "△" : "▽"}</button>
-  );
-}
-
-function SystemEvent({ icon, text, time }: { icon: string; text: string; time?: string }) {
-  return (
-    <div className="rd-system-event">
-      <div className="rd-system-event__line">
-        <div className="rd-system-event__body">
-          <span className="rd-system-event__icon">{icon}</span>
-          <span>{text}</span>
-          {time && <time>{time}</time>}
-        </div>
-      </div>
-    </div>
-  );
-}
+// AnswerPacket, RuntimeBoard, renderInlineWithCites, and their helpers now live
+// in ../components/ChatAssistantMessage — the single prose-led answer anatomy
+// rendered by both this surface and ReproducibleChatPage (Phase A of
+// docs/design/ONE_CHAT_INTERFACE.md).
