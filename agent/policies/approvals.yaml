@@ -1,0 +1,21 @@
+# Human-approval gates. Source: goals/HARD_GATES.md + .claude/rules
+# (self_improvement_loop, backend_contract_migration). Enforced by process +
+# CI branch protection today, not by a runtime policy engine.
+apiVersion: nodeagent.dev/v1
+kind: Policy
+metadata: { name: approvals }
+spec:
+  human_required:
+    - production_deploy # CI-gated PR merge only; never out-of-band convex deploy
+    - destructive_migration
+    - auth_changes
+    - billing_changes
+    - permission_rule_changes # public/private visibility rules
+    - data_deletion
+    - legal_privacy_copy
+    - external_publish # LinkedIn posts, public submissions
+    - secrets_management
+  automatic:
+    - research_and_docs
+    - additive_schema_fields # must be v.optional and announced (AGENT_COORDINATION.md)
+    - ci_gated_pr_merge # gh pr merge --auto --squash

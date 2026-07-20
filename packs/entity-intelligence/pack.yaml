@@ -1,0 +1,35 @@
+# Entity-intelligence capability pack — phase 0 declaration.
+# Declares the capability where it LIVES; extraction into a portable pack
+# directory is a later phase (mirrors the NodeSlide layering decision).
+apiVersion: nodeagent.dev/v1
+kind: CapabilityPack
+
+metadata:
+  name: entity-intelligence
+  version: 0.1.0
+  description: >
+    Company/market/question intelligence: sourced synthesis, 8-section entity
+    workspace, diligence blocks, daily brief + narrative workflows, forecasting,
+    reusable run receipts, change watching.
+
+spec:
+  locations: # current sources of truth (not yet extracted)
+    tools:
+      - packages/mcp-local/src/tools # enrichment, web, memory, deep-sim domains
+    orchestration:
+      - convex/domains/redesign/chatRuns.ts # run pipeline + response policy
+      - convex/workflows # dailyLinkedInPost, narrative
+    validators:
+      - server/routes/search.ts # 4-layer grounding (confidence, isGrounded, citations)
+      - server/pipeline # diligence judge, 10-gate catalog
+    artifacts:
+      - convex/domains/redesign # chat runs as receipts (mintShowcaseRun)
+      - docs/design/ui-contract # UI evidence manifests
+    renderers:
+      - src/features/redesign/components/ChatAssistantMessage.tsx # THE canonical answer
+  evals:
+    benchmark: packages/mcp-local/src/benchmarks/searchQualityEval.ts # 103 queries, 18 categories
+    conformance: tests/e2e/ui-contract-runner.spec.ts
+    production: scripts/verify-live.ts
+  fixtures:
+    deterministic: true # demo conversations + QA answer seed (?qaState=answer)
