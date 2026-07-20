@@ -1,75 +1,100 @@
 # NodeBench × NodeKit Standard Repo Tree
 
-Status: **Phase 0 adopted** (declarative — manifests + authored surface, zero
-file moves). This doc is the mapping between the NodeKit Agent Application
-Standard tree and where each concern lives in this repo, plus the staged plan
-for physical conformance.
+Status: **Phase 2 physically migrated; brownfield L2 mapped and compiled.**
+
+PR #589 added the initial authored surface and planning-era manifests. PR #590
+moved the product into the standard physical tree. The contract-alignment pass
+migrates those manifests to the canonical flat v1 dialect, binds the existing
+evaluation lanes, and generates the secret-free `.nodeagent/` projection. It
+does not replace the production runtime or change application behavior.
 
 Prior art: NodeKit Agent Application Standard (node-platform); Eve
-filesystem-first authoring (`apps/eve-agent/agent/`); 2026-07-19 harness audit
-of eve / NodeAgent / NodeRoom.
+filesystem-first authoring; the 2026-07-19 ecosystem harness audit.
 
-## Phase 0 (this PR) — declarative adoption
+## Current standard surface
 
-Added, all additive and runtime-inert:
-
+```text
+nodekit.yaml                         canonical repository contract
+nodeagent.yaml                       canonical application composition
+agent/                               filesystem-authored brownfield projection
+packs/entity-intelligence/
+├── pack.yaml                        logical capability ownership
+└── SKILL.md                         usage contract and live-source map
+apps/web/                            Vite application
+backend/convex/                      Convex functions and durable state
+workers/node/                        Node workers, routes, pipeline, voice
+evals/                               tests plus canonical evaluation bindings
+proof/ui-contract/                   UI contracts and captured evidence
+adw/                                 improvement workflows and goal governance
+.nodeagent/                           compiler-owned resolved definition and hash
 ```
-nodekit.yaml                      repo identity, ownership, lifecycle, layout map, honest conformance flags
-nodeagent.yaml                    app composition: authoring dir, runtime, backend, pack, required evals
-agent/                            authored surface (md/yaml only; code stays source of truth)
-├── README.md                     phase-0 rules — no fake compiled output, Source: pointers mandatory
-├── instructions.md               orchestrator instructions (mirrors chatRuns.ts)
-├── policies/{approvals,egress,budgets}.yaml
-├── subagents/README.md           index → convex/domains/agents orchestrator-workers
-└── tools/README.md               index → packages/mcp-local (304 tools) + verb-taxonomy map
-packs/entity-intelligence/pack.yaml   capability declared at current locations
-```
 
-Explicit non-goals of phase 0: no `.nodeagent/` (no compiler exists — we do not
-fake generated output), no `.ts` under `agent/` (tsconfig excludes it; nothing
-may import it), no file moves.
+The root `public/`, `api/`, environment files, and build output intentionally
+remain at repository root. NodeBench-specific packages such as
+`packages/mcp-local` remain first-class distribution artifacts.
 
-## Full mapping (standard slot → today)
+## Mapping and authority
 
-Legend: `✓` conformant · `◐` exists at non-standard location · `✗` missing
+Legend: `✓` standard location · `◐` mapped but not yet runtime-authoritative ·
+`✗` missing.
 
-| Standard | State | Today |
+| Standard concern | State | Current authority |
 |---|---|---|
-| `nodekit.yaml` / `nodeagent.yaml` | ✓ (phase 0) | repo root |
-| `AGENTS.md`, `README.md`, `components.json` | ✓ | repo root |
-| `.claude/` agents·skills·rules | ✓ | richest in the family |
-| `agent/` authored surface | ◐ | phase-0 mirror; truth in `convex/domains/redesign/chatRuns.ts`, `convex/domains/agents/**`, `server/pipeline/**` |
-| `packs/` | ◐ | `packs/entity-intelligence/pack.yaml` declares content spread across convex/, packages/, server/ |
-| `integrations/pi-ai` | ✗ | provider seam = `shared/llm/modelCatalog.ts` direct |
-| `apps/web/src` | ◐ | `src/` at root (Vite root) |
-| `backend/convex` | ◐ | `convex/` at root (Convex CLI default) |
-| `evals/{benchmark,conformance,production,smoke}` | ◐ | `packages/mcp-local/src/benchmarks`, `tests/e2e`, `scripts/verify-live.ts`, dogfood scripts |
-| `proof/` | ◐ | `docs/design/ui-contract/` (evidence folders + `manifest.schema.json`) |
-| `adw/` | ◐ | `scripts/improvement-loop/` + `goals/` (+ `HARD_GATES.md`) |
-| `fixtures/` | ◐ | spread through test dirs; deterministic fixtures exist |
-| `workers/` | ◐ | `server/` (voice, gateway) |
-| `.nodeagent/` generated | ✗ | blocked on the manifest compiler (deliberate) |
-| `packages/mcp-local` etc. | ★ keep | NodeBench-specific distribution artifact; standard-compatible |
+| Repository and application manifests | ✓ | flat `nodekit.repo/v1` and `nodeagent.application/v1` files at root |
+| Web application | ✓ | `apps/web/` |
+| Production backend | ✓ | `backend/convex/`; `convex.json` points to it |
+| Node workers | ✓ | `workers/node/` |
+| Evaluation tree | ✓ | `evals/`, with four top-level NodeAgent binding files |
+| Proof tree | ✓ | `proof/ui-contract/` plus other proof artifacts |
+| ADW tree | ✓ | `adw/improvement-loop/` and `adw/goals/` |
+| Authored agent surface | ◐ | `agent/` mirrors runtime truth in `backend/convex/domains/redesign/chatRuns.ts`, `backend/convex/domains/agents/**`, and `workers/node/pipeline/**` |
+| Entity-intelligence pack | ◐ | logical pack at `packs/entity-intelligence/`; implementations remain in backend, workers, web, and `packages/mcp-local` |
+| Deterministic fixtures | ◐ | primarily `evals/fixtures/` and package-local fixture directories |
+| Compiled application definition | ✓ | `.nodeagent/`, generated by NodeKit and not hand-edited |
+| Pi AI provider adapter | ✗ | live product path uses direct Gemini REST; Pi adoption remains separate work |
+| Canonical runtime consumption | ✗ | production still runs `repo-local-nodebench` |
 
-## Known conformance violations (declared, not hidden)
+## Brownfield conformance level
 
-1. **Repo-local runtime** — this repo's harness predates NodeAgent and is a
-   *migration source*, not a vendored copy (`forbidVendoredRuntime: false`).
-   Flips after the ecosystem phase-2 extraction (NodeRoom runtime → NodeAgent)
-   and this repo consumes `@nodeagent/runtime`.
-2. **Hand-maintained global tool registry** (`toolRegistry.ts`) — standard
-   rule 4; resolved by the generated-registry compiler, not by hand.
-3. **modelCatalog duplication** — copies exist in NodeRoom and NodeAgent;
-   resolved by `@nodeagent/providers` extraction.
+Current level: **L2 — mapped and compiled**.
 
-## Physical phases (each gated, none started)
+- **L1 registered:** the repository contract validates against the platform
+  catalog.
+- **L2 mapped:** application, provider, backend, pack, policies, and existing
+  evaluation commands resolve into one secret-free config hash.
+- **L3 wrapped remains:** the existing runtime must emit canonical NodeAgent
+  events, traces, and ProofLoop receipts through an adapter.
+- **L4 shadowed remains:** the canonical runtime must execute frozen fixtures
+  without writes and be compared with the existing production path.
+- **L5 hybrid through L7 enforced remain:** promote one proven workflow at a
+  time, retire the legacy route only after parity, then block new protocol forks.
 
-| Phase | Move | Constraint to respect |
+The compiler hash covers the manifests and discovered authored roots. It does
+not, by itself, prove that production and benchmark executed the same runtime.
+
+## Known gaps, declared rather than hidden
+
+1. **Repo-local runtime:** NodeBench's mature harness remains the migration
+   source. `nodeagent-native` is the target, not a current fact.
+2. **Manual tool registry:** `packages/mcp-local/src/toolRegistry.ts` remains
+   hand-maintained; generated registry authority is future work.
+3. **Compiled/runtime split:** `.nodeagent/` is valid compiler output, but the
+   production job path does not consume it yet.
+4. **Provider portability:** the current product path uses direct Gemini REST;
+   Pi AI and other provider adapters must be added behind the runtime boundary.
+5. **Canonical proof receipt:** existing verification evidence is real, but no
+   `proofloop.receipt/v1` schema is claimed in `nodekit.yaml` yet.
+
+## Next migration gates
+
+| Gate | Change | Proof required |
 |---|---|---|
-| 1 | `evals/`, `proof/`, `fixtures/`, `adw/` consolidation | script/CI path updates only — low risk, do first |
-| 2 | `src/` → `apps/web/src`; `convex/` → `backend/convex` | Vite root + Vercel config + tsconfig paths + `convex.json` functions path; import churn across hundreds of files; MUST follow expand-contract discipline and land between deploys |
-| 3 | `agent/` becomes compiled truth; `.nodeagent/` generated | blocked on `@nodeagent` manifest compiler |
-| 4 | pack extraction (`packs/entity-intelligence` gains real content) | mirrors NodeSlide layering: core/pack/adapter/react split |
+| 3 — wrap | Add runtime adapters for canonical events, traces, policies, and receipts | Existing regression lanes plus adapter conformance |
+| 4 — shadow | Run the compiled path beside the authoritative path with writes prohibited | Output, citation, mutation, cost, and latency comparison receipts |
+| 5 — hybrid | Promote one low-risk entity-intelligence workflow | Browser proof, rollback proof, and held-out parity |
+| 6 — extract | Move stable pack implementations only when a second consumer needs them | Pack conformance in two hosts |
+| 7 — enforce | Retire legacy paths and reject new forks in CI | Same compiled definition in local, eval, and production paths |
 
-Rule for all phases: **build every new capability against the standard
-locations from now on**; never move files and change behavior in the same PR.
+Rule for all later work: preserve the Phase 2 physical tree, build new agent
+capabilities through the declared boundaries, and never combine a path move with
+a behavioral change.

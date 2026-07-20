@@ -1,35 +1,51 @@
-# Entity-intelligence capability pack — phase 0 declaration.
-# Declares the capability where it LIVES; extraction into a portable pack
-# directory is a later phase (mirrors the NodeSlide layering decision).
-apiVersion: nodeagent.dev/v1
-kind: CapabilityPack
+# Logical ownership manifest for the existing NodeBench entity-intelligence
+# capability. Implementations remain at their current standard-tree paths.
+schemaVersion: nodeagent.pack/v1
+id: entity-intelligence
+version: 0.1.0
+name: Entity Intelligence
+description: >-
+  Source-grounded company and market intelligence, diligence, reusable run
+  artifacts, narrative workflows, forecasting, and change monitoring.
 
-metadata:
-  name: entity-intelligence
-  version: 0.1.0
-  description: >
-    Company/market/question intelligence: sourced synthesis, 8-section entity
-    workspace, diligence blocks, daily brief + narrative workflows, forecasting,
-    reusable run receipts, change watching.
+skill: ./SKILL.md
 
-spec:
-  locations: # current sources of truth (not yet extracted)
-    tools:
-      - packages/mcp-local/src/tools # enrichment, web, memory, deep-sim domains
-    orchestration:
-      - backend/convex/domains/redesign/chatRuns.ts # run pipeline + response policy
-      - backend/convex/workflows # dailyLinkedInPost, narrative
-    validators:
-      - workers/node/routes/search.ts # 4-layer grounding (confidence, isGrounded, citations)
-      - workers/node/pipeline # diligence judge, 10-gate catalog
-    artifacts:
-      - backend/convex/domains/redesign # chat runs as receipts (mintShowcaseRun)
-      - proof/ui-contract # UI evidence manifests
-    renderers:
-      - apps/web/src/features/redesign/components/ChatAssistantMessage.tsx # THE canonical answer
-  evals:
-    benchmark: packages/mcp-local/src/benchmarks/searchQualityEval.ts # 103 queries, 18 categories
-    conformance: evals/e2e/ui-contract-runner.spec.ts
-    production: scripts/verify-live.ts
-  fixtures:
-    deterministic: true # demo conversations + QA answer seed (?qaState=answer)
+prompts:
+  - ../../backend/convex/domains/redesign/chatRuns.ts
+
+artifacts:
+  - entity-intelligence-answer
+  - evidence-index
+  - redesign-chat-run-receipt
+
+tools:
+  - nodebench.mcp-tool-registry
+  - nodebench.entity-search
+  - nodebench.diligence
+
+jobs:
+  - nodebench.entity-intelligence-run
+
+validators:
+  - nodebench.grounding
+  - nodebench.citation-chain
+  - nodebench.response-policy
+
+policies:
+  - ../../agent/policies/approvals.yaml
+  - ../../agent/policies/budgets.yaml
+  - ../../agent/policies/egress.yaml
+
+renderers:
+  - nodebench.chat-assistant-message
+
+evals:
+  - ../../evals/nodebench-conformance.json
+  - ../../evals/nodebench-smoke.json
+  - ../../evals/nodebench-entity-intelligence.json
+  - ../../evals/nodebench-production.json
+
+permissions:
+  migrationStatus: logical-owner
+  runtimeAuthority: repo-local-nodebench
+  durableWrites: existing-policy-gated
