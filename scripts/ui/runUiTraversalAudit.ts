@@ -4,7 +4,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 import { appendFile, mkdir, rm, writeFile } from "node:fs/promises";
 import { chromium, type Page } from "playwright";
-import { VIEW_REGISTRY } from "../../src/lib/registry/viewRegistry.ts";
+import { VIEW_REGISTRY } from "../../apps/web/src/lib/registry/viewRegistry.ts";
 
 type RouteTarget = {
   id: string;

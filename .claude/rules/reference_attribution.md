@@ -58,7 +58,7 @@ from topic files rather than persisting it directly." Honest > embellished.
 ## What this rule enforces
 
 - New architecture docs have a "Prior art" section or the PR is rejected
-- New server/pipeline/ or convex/domains/ modules have a file header comment linking their doc
+- New workers/node/pipeline/ or backend/convex/domains/ modules have a file header comment linking their doc
 - When copying a Claude Code skill, cite `.claude/skills/<origin>` in the new skill's frontmatter
 
 ## Anti-patterns

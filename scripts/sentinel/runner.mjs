@@ -283,7 +283,7 @@ async function probeVoiceCoverage() {
   }
 
   // Check E2E test coverage
-  const testPath = join(ROOT, 'tests/e2e/voice-input.spec.ts');
+  const testPath = join(ROOT, 'evals/e2e/voice-input.spec.ts');
   if (existsSync(testPath)) {
     const testCode = readFileSync(testPath, 'utf8');
     const scenarioCount = (testCode.match(/test\(/g) || []).length;

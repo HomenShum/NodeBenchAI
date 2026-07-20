@@ -14,7 +14,7 @@
  */
 
 import { ConvexHttpClient } from "convex/browser";
-import { api, internal } from "../convex/_generated/api";
+import { api, internal } from "../backend/convex/_generated/api";
 
 const CONVEX_URL = process.env.CONVEX_URL || "https://agile-caribou-964.convex.cloud";
 const client = new ConvexHttpClient(CONVEX_URL);
@@ -138,7 +138,7 @@ async function testDefaultModel(): Promise<TestResult> {
     console.log("Location: convex/domains/agents/mcp_tools/models/modelResolver.ts");
 
     // Import and check
-    const { DEFAULT_MODEL } = await import("../convex/domains/agents/mcp_tools/models/modelResolver");
+    const { DEFAULT_MODEL } = await import("../backend/convex/domains/agents/mcp_tools/models/modelResolver");
 
     const isGeminiFlash = DEFAULT_MODEL === "gemini-3-flash-preview";
     console.log(`\nActual default: ${DEFAULT_MODEL}`);
@@ -181,7 +181,7 @@ async function testDigestGeneration(): Promise<TestResult> {
 
     // For local testing, we'll call via npx convex run
     // The actual action requires convex context, so we test the formatting locally
-    const digestAgent = await import("../convex/domains/agents/digestAgent");
+    const digestAgent = await import("../backend/convex/domains/agents/digestAgent");
     const { formatDigestForNtfy } = digestAgent;
     type AgentDigestOutput = digestAgent.AgentDigestOutput;
 
@@ -345,7 +345,7 @@ async function testEntityTypeExtraction(): Promise<TestResult> {
 
   try {
     // Import the formatting function to test entity extraction locally
-    const digestAgent = await import("../convex/domains/agents/digestAgent");
+    const digestAgent = await import("../backend/convex/domains/agents/digestAgent");
     const { formatDigestForNtfy } = digestAgent;
     type AgentDigestOutput = digestAgent.AgentDigestOutput;
 
@@ -474,7 +474,7 @@ async function testNtfyEntityFormatting(): Promise<TestResult> {
   console.log("═".repeat(60) + "\n");
 
   try {
-    const digestAgent = await import("../convex/domains/agents/digestAgent");
+    const digestAgent = await import("../backend/convex/domains/agents/digestAgent");
     const { formatDigestForNtfy } = digestAgent;
     type AgentDigestOutput = digestAgent.AgentDigestOutput;
 
@@ -609,7 +609,7 @@ async function testSchemaValidation(): Promise<TestResult> {
     console.log(`New types to add (${newTypes.length}): ${newTypes.join(", ")}`);
 
     // Check EntityLink icons/colors mapping
-    const digestAgent = await import("../convex/domains/agents/digestAgent");
+    const digestAgent = await import("../backend/convex/domains/agents/digestAgent");
 
     // Test that formatDigestForNtfy handles new types gracefully
     // Note: formatDigestForNtfy limits to 2 entities, so we test each type separately

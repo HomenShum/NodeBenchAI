@@ -274,7 +274,7 @@ function getDistributionSurfacesInternal(): DistributionSurface[] {
   const installScriptPath = join(PACKAGE_ROOT, "scripts", "install.sh");
   const claudeDir = join(PACKAGE_ROOT, ".claude");
   const cursorDir = join(PACKAGE_ROOT, ".cursor");
-  const ledgerViewPath = join(REPO_ROOT, "src", "features", "mcp", "views", "McpToolLedgerView.tsx");
+  const ledgerViewPath = join(REPO_ROOT, "apps", "web", "src", "features", "mcp", "views", "McpToolLedgerView.tsx");
 
   return [
     {

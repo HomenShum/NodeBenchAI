@@ -21,7 +21,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ConvexHttpClient } from "convex/browser";
-import { api } from "../convex/_generated/api";
+import { api } from "../backend/convex/_generated/api";
 
 dotenv.config({ path: ".env.local" });
 dotenv.config();

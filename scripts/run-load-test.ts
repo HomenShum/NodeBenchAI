@@ -13,7 +13,7 @@
  */
 
 import { ConvexHttpClient } from "convex/browser";
-import { api } from "../convex/_generated/api";
+import { api } from "../backend/convex/_generated/api";
 
 const CONVEX_URL = process.env.CONVEX_URL || "https://formal-shepherd-851.convex.cloud";
 const client = new ConvexHttpClient(CONVEX_URL);

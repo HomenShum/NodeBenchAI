@@ -6,7 +6,7 @@ const match = envContent.match(/(?:VITE_)?CONVEX_URL=(.+)/);
 const url = match[1].trim().replace(/^["']|["']$/g, "");
 const client = new ConvexHttpClient(url);
 
-const { internal } = await import("../convex/_generated/api.js");
+const { internal } = await import("../backend/convex/_generated/api.js");
 const result = await client.action(
   internal.domains.research.researchSessionSmoke.smokeTestPrimitives,
   { ownerKey: "smoke-owner", userId: "smoke-user" }

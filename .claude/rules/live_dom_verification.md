@@ -61,7 +61,7 @@ hydrates + Convex queries resolve. That means:
   return 200 not 404. Catches landmines (a) and (c).
   Does NOT prove: routes actually render the right component.
 
-- **Tier B (tests/e2e/live-smoke.spec.ts via `npm run live-smoke`)** —
+- **Tier B (evals/e2e/live-smoke.spec.ts via `npm run live-smoke`)** —
   Playwright loads each URL in a real browser, waits for hydration,
   asserts DOM nodes exist (e.g. "Link not found" on `/share/dummy`,
   `<h1>` on landing, recovery CTAs visible).

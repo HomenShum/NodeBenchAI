@@ -24,7 +24,7 @@ on:
     branches:
       - main
     paths:
-      - "convex/**"
+      - "backend/convex/**"
       - "shared/**"
       - "package.json"
       - "package-lock.json"

@@ -17,19 +17,19 @@ spec:
     tools:
       - packages/mcp-local/src/tools # enrichment, web, memory, deep-sim domains
     orchestration:
-      - convex/domains/redesign/chatRuns.ts # run pipeline + response policy
-      - convex/workflows # dailyLinkedInPost, narrative
+      - backend/convex/domains/redesign/chatRuns.ts # run pipeline + response policy
+      - backend/convex/workflows # dailyLinkedInPost, narrative
     validators:
-      - server/routes/search.ts # 4-layer grounding (confidence, isGrounded, citations)
-      - server/pipeline # diligence judge, 10-gate catalog
+      - workers/node/routes/search.ts # 4-layer grounding (confidence, isGrounded, citations)
+      - workers/node/pipeline # diligence judge, 10-gate catalog
     artifacts:
-      - convex/domains/redesign # chat runs as receipts (mintShowcaseRun)
-      - docs/design/ui-contract # UI evidence manifests
+      - backend/convex/domains/redesign # chat runs as receipts (mintShowcaseRun)
+      - proof/ui-contract # UI evidence manifests
     renderers:
-      - src/features/redesign/components/ChatAssistantMessage.tsx # THE canonical answer
+      - apps/web/src/features/redesign/components/ChatAssistantMessage.tsx # THE canonical answer
   evals:
     benchmark: packages/mcp-local/src/benchmarks/searchQualityEval.ts # 103 queries, 18 categories
-    conformance: tests/e2e/ui-contract-runner.spec.ts
+    conformance: evals/e2e/ui-contract-runner.spec.ts
     production: scripts/verify-live.ts
   fixtures:
     deterministic: true # demo conversations + QA answer seed (?qaState=answer)

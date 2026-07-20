@@ -167,6 +167,14 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    // Standard-tree layout: the web app lives under apps/web (index.html there),
+    // while public/, env files, and dist/ stay at the repo root — public/ hosts
+    // the scratchnode live room (coordination hot file) and Vercel serves dist/.
+    // envDir MUST stay at the repo root or VITE_CONVEX_URL vanishes from builds
+    // (the documented 2026-05-11 P0).
+    root: path.resolve(__dirname, "apps/web"),
+    publicDir: path.resolve(__dirname, "public"),
+    envDir: __dirname,
     plugins: [
     react(),
     // Service Worker + PWA for aggressive caching
@@ -373,10 +381,11 @@ window.addEventListener('message', async (message) => {
   resolve: {
     // Order matters: keep specific aliases above the generic "@/" alias.
     alias: [
-      { find: "@features", replacement: path.resolve(__dirname, "./src/features").replace(/\\/g, "/") },
-      { find: "@shared", replacement: path.resolve(__dirname, "./src/shared").replace(/\\/g, "/") },
+      { find: "@convex", replacement: path.resolve(__dirname, "./backend/convex").replace(/\\/g, "/") },
+      { find: "@features", replacement: path.resolve(__dirname, "./apps/web/src/features").replace(/\\/g, "/") },
+      { find: "@shared", replacement: path.resolve(__dirname, "./apps/web/src/shared").replace(/\\/g, "/") },
       { find: "shared", replacement: path.resolve(__dirname, "./shared").replace(/\\/g, "/") },
-      { find: /^@\//, replacement: `${path.resolve(__dirname, "./src").replace(/\\/g, "/")}/` },
+      { find: /^@\//, replacement: `${path.resolve(__dirname, "./apps/web/src").replace(/\\/g, "/")}/` },
     ],
     // Prevent duplicate React instances (common cause of "Invalid hook call" in Vite/monorepo setups).
     // Streamdown and the app both consume Shiki. Resolve one root copy so a
@@ -391,9 +400,12 @@ window.addEventListener('message', async (message) => {
   test: {
     globals: true,
     environment: "jsdom",
-    setupFiles: ["./src/test/setup.ts"],
+    setupFiles: ["./apps/web/src/test/setup.ts"],
   },
   build: {
+    // Vite root is apps/web, but Vercel + scripts expect dist/ at the repo root.
+    outDir: path.resolve(__dirname, "dist"),
+    emptyOutDir: true,
     // The heaviest routes/editors are lazy-loaded; keep this warning slightly higher
     // so it flags meaningful regressions without noise.
     chunkSizeWarningLimit: 2200,

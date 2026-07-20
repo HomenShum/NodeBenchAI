@@ -16,7 +16,7 @@ import {
   averageLogScore,
   isotonicCalibrate,
   formatForecastDiff,
-} from "../../../../convex/domains/forecasting/scoringEngine";
+} from "../../../../backend/convex/domains/forecasting/scoringEngine";
 
 // ─── Brier Score ────────────────────────────────────────────────────────────
 

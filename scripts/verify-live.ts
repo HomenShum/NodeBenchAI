@@ -150,7 +150,7 @@ const CHECKS: ReadonlyArray<Check> = [
   //       - CDN-cached stale HTML (bundle hash mismatch on rerun)
   //   - For section-level checks (e.g. "footnotes count ≥ 8",
   //     "capability dot grids non-empty"), use Tier B in
-  //     `tests/e2e/live-smoke.spec.ts`.
+  //     `evals/e2e/live-smoke.spec.ts`.
   // ─────────────────────────────────────────────────────────────────
   {
     name: "/redesign editorial home reachable",

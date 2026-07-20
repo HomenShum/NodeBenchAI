@@ -22,7 +22,7 @@ function collectTsFiles(dir: string): string[] {
 }
 
 function findConvexDir(projectDir: string): string | null {
-  const candidates = [join(projectDir, "convex"), join(projectDir, "src", "convex")];
+  const candidates = [join(projectDir, "convex"), join(projectDir, "src", "convex"), join(projectDir, "backend", "convex")];
   for (const c of candidates) {
     if (existsSync(c)) return c;
   }

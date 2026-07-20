@@ -1,6 +1,6 @@
 # subagents/ — index (phase 0)
 
-The orchestrator-workers implementation lives in `convex/domains/agents/**`
+The orchestrator-workers implementation lives in `backend/convex/domains/agents/**`
 (sub-agent configs, trace types, parallel task trees) per
 `.claude/rules/orchestrator_workers.md`: one orchestrator + N sub-agents with
 fresh context, each with a scoped task, a tool allowlist, a budget envelope,

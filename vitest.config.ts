@@ -8,19 +8,20 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: [
-      { find: "@features", replacement: toPosix(path.resolve(__dirname, "./src/features")) },
-      { find: "@shared", replacement: toPosix(path.resolve(__dirname, "./src/shared")) },
-      { find: /^@\//, replacement: `${toPosix(path.resolve(__dirname, "./src"))}/` },
+      { find: "@convex", replacement: toPosix(path.resolve(__dirname, "./backend/convex")) },
+      { find: "@features", replacement: toPosix(path.resolve(__dirname, "./apps/web/src/features")) },
+      { find: "@shared", replacement: toPosix(path.resolve(__dirname, "./apps/web/src/shared")) },
+      { find: /^@\//, replacement: `${toPosix(path.resolve(__dirname, "./apps/web/src"))}/` },
     ],
   },
   test: {
     globals: true,
     environment: "jsdom",
-    setupFiles: ["./src/test/setup.ts"],
+    setupFiles: ["./apps/web/src/test/setup.ts"],
     // Playwright tests live under `tests/` and should run via Playwright, not Vitest.
     exclude: [
       ...configDefaults.exclude,
-      "tests/**",
+      "evals/**",
       ".tmp/**",
       ".nodebench-ref/**",
       ".overstory/**",

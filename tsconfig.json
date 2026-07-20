@@ -7,10 +7,11 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
-      "@features/*": ["./src/features/*"],
-      "@shared/*": ["./src/shared/*"],
-      "@shared/ui/*": ["./src/shared/ui/*"],
+      "@/*": ["./apps/web/src/*"],
+      "@features/*": ["./apps/web/src/features/*"],
+      "@shared/*": ["./apps/web/src/shared/*"],
+      "@shared/ui/*": ["./apps/web/src/shared/ui/*"],
+      "@convex/*": ["./backend/convex/*"],
       "shared/*": ["./shared/*"]
     }
   }

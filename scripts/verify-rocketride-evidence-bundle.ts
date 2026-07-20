@@ -1,11 +1,11 @@
 import { readFile } from "node:fs/promises";
 import process from "node:process";
-import { validateNodeBenchWorkflowCandidate } from "../src/shared/nodeBenchWorkflowCandidate";
+import { validateNodeBenchWorkflowCandidate } from "../apps/web/src/shared/nodeBenchWorkflowCandidate";
 import {
   buildRocketRideEvidenceReportCandidate,
   validateRocketRideEvidenceBundle,
   type RocketRideEvidenceBundle,
-} from "../src/shared/rocketRideEvidenceBundle";
+} from "../apps/web/src/shared/rocketRideEvidenceBundle";
 
 const [inputPath] = process.argv.slice(2);
 if (!inputPath) {

@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
-const SRC_DIR = path.join(ROOT, "src");
+const SRC_DIR = path.join(ROOT, "apps", "web", "src");
 
 const FILE_IGNORE = [
   /node_modules/,

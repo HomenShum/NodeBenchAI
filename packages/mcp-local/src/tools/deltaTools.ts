@@ -175,7 +175,7 @@ function getDistributionSurfaces(): DistributionSurface[] {
   const claudeDir = join(PACKAGE_ROOT, ".claude");
   const cursorDir = join(PACKAGE_ROOT, ".cursor");
   const readmePath = join(PACKAGE_ROOT, "README.md");
-  const ledgerViewPath = join(REPO_ROOT, "src", "features", "mcp", "views", "McpLedgerPage.tsx");
+  const ledgerViewPath = join(REPO_ROOT, "apps", "web", "src", "features", "mcp", "views", "McpLedgerPage.tsx");
   const dogfoodScriptPath = join(REPO_ROOT, "scripts", "ui", "runDogfoodGeminiQa.mjs");
 
   return [

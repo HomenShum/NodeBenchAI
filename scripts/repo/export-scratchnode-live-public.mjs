@@ -24,10 +24,10 @@ const copyEntries = [
   ["docs/architecture/PROTO_SURFACE_REAL_BACKEND_DOGFOOD.md", "docs/architecture/PROTO_SURFACE_REAL_BACKEND_DOGFOOD.md"],
   ["src/shared/agentOutputContract.ts", "contracts/agentOutputContract.ts"],
   ["src/shared/riskAttackEvaluator.ts", "contracts/riskAttackEvaluator.ts"],
-  ["tests/e2e/scratchnode-demo-route-gate.spec.ts", "tests/e2e/scratchnode-demo-route-gate.spec.ts"],
-  ["tests/e2e/scratchnode-live-route-honesty.spec.ts", "tests/e2e/scratchnode-live-route-honesty.spec.ts"],
-  ["tests/e2e/home-v5-output-contract.spec.ts", "tests/e2e/home-v5-output-contract.spec.ts"],
-  ["tests/e2e/proto-live-backend-dogfood.spec.ts", "tests/e2e/proto-live-backend-dogfood.spec.ts"],
+  ["evals/e2e/scratchnode-demo-route-gate.spec.ts", "evals/e2e/scratchnode-demo-route-gate.spec.ts"],
+  ["evals/e2e/scratchnode-live-route-honesty.spec.ts", "evals/e2e/scratchnode-live-route-honesty.spec.ts"],
+  ["evals/e2e/home-v5-output-contract.spec.ts", "evals/e2e/home-v5-output-contract.spec.ts"],
+  ["evals/e2e/proto-live-backend-dogfood.spec.ts", "evals/e2e/proto-live-backend-dogfood.spec.ts"],
   ["LICENSE", "LICENSE"],
 ];
 
@@ -265,7 +265,7 @@ function buildPackageJson() {
       dev: "vercel dev",
       verify: "npm run verify:static",
       "verify:static": "node scripts/verify-public-export.mjs",
-      "test:e2e": "playwright test tests/e2e/scratchnode-demo-route-gate.spec.ts tests/e2e/scratchnode-live-route-honesty.spec.ts tests/e2e/home-v5-output-contract.spec.ts --project=chromium --workers=1",
+      "test:e2e": "playwright test evals/e2e/scratchnode-demo-route-gate.spec.ts evals/e2e/scratchnode-live-route-honesty.spec.ts evals/e2e/home-v5-output-contract.spec.ts --project=chromium --workers=1",
     },
     devDependencies: {
       "@playwright/test": "^1.53.0",

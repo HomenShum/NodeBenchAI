@@ -88,7 +88,7 @@ async function runEvaluation() {
   console.log("╚════════════════════════════════════════════════════════════════════════════╝\n");
 
   // Import modules
-  const { decomposeQuerySync } = await import("../convex/domains/agents/dueDiligence/deepResearch/queryDecomposer");
+  const { decomposeQuerySync } = await import("../backend/convex/domains/agents/dueDiligence/deepResearch/queryDecomposer");
 
   // Step 1: Test Query Decomposition
   console.log("═".repeat(80));
@@ -122,7 +122,7 @@ async function runEvaluation() {
   ];
 
   // Import types to validate structure
-  const types = await import("../convex/domains/agents/dueDiligence/deepResearch/types");
+  const types = await import("../backend/convex/domains/agents/dueDiligence/deepResearch/types");
 
   console.log("\n✓ All required types exist and are exported");
   for (const check of typeChecks) {

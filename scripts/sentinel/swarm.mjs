@@ -123,7 +123,7 @@ You are the Behavioral Sentinel. Your job is to verify that every interaction in
    - Read src/hooks/useVoiceIntentRouter.ts
    - Read src/hooks/useMainLayoutRouting.ts
    - Cross-reference: every MainView must have a voice alias
-   - Every voice command must have an E2E test in tests/e2e/voice-input.spec.ts
+   - Every voice command must have an E2E test in evals/e2e/voice-input.spec.ts
 3. Accessibility:
    - grep for buttons without aria-label
    - grep for interactive elements < 44px (w-8 h-8 or smaller)
