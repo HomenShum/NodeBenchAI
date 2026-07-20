@@ -1,14 +1,16 @@
-# agent/ — authored agent surface (phase 0)
+# agent/ — authored agent surface
 
 This directory is the NodeKit-standard, filesystem-first authoring surface for
-the NodeBench agent application. **Phase 0 rule: this surface documents the
-live system; the code remains the source of truth.** Nothing here is loaded at
-runtime yet — there is no manifest compiler, so we do not pretend there is
-(`requireCompiledManifest: false` in `nodekit.yaml`, no fake `.nodeagent/`).
+the NodeBench agent application. **Brownfield rule: this surface documents the
+live system; the repo-local code remains the runtime source of truth.** NodeKit
+validates and hashes the projection into `.nodeagent/`, but production does not
+load that compiled definition yet. Compilation proves internal consistency; it
+does not claim that runtime migration or same-path benchmark parity is complete.
 
 Every file carries a `Source:` pointer to the code that actually enforces it.
-When the `@nodeagent` compiler exists, the direction reverses: these files
-become the source and the pointers become generated output.
+When NodeBench switches from `repo-local-nodebench` to `nodeagent-native`, the
+direction reverses: these files become runtime source and legacy pointers become
+compatibility inputs or generated output.
 
 | Standard slot | Status | Lives today at |
 |---|---|---|
@@ -18,5 +20,6 @@ become the source and the pointers become generated output.
 | tools/ | index only | `packages/mcp-local/src/tools/**` (304 tools) |
 | planner/ context/ memory/ hooks/ channels/ schedules/ sandbox/ | not yet authored | see `docs/architecture/STANDARD_REPO_TREE.md` mapping |
 
-Do not add `.ts` files here in phase 0 — the app's tsconfig does not include
-this directory and nothing should import from it until the compiler phase.
+Do not add `.ts` files here during brownfield mapping — the app's tsconfig does
+not include this directory and nothing should import from it until the runtime
+adapter phase.

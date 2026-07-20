@@ -3,9 +3,11 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveConvexTypecheckProject } from "./lib/convexProject.mjs";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const ROOT = resolve(__dirname, "..");
+const CONVEX_TYPECHECK_PROJECT = resolveConvexTypecheckProject(ROOT);
 
 const args = process.argv.slice(2).reduce((acc, arg) => {
   const [rawKey, rawValue] = arg.replace(/^--/, "").split("=");
@@ -82,14 +84,24 @@ const gates = [
     id: "tsc-convex",
     name: "TypeScript Convex",
     check() {
-      const result = run("npx", ["tsc", "-p", "convex", "--noEmit", "--pretty", "false"]);
+      const result = run("npx", [
+        "tsc",
+        "-p",
+        CONVEX_TYPECHECK_PROJECT,
+        "--noEmit",
+        "--pretty",
+        "false",
+      ]);
       return result.ok
-        ? { ok: true, detail: "convex typecheck passed" }
+        ? {
+            ok: true,
+            detail: `convex typecheck passed (${CONVEX_TYPECHECK_PROJECT})`,
+          }
         : {
             ok: false,
             detail: "convex typecheck failed",
             stderr: tail(result.stdout || result.stderr),
-            fix: "Run npx tsc -p convex --noEmit --pretty false.",
+            fix: `Run npx tsc -p ${CONVEX_TYPECHECK_PROJECT} --noEmit --pretty false.`,
           };
     },
   },

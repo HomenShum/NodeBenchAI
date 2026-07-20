@@ -1,5 +1,5 @@
 # Network egress policy. Source: SSRF guards per .claude/rules/agentic_reliability.md
-# (checklist item 5), enforced in server fetch paths (URL validation before fetch)
+# (checklist item 5), enforced in worker fetch paths (URL validation before fetch)
 # and bounded reads (item 6).
 apiVersion: nodeagent.dev/v1
 kind: Policy

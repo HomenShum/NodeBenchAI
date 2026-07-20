@@ -1,4 +1,4 @@
-# Human-approval gates. Source: goals/HARD_GATES.md + .claude/rules
+# Human-approval gates. Source: adw/goals/HARD_GATES.md + .claude/rules
 # (self_improvement_loop, backend_contract_migration). Enforced by process +
 # CI branch protection today, not by a runtime policy engine.
 apiVersion: nodeagent.dev/v1
