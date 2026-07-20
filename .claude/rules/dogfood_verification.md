@@ -88,9 +88,9 @@ Runs a full Scribe-like dogfood session locally and makes it UI-verifiable at `/
 
 | Layer | Changes to | Deployed via | Visible when |
 |-------|-----------|-------------|--------------|
-| React components | `.tsx` in `src/` | `vite build` | Preview server restarted |
-| Convex functions | `.ts` in `convex/` | `npx convex deploy` | Backend redeployed |
-| Convex schema | `convex/schema.ts` | `npx convex deploy` | Backend redeployed |
+| React components | `.tsx` in `apps/web/src/` | `vite build` | Preview server restarted |
+| Convex functions | `.ts` in `backend/convex/` | `npx convex deploy` | Backend redeployed |
+| Convex schema | `backend/convex/schema.ts` | `npx convex deploy` | Backend redeployed |
 | MCP tools | `packages/mcp-local/` | `npx tsc` in package | MCP server restarted |
 | Stored data | DB records | Data migration or mutation | After migration runs |
 | Dashboard HTML | `briefHtml.ts` / `html.ts` | Inline — restart server | Server restarted |

@@ -29,14 +29,14 @@ spec:
     agentAuthoring: ./agent # phase-0 authored surface; compiled truth remains in code
     packs:
       - ./packs/entity-intelligence/pack.yaml
-    backend: ./convex # Convex CLI expects repo-root convex/; move deferred (phase 2)
-    web: ./src # Vite root; apps/web split deferred (phase 2)
+    backend: ./backend/convex # convex.json "functions" points here (standard-tree phase 2, 2026-07-19)
+    web: ./apps/web # Vite root (index.html + src); public/, env, dist stay at repo root
     evals:
       benchmark: packages/mcp-local/src/benchmarks
-      conformance: tests/e2e # ui-contract-runner + surface contracts
+      conformance: evals/e2e # ui-contract-runner + surface contracts
       production: scripts/verify-live.ts
-    proof: docs/design/ui-contract # evidence folders + manifest.schema.json
-    adw: scripts/improvement-loop # + goals/ (goal cards, HARD_GATES.md)
+    proof: proof/ui-contract # evidence folders + manifest.schema.json
+    adw: adw/improvement-loop # + adw/goals/ (goal cards, HARD_GATES.md)
     mcpDistribution: packages/mcp-local # 304-tool MCP server (npx nodebench-mcp)
 
   conformance:

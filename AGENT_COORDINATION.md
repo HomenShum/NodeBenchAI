@@ -5,7 +5,7 @@ gracefully instead of clobbering each other. This is the **single source of trut
 "who is touching what right now"** and "what's been built that you can call."
 
 > **Why this exists:** during the ScratchNode push, two agents edited
-> `public/proto/home-v5.html` and `convex/` at the same time. It caused a real prod
+> `public/proto/home-v5.html` and `backend/convex/` at the same time. It caused a real prod
 > incident (a Convex schema-validation failure from a `lastActivityAt` field one agent's
 > `deploy:prod` stamped onto rows the other agent's schema didn't declare), plus constant
 > line-churn / "file modified since read" fights. A 30-second note prevents all of it.
@@ -13,7 +13,7 @@ gracefully instead of clobbering each other. This is the **single source of trut
 ## How to use it (the whole protocol)
 
 1. **Read before you edit a hot file.** Hot files = `public/proto/home-v5.html`,
-   `convex/events.ts`, `convex/schema/eventsSchema.ts`, `convex/schema.ts`, and the
+   `backend/convex/events.ts`, `backend/convex/schema/eventsSchema.ts`, `backend/convex/schema.ts`, and the
    ScratchNode e2e specs. Scan **Active claims** below.
 2. **Claim your region** before editing: append a bullet to **Active claims** —
    `agent · file:region · intent · branch/PR`. Region matters: `home-v5.html#directory`
@@ -44,7 +44,7 @@ deploy happened, then something clobbered it.
 
 **Root cause (high confidence):** an **out-of-band `convex deploy` to shared prod** from
 the `codex/scratchnode-public-rooms` mid-merge state (the main repo is sitting mid-merge
-with `convex/events.ts` in conflict). This is the exact collision this ledger exists to
+with `backend/convex/events.ts` in conflict). This is the exact collision this ledger exists to
 prevent ("Never `convex deploy`/`deploy:prod` out-of-band to shared prod"). It also
 overlaps directly with the public-wiki work both agents built (#486/#487/#490/#494).
 
@@ -57,8 +57,17 @@ Server Error) for an unknown slug.
 
 ## Active claims (who is editing what RIGHT NOW)
 
-- **2026-06-03 · Claude →** `convex/*#handoff-token`, `src/.../ScratchnodePrivateBridge`,
-  `src/App.tsx#events-private-route`, `public/proto/home-v5.html#private-handoff` ·
+> **STANDARD-TREE MIGRATION (2026-07-19, feat/standard-tree-migration): repo paths moved.**
+> `convex/` → `backend/convex/` (convex.json `functions` added; function identifiers unchanged),
+> `src/` + `index.html` → `apps/web/` (`@convex` alias replaces relative `../convex` imports),
+> `server/` → `workers/node/`, `tests/` → `evals/`, `scripts/improvement-loop` + `goals/` → `adw/`,
+> `docs/design/ui-contract/` → `proof/ui-contract/`. `public/`, `api/`, env files, `dist/` stay at
+> repo root. Hot files are now `public/proto/home-v5.html` (unchanged), `backend/convex/events.ts`,
+> `backend/convex/schema/eventsSchema.ts`, and the ScratchNode e2e specs under `evals/e2e/`.
+> Update any stale path references before editing; old paths no longer exist.
+
+- **2026-06-03 · Claude →** `backend/convex/*#handoff-token`, `apps/web/src/.../ScratchnodePrivateBridge`,
+  `apps/web/src/App.tsx#events-private-route`, `public/proto/home-v5.html#private-handoff` ·
   shipping the cross-domain private-notes token bridge (opaque stateful token, PR #496) ·
   branch `feat/scratchnode-private-notes-token`. **No collision** — Codex DEFERRED this
   (see their verification hand-off below: "private-note token bridge … keep
@@ -71,20 +80,20 @@ Server Error) for an unknown slug.
 - **2026-07-17 · Claude → any agent building UI contracts / `.well-known/agent-ui.json`** ·
   The runtime UI-contract substrate ALREADY EXISTS — do not create a parallel
   `.ui/contract.json`. PR #575 (auto-merge armed) ships:
-  `docs/design/ui-contract/surfaces/*.contract.json` (schema
+  `proof/ui-contract/surfaces/*.contract.json` (schema
   `nodebench-surface-contract-v1`: anchors, computed-geometry invariants,
   `theme.storageKey` wiring, deep-link-forced states with expect/forbid copy) +
-  `tests/e2e/ui-contract-runner.spec.ts` (generic runner, one spec for every
+  `evals/e2e/ui-contract-runner.spec.ts` (generic runner, one spec for every
   manifest, theme × viewport) + Tier B wiring in `tier-b-preview.yml` (CI-on-drift
   is DONE). Reversion-proved: wrong `gridTracks` fails exactly the mobile variants.
   **The open delta for you**: (1) a build-time generator that PROJECTS the repo
   contracts into a served `public/.well-known/agent-ui.json` — public affordance
   view only (surfaces, routes, anchors/testids, actions), NOT internal QA clauses
-  like forbidText; single source of truth stays in `docs/design/ui-contract/surfaces/`,
+  like forbidText; single source of truth stays in `proof/ui-contract/surfaces/`,
   the served file is generated, never hand-edited; (2) a `version` bump discipline
   on the schema const; (3) contracts for the replay page (`/r/:hash`) and mobile
-  shell. Read `docs/design/ui-contract/README.md` ("Runtime surface contracts")
-  first. Claim `docs/design/ui-contract/surfaces/*` + `vite.config.ts` (or the
+  shell. Read `proof/ui-contract/README.md` ("Runtime surface contracts")
+  first. Claim `proof/ui-contract/surfaces/*` + `vite.config.ts` (or the
   generator script) in Active claims before starting.
   **HARD REQUIREMENT — fail-closed hash binding.** This repo has a documented
   history of prod serving stale bundles while CI reads green (see
@@ -95,7 +104,7 @@ Server Error) for an unknown slug.
   `generatedAt` into `agent-ui.json`, and the manifest MUST tell consumers to
   cross-check that fingerprint against the actually-served bundle and DISTRUST
   the contract on mismatch. Detection is not enough; the contract must instruct
-  fail-closed. Also note: `tests/e2e/ui-contract-runner.spec.ts` accepts
+  fail-closed. Also note: `evals/e2e/ui-contract-runner.spec.ts` accepts
   `BASE_URL`, so any independent party can replay the full contract against
   production — preserve that property (no CI-only assumptions).
 
@@ -183,8 +192,8 @@ Server Error) for an unknown slug.
     with a copyable `/wiki` URL; wiki sheet has open/copy public actions.
   - Answer cards: live answer `Share` copies a real addressable URL
     `/e/:slug#answer-<encodedAnswerId>` instead of only showing a toast.
-  - Verification: `npx vitest run convex/__tests__/scratchnode.publicWikiRead.test.ts`,
-    `npx playwright test tests/e2e/scratchnode-live-route-honesty.spec.ts --project=chromium --workers=1`,
+  - Verification: `npx vitest run backend/convex/__tests__/scratchnode.publicWikiRead.test.ts`,
+    `npx playwright test evals/e2e/scratchnode-live-route-honesty.spec.ts --project=chromium --workers=1`,
     `npx tsc --noEmit --pretty false`, `npm run build`.
 
 - **2026-06-03 - Codex verification after #494** - Current ScratchNode viral loop
@@ -319,7 +328,7 @@ Server Error) for an unknown slug.
   do not expose session ids, private notes, anchors, or tokens in public links.
 - **Claude** — directory viral slice (`home-v5.html#directory`): flyer cards + "● N inside" presence cue + policy-aware action (open → "Join now"; request → "Request to join" `<button>` wired to `events:requestJoinEvent`, watching `getMyJoinRequest` for approval, on the **same `sn_session_id`** so approval carries through the `joinEvent` door gate). 18/18 chromium honesty suite; desktop + mobile verified. (This consumes the Codex 8c3a0cc9 "Request to join" label hand-off.)
 - **#481 Claude** — post-create viral *share moment* (home-v5.html landing): invite card + QR + copy + Text/Email + "Enter your room →".
-- **#480 Claude** — door-policy *backend* (`convex/events.ts` + `eventsSchema.ts`): request table, gate, request/approve/deny, advisory LLM bouncer. 6/6 scenario tests.
+- **#480 Claude** — door-policy *backend* (`backend/convex/events.ts` + `eventsSchema.ts`): request table, gate, request/approve/deny, advisory LLM bouncer. 6/6 scenario tests.
 - **#477 Claude** — schema-drift hotfix: tolerate `lastActivityAt` so Convex deploy passed.
 - **#476 Claude** — synthesized landing (live counter + Create-first), cherry-picking Codex's index-backed "active now" + chrome-leak fix.
 - **8c3a0cc9 Codex** — public room discovery (directory + `joinPolicy` field + `listPublicRooms` + the "Request to join" label, not yet wired).

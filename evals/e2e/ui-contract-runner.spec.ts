@@ -28,7 +28,7 @@ import { installVercelPreviewBypass } from "./helpers/vercelPreview";
 
 const BASE_URL = (process.env.BASE_URL ?? "http://127.0.0.1:4173").replace(/\/$/, "");
 const SPEC_DIR = dirname(fileURLToPath(import.meta.url));
-const CONTRACTS_DIR = join(SPEC_DIR, "..", "..", "docs", "design", "ui-contract", "surfaces");
+const CONTRACTS_DIR = join(SPEC_DIR, "..", "..", "proof", "ui-contract", "surfaces");
 
 interface SurfaceContract {
   schema: string;

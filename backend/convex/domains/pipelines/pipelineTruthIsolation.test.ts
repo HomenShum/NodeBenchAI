@@ -391,7 +391,7 @@ describe.skipIf(!convexTestAvailable)("pipeline attempt mutation isolation", () 
 
 describe("pipeline truth static guards", () => {
   it("keeps attempt propagation, occurrence refresh, reset fields, and truthful provenance names", () => {
-    const pipelineDir = join(process.cwd(), "convex", "domains", "pipelines");
+    const pipelineDir = join(process.cwd(), "backend", "convex", "domains", "pipelines");
     const workflow = readFileSync(join(pipelineDir, "pipelineWorkflow.ts"), "utf8");
     const schedule = readFileSync(join(pipelineDir, "pipelineSchedule.ts"), "utf8");
     const lifecycle = readFileSync(

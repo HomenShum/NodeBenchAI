@@ -1,6 +1,6 @@
 # NodeBench orchestrator instructions
 
-Source: `convex/domains/redesign/chatRuns.ts` (system prompts,
+Source: `backend/convex/domains/redesign/chatRuns.ts` (system prompts,
 `responseShapeSystemInstructions`, `applyDeterministicResponsePolicy`) —
 that file is authoritative; this is the authored mirror.
 

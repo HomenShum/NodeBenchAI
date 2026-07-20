@@ -12,9 +12,9 @@ become the source and the pointers become generated output.
 
 | Standard slot | Status | Lives today at |
 |---|---|---|
-| instructions.md | authored here | mirrors `convex/domains/redesign/chatRuns.ts` |
-| policies/ | authored here | mirrors guards in server/, convex/, goals/ |
-| subagents/ | index only | `convex/domains/agents/**` orchestrator-workers |
+| instructions.md | authored here | mirrors `backend/convex/domains/redesign/chatRuns.ts` |
+| policies/ | authored here | mirrors guards in workers/node/, backend/convex/, adw/goals/ |
+| subagents/ | index only | `backend/convex/domains/agents/**` orchestrator-workers |
 | tools/ | index only | `packages/mcp-local/src/tools/**` (304 tools) |
 | planner/ context/ memory/ hooks/ channels/ schedules/ sandbox/ | not yet authored | see `docs/architecture/STANDARD_REPO_TREE.md` mapping |
 

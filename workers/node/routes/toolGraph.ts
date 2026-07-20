@@ -11,7 +11,7 @@ export function createToolGraphRouter() {
   router.get("/tool-graph", async (_req, res) => {
     try {
       const { ALL_REGISTRY_ENTRIES } = await import(
-        "../../../packages/mcp-local/src/tools/toolRegistry.js""
+        "../../../packages/mcp-local/src/tools/toolRegistry.js"
       );
 
       const entries = ALL_REGISTRY_ENTRIES as any[];

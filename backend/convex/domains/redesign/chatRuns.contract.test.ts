@@ -31,8 +31,8 @@ import {
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CONTRACT_PATH = join(
-  HERE, "..", "..", "..",
-  "docs", "design", "ui-contract", "surfaces", "decision-workspace.contract.json",
+  HERE, "..", "..", "..", "..",
+  "proof", "ui-contract", "surfaces", "decision-workspace.contract.json",
 );
 
 interface FieldExpectations {

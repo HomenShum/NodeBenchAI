@@ -10,7 +10,7 @@ Make telemetry and agent step trajectories measurable, debuggable, and beautiful
 
 ## Dev-side telemetry (internal)
 
-### Search trace (server/routes/search.ts)
+### Search trace (workers/node/routes/search.ts)
 Every search request emits a `trace` array with structured steps:
 ```typescript
 interface TraceStep {
@@ -83,13 +83,13 @@ Every search result should be traceable back to:
 5. What the user should verify independently
 
 ## Key files
-- `src/features/controlPlane/components/SearchTrace.tsx` — User-facing trace UI
-- `src/features/agents/components/FastAgentPanel/StepTimeline.tsx` — Agent step timeline
-- `src/features/agents/components/FastAgentPanel/FastAgentPanel.ParallelTaskTimeline.tsx` — Parallel execution
-- `src/features/monitoring/views/AgentTelemetryDashboard.tsx` — Telemetry dashboard
-- `src/features/trajectory/types.ts` — Trajectory score types
-- `convex/domains/agents/traceTypes.ts` — TRACE framework types
-- `server/routes/search.ts` — Search trace emission
+- `apps/web/src/features/controlPlane/components/SearchTrace.tsx` — User-facing trace UI
+- `apps/web/src/features/agents/components/FastAgentPanel/StepTimeline.tsx` — Agent step timeline
+- `apps/web/src/features/agents/components/FastAgentPanel/FastAgentPanel.ParallelTaskTimeline.tsx` — Parallel execution
+- `apps/web/src/features/monitoring/views/AgentTelemetryDashboard.tsx` — Telemetry dashboard
+- `apps/web/src/features/trajectory/types.ts` — Trajectory score types
+- `backend/convex/domains/agents/traceTypes.ts` — TRACE framework types
+- `workers/node/routes/search.ts` — Search trace emission
 - `packages/mcp-local/src/benchmarks/searchQualityEval.ts` — Eval harness
 
 ## Related rules

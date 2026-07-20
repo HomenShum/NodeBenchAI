@@ -1,8 +1,8 @@
 ---
 paths:
-  - "src/**/*.tsx"
-  - "src/**/*.css"
-  - "tests/e2e/**/*.ts"
+  - "apps/web/src/**/*.tsx"
+  - "apps/web/src/**/*.css"
+  - "evals/e2e/**/*.ts"
   - "scripts/ui/**/*.mjs"
 related_: [analyst_diagnostic, dogfood_verification, reexamine_design_reduction, completion_traceability]
 ---

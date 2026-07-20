@@ -41,7 +41,7 @@ vi.mock("convex/react", () => ({
 // property access. That exact TypeError shipped red on main for three tests
 // while CI's allowlist never ran this file (issue #567). Known functions still
 // resolve to stable "fn:" strings so responses stay keyed by name.
-vi.mock("../../../../convex/_generated/api", () => {
+vi.mock("@convex/_generated/api", () => {
   // Declared inside the factory: vi.mock is hoisted above top-level statements.
   const KNOWN_API_FNS: Record<string, string> = {
     "scratchnodeHandoff.listMyJoinedEvents": "fn:listMyJoinedEvents",

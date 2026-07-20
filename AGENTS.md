@@ -4,7 +4,7 @@
 
 `AGENT_COORDINATION.md` (repo root) is the live ledger of **who is editing what right now**
 and **what backend contracts are ready to call**. Before editing a hot file
-(`public/proto/home-v5.html`, `convex/events.ts`, `convex/schema/eventsSchema.ts`): scan
+(`public/proto/home-v5.html`, `backend/convex/events.ts`, `backend/convex/schema/eventsSchema.ts`): scan
 **Active claims**, **claim your region** before you start, and **hand off** new backend
 contracts there. **Never** `convex deploy`/`deploy:prod` out-of-band to the shared prod
 deployment — it pushes un-reviewed schema/functions and breaks the other agent's next
@@ -635,8 +635,8 @@ Rules:
 - The browser flow may prepare a handoff prompt for Claude Code or OpenClaw, but the prompt is a consequence of the shared packet and task id, not a replacement for them.
 - After changes to these routes or the control-plane handoff UI, run:
   - `npx tsc --noEmit`
-  - `npx vitest run server/searchRoute.test.ts server/sharedContextRoute.test.ts`
-  - `npx vitest run src/features/controlPlane/views/ControlPlaneLanding.test.tsx src/features/controlPlane/components/SyncProvenanceBadge.test.tsx src/features/mcp/components/SharedContextProtocolPanel.test.tsx src/features/mcp/components/SyncBridgeAccountPanel.test.tsx`
+  - `npx vitest run workers/node/searchRoute.test.ts workers/node/sharedContextRoute.test.ts`
+  - `npx vitest run apps/web/src/features/controlPlane/views/ControlPlaneLanding.test.tsx apps/web/src/features/controlPlane/components/SyncProvenanceBadge.test.tsx apps/web/src/features/mcp/components/SharedContextProtocolPanel.test.tsx apps/web/src/features/mcp/components/SyncBridgeAccountPanel.test.tsx`
   - `npm run build`
 
 ## Self maintenance (nightly, autonomous)
@@ -693,7 +693,7 @@ npx convex run --push "domains/operations/selfMaintenance:getLatestSelfMaintenan
 ```
 
 Cron:
-- `convex/crons.ts` schedules `domains/operations/selfMaintenance:runNightlySelfMaintenanceCron` daily.
+- `backend/convex/crons.ts` schedules `domains/operations/selfMaintenance:runNightlySelfMaintenanceCron` daily.
 
 ## Flywheel mode (UI dogfood + Gemini QA)
 
@@ -766,7 +766,7 @@ Full pipeline for any coding agent (Claude Code, Cursor, Windsurf, Codex):
 ```bash
 # Full cycle: build → capture → publish → record → score
 npx vite build
-BASE_URL=http://127.0.0.1:4173 npx playwright test tests/e2e/full-ui-dogfood.spec.ts --project=chromium --workers=1
+BASE_URL=http://127.0.0.1:4173 npx playwright test evals/e2e/full-ui-dogfood.spec.ts --project=chromium --workers=1
 npm run dogfood:publish
 node scripts/ui/recordDogfoodWalkthrough.mjs --baseURL http://127.0.0.1:4173 --publish static
 BASE_URL=http://127.0.0.1:4173 node scripts/ui/runDogfoodGeminiQa.mjs
@@ -800,7 +800,7 @@ Goal: errors become deduped cards, humans approve, agent does legwork, humans re
 Card substrate: `agentTaskSessions` rows with `metadata.kind='bug_card'` and deterministic `metadata.signature`.
 
 Client capture (prod only):
-- `src/main.tsx` reports `window.error` and `unhandledrejection` to `domains/operations/bugLoop:reportClientError` with local rate limit.
+- `apps/web/src/main.tsx` reports `window.error` and `unhandledrejection` to `domains/operations/bugLoop:reportClientError` with local rate limit.
 
 Manual triage:
 
@@ -1015,7 +1015,7 @@ Spawned as a local process by the MCP client. No HTTP server, no port, no auth t
   "mcpServers": {
     "nodebench": {
       "command": "npx",
-      "args": ["tsx", "mcp_tools/gateway_server/stdioServer.ts"],
+      "args": ["tsx", "mcp_tools/gateway_workers/node/stdioServer.ts"],
       "env": {
         "CONVEX_URL": "https://formal-shepherd-851.convex.site",
         "MCP_SECRET": "<your-mcp-secret>"
@@ -1032,7 +1032,7 @@ Spawned as a local process by the MCP client. No HTTP server, no port, no auth t
   "mcpServers": {
     "nodebench": {
       "command": "npx",
-      "args": ["tsx", "mcp_tools/gateway_server/stdioServer.ts"],
+      "args": ["tsx", "mcp_tools/gateway_workers/node/stdioServer.ts"],
       "env": {
         "CONVEX_URL": "https://formal-shepherd-851.convex.site",
         "MCP_SECRET": "<your-mcp-secret>"
@@ -1049,7 +1049,7 @@ Spawned as a local process by the MCP client. No HTTP server, no port, no auth t
   "mcpServers": {
     "nodebench": {
       "command": "npx",
-      "args": ["tsx", "mcp_tools/gateway_server/stdioServer.ts"],
+      "args": ["tsx", "mcp_tools/gateway_workers/node/stdioServer.ts"],
       "env": {
         "CONVEX_URL": "https://formal-shepherd-851.convex.site",
         "MCP_SECRET": "<your-mcp-secret>"
@@ -1067,7 +1067,7 @@ Spawned as a local process by the MCP client. No HTTP server, no port, no auth t
 
 Run the HTTP server locally if you prefer the HTTP transport or need to test the same protocol used in production.
 
-**1. Set environment variables** (create `mcp_tools/gateway_server/.env` or export):
+**1. Set environment variables** (create `mcp_tools/gateway_workers/node/.env` or export):
 
 ```bash
 CONVEX_URL=https://formal-shepherd-851.convex.site   # .convex.site, NOT .convex.cloud
@@ -1342,10 +1342,10 @@ npx convex run domains/social/linkedinScheduleGrid:scheduleNextApprovedPost '{"t
 
 ### Key files
 
-- `convex/domains/social/linkedinContentQueue.ts` — Queue CRUD, dedup, stats
-- `convex/domains/social/linkedinQualityJudge.ts` — LLM judge + batch processor
-- `convex/domains/social/linkedinScheduleGrid.ts` — Time slots, scheduling, backfill
-- `convex/domains/social/linkedinPosting.ts` — Queue processor (`processQueuedPost`)
+- `backend/convex/domains/social/linkedinContentQueue.ts` — Queue CRUD, dedup, stats
+- `backend/convex/domains/social/linkedinQualityJudge.ts` — LLM judge + batch processor
+- `backend/convex/domains/social/linkedinScheduleGrid.ts` — Time slots, scheduling, backfill
+- `backend/convex/domains/social/linkedinPosting.ts` — Queue processor (`processQueuedPost`)
 
 ### Founder voice & writing style guide
 
@@ -1425,13 +1425,13 @@ npx convex run --prod domains/social/linkedinScheduleGrid:scheduleNextApprovedPo
 npx convex run --prod domains/social/linkedinContentQueue:listQueueItems '{"status":"approved","limit":5}'
 ```
 
-**Key file**: `convex/workflows/founderPostGenerator.ts` — `generateFounderPost` + `weeklyFounderBatch`
+**Key file**: `backend/convex/workflows/founderPostGenerator.ts` — `generateFounderPost` + `weeklyFounderBatch`
 
 ### Pre-post verification pipeline
 
 Every post goes through 4 verification checks before hitting LinkedIn. Runs inside `processQueuedPost` before the actual API call.
 
-**File**: `convex/domains/social/linkedinPrePostVerification.ts` — `verifyBeforePosting` internalAction
+**File**: `backend/convex/domains/social/linkedinPrePostVerification.ts` — `verifyBeforePosting` internalAction
 
 **4 checks (run in order, cheapest first):**
 
@@ -1449,7 +1449,7 @@ Every post goes through 4 verification checks before hitting LinkedIn. Runs insi
 - Claim contradiction → status set to `failed` → held for manual review
 - Search/LLM errors → soft warning, non-blocking (post proceeds)
 
-**Auto-regeneration**: `convex/workflows/founderPostGenerator.ts` — `regenerateFailedPersonalPosts` queries `needs_rewrite` items with persona FOUNDER, generates fresh replacements, marks old ones as rejected.
+**Auto-regeneration**: `backend/convex/workflows/founderPostGenerator.ts` — `regenerateFailedPersonalPosts` queries `needs_rewrite` items with persona FOUNDER, generates fresh replacements, marks old ones as rejected.
 
 **Manual commands:**
 ```bash
@@ -1751,7 +1751,7 @@ After every implementation — before moving to the next task — answer these 3
 
 Real-world evaluation of MCP tool orchestration using open-source software engineering tasks from the SWE-bench Verified dataset (500 human-validated GitHub issues from princeton-nlp).
 
-**→ Quick Refs:** Run dataset bench: `cd packages/mcp-local && npx vitest run src/__tests__/evalDatasetBench.test.ts` | Run tool coverage: `npx vitest run src/__tests__/evalHarness.test.ts` | Dataset: [SWE-bench Verified](https://huggingface.co/datasets/princeton-nlp/SWE-bench_Verified) | See [AI Flywheel](#how-the-two-loops-compose-the-ai-flywheel-verification--eval) | See [Eval-Driven Development Loop](#eval-driven-development-loop) | See [6-Phase Verification](#6-phase-iterative-deep-dive-verification-process)
+**→ Quick Refs:** Run dataset bench: `cd packages/mcp-local && npx vitest run apps/web/src/__tests__/evalDatasetBench.test.ts` | Run tool coverage: `npx vitest run apps/web/src/__tests__/evalHarness.test.ts` | Dataset: [SWE-bench Verified](https://huggingface.co/datasets/princeton-nlp/SWE-bench_Verified) | See [AI Flywheel](#how-the-two-loops-compose-the-ai-flywheel-verification--eval) | See [Eval-Driven Development Loop](#eval-driven-development-loop) | See [6-Phase Verification](#6-phase-iterative-deep-dive-verification-process)
 
 ### What it tests
 
@@ -1820,13 +1820,13 @@ Beyond per-task pipelines, 3 cross-task tests prove the flywheel loops connect:
 
 ```bash
 # Full dataset bench (20 tasks, 473 tool calls)
-cd packages/mcp-local && npx vitest run src/__tests__/evalDatasetBench.test.ts --reporter=verbose
+cd packages/mcp-local && npx vitest run apps/web/src/__tests__/evalDatasetBench.test.ts --reporter=verbose
 
 # Tool-level coverage (47 tools, 76 calls)
-cd packages/mcp-local && npx vitest run src/__tests__/evalHarness.test.ts --reporter=verbose
+cd packages/mcp-local && npx vitest run apps/web/src/__tests__/evalHarness.test.ts --reporter=verbose
 
 # Both together
-cd packages/mcp-local && npx vitest run src/__tests__/evalDatasetBench.test.ts src/__tests__/evalHarness.test.ts --reporter=verbose
+cd packages/mcp-local && npx vitest run apps/web/src/__tests__/evalDatasetBench.test.ts apps/web/src/__tests__/evalHarness.test.ts --reporter=verbose
 ```
 
 ### Latest results

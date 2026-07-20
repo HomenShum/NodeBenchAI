@@ -13,9 +13,9 @@ spec:
   authoring:
     directory: ./agent
     # Source of truth remains code until a manifest compiler exists:
-    #   convex/domains/redesign/chatRuns.ts  (orchestrator prompts + response shapes)
-    #   convex/domains/agents/**             (orchestrator-workers, trace types)
-    #   server/pipeline/**                   (judge gates, projection writer)
+    #   backend/convex/domains/redesign/chatRuns.ts  (orchestrator prompts + response shapes)
+    #   backend/convex/domains/agents/**             (orchestrator-workers, trace types)
+    #   workers/node/pipeline/**                   (judge gates, projection writer)
 
   runtime:
     engine: repo-local # target: nodeagent-native

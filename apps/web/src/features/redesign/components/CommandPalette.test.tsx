@@ -69,7 +69,7 @@ vi.mock("@/features/product/lib/productIdentity", () => ({
   getAnonymousProductSessionId: () => "anon_test_session",
 }));
 
-vi.mock("../../../../convex/_generated/api", () => ({
+vi.mock("@convex/_generated/api", () => ({
   api: {
     domains: {
       search: {

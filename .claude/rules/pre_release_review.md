@@ -106,7 +106,7 @@ If Convex is NOT deployed:
 - [ ] "Sign in" messages appear where expected
 
 ### Layer 10: WebSocket Gateway (< 3 min)
-If gateway is running (`npx tsx server/index.ts`):
+If gateway is running (`npx tsx workers/node/index.ts`):
 - [ ] `GET /health` returns 200
 - [ ] `GET /mcp/health` returns session count
 - [ ] WebSocket connects with valid API key
@@ -133,8 +133,8 @@ Test in at least one non-Chrome browser (Safari, Firefox, or Edge):
 
 ### Layer 13: Regression Risks (< 2 min)
 Check these known fragile areas:
-- [ ] Voice server: if `server/index.ts` was modified, verify voice WebSocket still works
-- [ ] Schema changes: if `convex/schema.ts` was modified, verify migration compatibility
+- [ ] Voice server: if `workers/node/index.ts` was modified, verify voice WebSocket still works
+- [ ] Schema changes: if `backend/convex/schema.ts` was modified, verify migration compatibility
 - [ ] Tool count: grep for hardcoded "289", "297", "304" — must all match current reality
 - [ ] Print: if Decision Memo or Postmortem was modified, verify print stylesheet (if exists)
 - [ ] OG tags: if `index.html` was modified, verify meta tags are correct
