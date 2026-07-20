@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation, mutation, query } from "../../_generated/server";
 import { internal } from "../../_generated/api";
-import { hashSync } from "../../../shared/artifacts";
+import { hashSync } from "../../../../shared/artifacts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_FRESHNESS_TTL_MS = 30 * DAY_MS;

@@ -7,7 +7,7 @@
  */
 
 import type React from "react";
-import type { Id } from "../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 
 // ─── Document Data Slice ─────────────────────────────────────────────────────
 /** Read-only document data: queries, filtering, grouping, counts. */

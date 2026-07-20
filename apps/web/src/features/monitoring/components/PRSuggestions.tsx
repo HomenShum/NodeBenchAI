@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { GitPullRequest, CheckCircle, Clock, XCircle, ExternalLink, Lightbulb, RefreshCw, ArrowRight } from "lucide-react";
 import { PageHeroHeader } from "../../../shared/ui/PageHeroHeader";
 

@@ -5,7 +5,7 @@
 
 import React from "react";
 import { useQuery, useMutation } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { Lightbulb, FileText, Sparkles, ThumbsUp } from "lucide-react";
 
 export function DocumentRecommendations() {

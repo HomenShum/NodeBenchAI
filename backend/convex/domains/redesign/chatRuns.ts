@@ -43,13 +43,13 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import {
   decideLiveGrounding,
   type LiveGroundingDecision,
-} from "../../../shared/redesign/contextRuntimePolicy";
-import { classifyPrompt } from "../../../shared/redesign/promptClassifier";
+} from "../../../../shared/redesign/contextRuntimePolicy";
+import { classifyPrompt } from "../../../../shared/redesign/promptClassifier";
 import {
   classifyEvidenceVerification,
   type EvidenceVerificationState,
-} from "../../../shared/redesign/sourceVerificationPolicy";
-import { extractBankReconciliationFact } from "../../../shared/redesign/bankReconciliationFactExtractor";
+} from "../../../../shared/redesign/sourceVerificationPolicy";
+import { extractBankReconciliationFact } from "../../../../shared/redesign/bankReconciliationFactExtractor";
 
 // ───────── Types ─────────
 

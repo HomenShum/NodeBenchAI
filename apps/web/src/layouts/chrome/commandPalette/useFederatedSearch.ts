@@ -21,7 +21,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAction } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { getAnonymousProductSessionId } from "@/features/product/lib/productIdentity";
 import {
   CLIENT_TIMEOUT_MS,

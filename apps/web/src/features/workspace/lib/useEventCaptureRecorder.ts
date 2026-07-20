@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { useMutation } from "convex/react";
 
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { getAnonymousProductSessionId } from "@/features/product/lib/productIdentity";
 import type { CaptureRoute } from "@/features/product/lib/captureRouter";
 import {

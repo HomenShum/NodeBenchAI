@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { createSearchRouter } from "./routes/search.js";
 import { synthesizeResults, type HarnessExecution } from "./agentHarness.js";
-import type { McpTool } from "../packages/mcp-local/src/types.js";
+import type { McpTool } from "../../packages/mcp-local/src/types.js";
 
 const weeklyResetTool: McpTool = {
   name: "founder_local_weekly_reset",

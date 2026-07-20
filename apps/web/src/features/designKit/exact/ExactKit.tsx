@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEve
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useConvex, useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { api as generatedApi } from "../../../../convex/_generated/api";
+import { api as generatedApi } from "@convex/_generated/api";
 import { useConvexApi } from "@/lib/convexApi";
 import { getAnonymousProductSessionId } from "@/features/product/lib/productIdentity";
 import { useFastAgent } from "@/features/agents/context/FastAgentContext";

@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useCallback } from "react";
 import { useMutation, useQuery, useAction } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
-import { Doc } from "../../../../convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
+import { Doc } from "@convex/_generated/dataModel";
 import { PresenceIndicator } from "@/shared/components/PresenceIndicator";
 import { DocumentBreadcrumbs } from "./DocumentBreadcrumbs";
 import {

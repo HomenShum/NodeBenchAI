@@ -12,7 +12,7 @@ import {
   createPartFromUri,
   Type,
 } from "@google/genai";
-import { getLlmModel } from "../../../shared/llm/modelCatalog";
+import { getLlmModel } from "../../../../shared/llm/modelCatalog";
 
 // --- Embedding helper ---
 async function embedTexts(openai: OpenAI, texts: string[]): Promise<number[][]> {

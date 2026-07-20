@@ -11,7 +11,7 @@ import {
   Smartphone,
 } from "lucide-react";
 
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import {
   getSyncBridgeAccountUrl,
   getSyncBridgeHealthUrl,

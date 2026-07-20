@@ -3,7 +3,7 @@
  */
 
 import React, { memo } from "react";
-import { Id } from "../../../../../convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 import {
   DocumentRow,
   IntelligenceTable,

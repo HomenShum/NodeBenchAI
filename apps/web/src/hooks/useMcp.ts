@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useMutation, useQuery, useAction } from 'convex/react';
-import { api } from '../../convex/_generated/api';
-import type { Id } from '../../convex/_generated/dataModel';
+import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
 
 const MCP_PRIORITY = ["context7", "convex"];
 

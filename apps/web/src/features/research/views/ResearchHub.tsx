@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState, useMemo } from "react"
 import { ArrowRight, Check, Link2, Newspaper, Zap, TrendingUp, LayoutGrid, Layers, Globe2, ShieldCheck } from "lucide-react";
 import { formatBriefDate, isBriefDateToday } from "@/lib/briefDate";
 import { useMutation, useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { EvidenceProvider, useEvidence } from "@/features/research/contexts/EvidenceContext";
 import { useFastAgent } from "@/features/agents/context/FastAgentContext";
 import { ErrorBoundary as SectionErrorBoundary } from "@/shared/components/ErrorBoundary";

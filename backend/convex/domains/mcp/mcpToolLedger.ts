@@ -15,7 +15,7 @@
 import { v } from "convex/values";
 import { query, mutation, internalMutation } from "../../_generated/server";
 import type { Id, Doc } from "../../_generated/dataModel";
-import { hashSync } from "../../../shared/artifacts";
+import { hashSync } from "../../../../shared/artifacts";
 
 type RiskTier =
   | "read_only"

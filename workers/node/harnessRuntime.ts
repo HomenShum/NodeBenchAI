@@ -40,8 +40,8 @@ import {
 } from "./lib/entityMemoryRecall.js";
 import { saveExtractedSkillTemplate, shouldExtractSkillTemplate } from "./lib/skillExtractor.js";
 import { saveHarnessTraceDistillation } from "./lib/traceDistillation.js";
-import type { McpTool } from "../packages/mcp-local/src/types.js";
-import { deriveReportArtifactMode } from "../shared/reportArtifacts.js";
+import type { McpTool } from "../../packages/mcp-local/src/types.js";
+import { deriveReportArtifactMode } from "../../shared/reportArtifacts.js";
 
 // ── Types ─────────────────────────────────────────────────────────────
 

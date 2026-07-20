@@ -11,7 +11,7 @@
 
 import React, { useMemo } from "react";
 import type { PendingEdit, ThreadEditStats } from "../../hooks/usePendingEdits";
-import type { Id } from "../../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 
 // Thread colors for multi-agent scenarios (up to 6 distinct colors)
 // Tailwind class equivalents: bg-blue-500/10, bg-emerald-500/10, etc.

@@ -12,7 +12,7 @@ import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
-import { getLlmModel, resolveModelAlias, getModelWithFailover } from "../../../shared/llm/modelCatalog";
+import { getLlmModel, resolveModelAlias, getModelWithFailover } from "../../../../shared/llm/modelCatalog";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES

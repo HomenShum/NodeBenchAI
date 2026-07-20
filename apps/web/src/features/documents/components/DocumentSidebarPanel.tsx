@@ -2,7 +2,7 @@ import React, { memo, useCallback, useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { SidebarMiniCalendar } from "@shared/ui/SidebarMiniCalendar";
 import { SidebarUpcoming } from "@shared/ui/SidebarUpcoming";
-import type { Id } from "../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 
 // ---------------------------------------------------------------------------
 // Props

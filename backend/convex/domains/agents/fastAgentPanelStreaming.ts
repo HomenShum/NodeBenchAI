@@ -63,7 +63,7 @@ import { openai } from "@ai-sdk/openai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
 import { z } from "zod";
-import type { WebSourceLike } from "../../../shared/citations";
+import type { WebSourceLike } from "../../../../shared/citations";
 import {
   buildUltraLongChatWorkingSet,
   renderUltraLongChatWorkingSetMarkdown,
@@ -72,7 +72,7 @@ import {
   type EntityFastLaneCache,
   type UltraLongChatMessage,
   type UltraLongChatWorkingSet,
-} from "../../../shared/ultraLongChatContext";
+} from "../../../../shared/ultraLongChatContext";
 import { chooseNodeBenchRuntimeRoute } from "./runtimeRouting";
 import {
   assertTierModelAllowed,
@@ -91,7 +91,7 @@ import {
 import {
   FAST_AGENT_SIGN_IN_BENEFIT_COPY,
   resolveFastAgentRequestedModel,
-} from "../../../shared/llm/fastAgentRuntimeContract";
+} from "../../../../shared/llm/fastAgentRuntimeContract";
 
 // Import tools
 import { fusionSearch, quickSearch } from "../../tools/search";
@@ -438,7 +438,7 @@ import {
   providerFallbackChain,
   isProviderConfigured,
   type UserTier
-} from "../../../shared/llm/modelCatalog";
+} from "../../../../shared/llm/modelCatalog";
 
 // Import from centralized model resolver (SINGLE SOURCE OF TRUTH)
 import {

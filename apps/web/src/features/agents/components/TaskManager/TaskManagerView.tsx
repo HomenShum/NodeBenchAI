@@ -12,7 +12,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from 'convex/react';
 import { useConvexAuth } from 'convex/react';
-import { api } from '../../../../../convex/_generated/api';
+import { api } from '@convex/_generated/api';
 import { 
   Calendar,
   Filter,
@@ -32,7 +32,7 @@ import { cn } from '@/lib/utils';
 import { TaskSessionCard } from './TaskSessionCard';
 import { TaskSessionDetail } from './TaskSessionDetail';
 import type { TaskSession, TaskSessionStatus, TaskSessionType, TaskFilters } from './types';
-import type { Id } from '../../../../../convex/_generated/dataModel';
+import type { Id } from '@convex/_generated/dataModel';
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // FILTER OPTIONS

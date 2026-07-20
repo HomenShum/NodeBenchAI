@@ -12,7 +12,7 @@ import {
   getLlmModel,
   resolveModelAlias,
   getModelWithFailover,
-} from "../../../shared/llm/modelCatalog";
+} from "../../../../shared/llm/modelCatalog";
 
 type ReaderContentResult = {
   ok?: boolean;

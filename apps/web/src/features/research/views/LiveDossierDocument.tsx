@@ -2,13 +2,13 @@
 import { DeepAgentProgress } from "@/features/agents/views/DeepAgentProgress";
 import { TaskPlanPanel, workflowProgressToTaskSteps } from "@/features/agents/views/TaskPlanPanel";
 import { InlineMetrics, type WorkflowMetrics } from "@/features/agents/views/WorkflowMetricsBar";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { useUIMessages } from "@convex-dev/agent/react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useEffect, useRef, useMemo, useState } from "react";
 import { Sparkles, TrendingUp, Users, Briefcase, FileText, Lightbulb, ChevronRight, ChevronDown, Loader2, Radio, Activity, Bot, Globe, Database, Zap, CheckCircle2, AlertCircle, Link2, ExternalLink, Calendar, Youtube, FileSearch, Copy, Check, Image as ImageIcon, Play, User } from "lucide-react";
-import { Id } from "../../../../convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 import { toolPartsToTimelineSteps, type TimelineStep } from "@features/agents/components/FastAgentPanel/StepTimeline";
 
 // Artifact streaming integration

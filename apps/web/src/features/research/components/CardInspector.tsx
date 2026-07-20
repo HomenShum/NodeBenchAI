@@ -30,7 +30,7 @@ import { X, Network, Bell, Layers } from "lucide-react";
 import type {
   ResourceCard,
   ResourceUri,
-} from "../../../../shared/research/resourceCards";
+} from "../../../../../../shared/research/resourceCards";
 
 export interface CardInspectorProps {
   card: ResourceCard | null;

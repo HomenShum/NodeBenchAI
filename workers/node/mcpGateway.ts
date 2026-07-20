@@ -27,7 +27,7 @@ import { type Server as HttpServer } from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
-import type { McpTool } from "../packages/mcp-local/src/types.js";
+import type { McpTool } from "../../packages/mcp-local/src/types.js";
 
 import {
   validateApiKey,

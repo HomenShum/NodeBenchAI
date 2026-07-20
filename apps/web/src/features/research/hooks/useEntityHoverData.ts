@@ -11,7 +11,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useAction } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import type { EntityHoverData } from "../components/EntityHoverPreview";
 import type { EntityType } from "../types/entitySchema";
 

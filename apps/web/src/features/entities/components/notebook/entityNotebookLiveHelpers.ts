@@ -10,7 +10,7 @@
  * existing tests that import by component-file path.
  */
 
-import type { Id } from "../../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 import type { BlockChip } from "./BlockChipRenderer";
 
 export type BlockKind =

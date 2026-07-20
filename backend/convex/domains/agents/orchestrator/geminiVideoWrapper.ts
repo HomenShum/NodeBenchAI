@@ -12,7 +12,7 @@ import { internalAction } from "../../../_generated/server";
 import { internal } from "../../../_generated/api";
 import { GoogleGenAI, createUserContent } from "@google/genai";
 import { createHash } from "crypto";
-import { getLlmModel } from "../../../../shared/llm/modelCatalog";
+import { getLlmModel } from "../../../../../shared/llm/modelCatalog";
 
 const STORE_TO_STORAGE_CHARS = 250_000;
 const MAX_INLINE_RAW_CONTENT_CHARS = 120_000;

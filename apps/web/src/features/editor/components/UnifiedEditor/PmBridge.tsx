@@ -5,7 +5,7 @@
 
 import React, { useEffect } from 'react';
 import { useCurrentEditor } from '@tiptap/react';
-import { Id } from '../../../../../convex/_generated/dataModel';
+import { Id } from '@convex/_generated/dataModel';
 import { getBlockText } from '../../utils/blockUtils';
 
 interface PmBridgeProps {

@@ -15,7 +15,7 @@ import { useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useNavigate } from "react-router-dom";
 
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { buildEntityPath } from "@/features/entities/lib/entityExport";
 import { describeShareStatus, parseShareTokenFromPath } from "./publicShareHelpers";
 

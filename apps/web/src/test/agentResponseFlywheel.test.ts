@@ -3,7 +3,7 @@ import {
   reviewAgentResponse,
   summarizeResponseReviews,
   type AgentResponseReviewAggregateRow,
-} from "../../shared/agentResponseFlywheel";
+} from "../../../../shared/agentResponseFlywheel";
 
 describe("agentResponseFlywheel", () => {
   it("flags freshness-sensitive responses that lack sources and absolute dates", () => {

@@ -3,7 +3,7 @@
 // This prevents schema drift from creeping into shared types
 
 import { Doc } from "../_generated/dataModel";
-import type { ArtifactCard } from "../../shared/artifacts";
+import type { ArtifactCard } from "../../../shared/artifacts";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPE: ArtifactRow (exactly what schema allows)

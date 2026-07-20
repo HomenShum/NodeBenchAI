@@ -12,7 +12,7 @@
  */
 
 import { ConvexHttpClient } from "convex/browser";
-import { api } from "../convex/_generated/api";
+import { api } from "../backend/convex/_generated/api";
 
 function getArg(flag: string): string | undefined {
   const idx = process.argv.indexOf(flag);

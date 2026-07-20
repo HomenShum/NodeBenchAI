@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 
-import type { Id } from "../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 import { useConvexApi } from "@/lib/convexApi";
 
 import { AuthorityControl } from "./AuthorityControl";

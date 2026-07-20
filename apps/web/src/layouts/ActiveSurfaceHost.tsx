@@ -1,6 +1,6 @@
 import { lazy, Suspense, useRef } from "react";
 import { useLocation } from "react-router-dom";
-import { Id } from "../../convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
 import { ViewSkeleton } from "@/components/skeletons";
 import { AgentScreen } from "@/shared/agent-ui/AgentScreen";

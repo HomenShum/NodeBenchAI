@@ -41,7 +41,7 @@ import {
   promptHashOf,
   validateLlmJudgeScores,
   type LlmJudgeInput,
-} from "../../../server/pipeline/diligenceLlmJudge";
+} from "../../../../workers/node/pipeline/diligenceLlmJudge";
 import {
   getActivePublicEntityShareByToken,
   requireAuthenticatedProductIdentity,

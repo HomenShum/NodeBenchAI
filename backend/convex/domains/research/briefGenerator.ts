@@ -11,11 +11,11 @@ import { v } from "convex/values";
 import { internalAction } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import OpenAI from "openai";
-import { getLlmModel } from "../../../shared/llm/modelCatalog";
+import { getLlmModel } from "../../../../shared/llm/modelCatalog";
 
 // Import schema and validator types
-import type { DailyBriefPayload, Signal, Evidence, Action } from "../../../src/features/research/types/dailyBriefSchema";
-import { DailyBriefJSONSchema } from "../../../src/features/research/types/dailyBriefSchema";
+import type { DailyBriefPayload, Signal, Evidence, Action } from "../../../../apps/web/src/features/research/types/dailyBriefSchema";
+import { DailyBriefJSONSchema } from "../../../../apps/web/src/features/research/types/dailyBriefSchema";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES

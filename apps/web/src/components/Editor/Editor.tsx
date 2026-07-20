@@ -1,5 +1,5 @@
 import React, { Suspense } from "react";
-import { Id } from "../../../convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 import type { EditorMode } from "@features/editor/components/UnifiedEditor";
 import { ErrorBoundary } from "@shared/components/ErrorBoundary";
 import "./editor-blocks.css";

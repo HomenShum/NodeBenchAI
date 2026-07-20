@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import MetaPills from "@/shared/components/MetaPills";
 import { taskToPills } from "../../lib/metaPillMappers";
 import { shapeTaskForPills, reorderTaskPillsForTightRows } from "../../lib/tasks";
-import type { Doc } from "../../../convex/_generated/dataModel";
+import type { Doc } from "@convex/_generated/dataModel";
 
 export default function TaskCard({ task }: { task: Doc<any> }) {
   const shaped = shapeTaskForPills(task);

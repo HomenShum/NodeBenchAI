@@ -6,11 +6,11 @@ on:
       - ".github/workflows/dogfood-qa-gate.yml"
       - "scripts/overstory/**"
       - "scripts/ui/**"
-      - "tests/e2e/**"
-      - "src/**/*.tsx"
-      - "src/**/*.ts"
-      - "src/**/*.css"
-      - "src/features/**"
+      - "evals/e2e/**"
+      - "apps/web/src/**/*.tsx"
+      - "apps/web/src/**/*.ts"
+      - "apps/web/src/**/*.css"
+      - "apps/web/src/features/**"
       - "public/dogfood/**"
   schedule:
     - cron: "0 6 * * *"
@@ -61,7 +61,7 @@ jobs:
 
       - name: Capture screenshots + publish gallery
         run: |
-          npm run test:e2e -- tests/e2e/full-ui-dogfood.spec.ts --project=chromium --workers=1
+          npm run test:e2e -- evals/e2e/full-ui-dogfood.spec.ts --project=chromium --workers=1
           npm run dogfood:publish
 
       - name: Capture Scribe how-to

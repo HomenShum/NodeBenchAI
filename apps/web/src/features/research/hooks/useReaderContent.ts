@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAction } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 
 export type SourceMatrixItem = {
   title: string;

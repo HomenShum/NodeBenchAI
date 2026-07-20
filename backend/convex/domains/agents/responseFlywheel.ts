@@ -9,7 +9,7 @@ import {
   summarizeResponseReviews,
   type AgentResponseFlywheelSnapshot,
   type AgentResponseReviewAggregateRow,
-} from "../../../shared/agentResponseFlywheel";
+} from "../../../../shared/agentResponseFlywheel";
 import { buildTrajectoryEntityKey } from "../trajectory/lib";
 
 const MAX_REVIEW_WINDOW = 120;

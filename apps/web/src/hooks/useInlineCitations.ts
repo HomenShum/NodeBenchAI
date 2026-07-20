@@ -7,7 +7,7 @@ import {
   buildStableCitationIndex,
   injectInlineCitationSupers,
   type FactToArtifacts,
-} from "../../shared/citations/injectInlineCitations";
+} from "../../../../shared/citations/injectInlineCitations";
 import { useArtifactStore } from "./useArtifactStore";
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -1,7 +1,7 @@
 // src/features/research/utils/newsletterParser.ts
 // Parse markdown content into structured newsletter sections
 
-import { matchSectionKey, generateSectionId, DOSSIER_SECTION_KEYS } from '../../../../shared/sectionIds';
+import { matchSectionKey, generateSectionId, DOSSIER_SECTION_KEYS } from '../../../../../../shared/sectionIds';
 import type { ReactNode } from 'react';
 
 export interface ParsedBullet {
@@ -39,8 +39,8 @@ function parseBullets(sectionContent: string): ParsedBullet[] {
     const lines = sectionContent.split('\n');
     for (const line of lines) {
         const trimmed = line.trim();
-        if (trimmed.match(/^[-*•]\s+/)) {
-            const text = trimmed.replace(/^[-*•]\s+/, '');
+        if (trimmed.match(/^[-*ï¿½]\s+/)) {
+            const text = trimmed.replace(/^[-*ï¿½]\s+/, '');
             const evidenceChips = extractFactIds(text);
             const cleanText = text.replace(FACT_ANCHOR_REGEX, '').trim();
             bullets.push({ text: cleanText, evidenceChips });

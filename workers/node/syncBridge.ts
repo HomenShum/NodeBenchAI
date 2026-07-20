@@ -14,8 +14,8 @@ import type {
   SyncBridgeSyncAckPayload,
   SyncQueueOperation,
   SyncScope,
-} from "../packages/mcp-local/src/sync/protocol.js";
-import { createSyncEnvelope } from "../packages/mcp-local/src/sync/protocol.js";
+} from "../../packages/mcp-local/src/sync/protocol.js";
+import { createSyncEnvelope } from "../../packages/mcp-local/src/sync/protocol.js";
 
 interface ConnectedDevice {
   ws: WebSocket;

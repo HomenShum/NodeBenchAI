@@ -8,7 +8,7 @@ import {
   XCircle,
 } from "lucide-react";
 
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import type { TaskSession, TaskSessionStatus } from "./TaskManager/types";
 import { cn } from "@/lib/utils";
 

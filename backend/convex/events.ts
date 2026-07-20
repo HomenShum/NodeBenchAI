@@ -35,8 +35,8 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { action, query, mutation, internalMutation, internalQuery, internalAction } from "./_generated/server";
 import { enforceRateLimit } from "./scratchnodeRateLimit";
-import { routeLLM, askAnswerSignals } from "../shared/llm/router";
-import { rerankWithGemini, condenseQuery, type TriCandidate } from "../shared/search/triSearch";
+import { routeLLM, askAnswerSignals } from "../../shared/llm/router";
+import { rerankWithGemini, condenseQuery, type TriCandidate } from "../../shared/search/triSearch";
 
 class ConvexError<T extends Record<string, unknown>> extends Error {
   data: T;

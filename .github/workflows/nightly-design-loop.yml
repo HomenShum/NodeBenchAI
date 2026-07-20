@@ -46,13 +46,13 @@ jobs:
       - name: Execute surface contracts (fails on drift)
         env:
           BASE_URL: http://127.0.0.1:4173
-        run: npx playwright test tests/e2e/ui-contract-runner.spec.ts --project=chromium --workers=1 --reporter=line
+        run: npx playwright test evals/e2e/ui-contract-runner.spec.ts --project=chromium --workers=1 --reporter=line
 
       - name: Capture 4-variant screenshot set
         env:
           BASE_URL: http://127.0.0.1:4173
           DOGFOOD_SCREENSHOT_DIR: nightly-captures
-        run: npx playwright test tests/e2e/full-ui-dogfood.spec.ts --project=chromium --workers=1 --reporter=line
+        run: npx playwright test evals/e2e/full-ui-dogfood.spec.ts --project=chromium --workers=1 --reporter=line
 
       - name: Upload screenshots
         if: always()

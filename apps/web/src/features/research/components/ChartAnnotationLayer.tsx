@@ -11,7 +11,7 @@ import React, { useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMotionConfig } from '@/lib/motion';
 import { useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { useCurrentAct, type Act } from "../contexts/FocusSyncContext";
 
 // ═══════════════════════════════════════════════════════════════════════════

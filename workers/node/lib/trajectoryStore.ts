@@ -56,7 +56,7 @@ export const TOKEN_COST_USD = 0.000004;
 
 // ── DB (reuse canonical singleton) ───────────────────────────────────
 
-import { getDb as getCanonicalDb } from "../../packages/mcp-local/src/db.js";
+import { getDb as getCanonicalDb } from "../../../packages/mcp-local/src/db.js";
 
 let _tableReady = false;
 

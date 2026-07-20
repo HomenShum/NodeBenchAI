@@ -7,7 +7,7 @@ import {
   parseFusionSearchOutput,
 } from "../FastAgentPanel.UIMessageBubble";
 import { FusedSearchResults } from "../FusedSearchResults";
-import { makeWebSourceCitationId } from "../../../../../../shared/citations/webSourceCitations";
+import { makeWebSourceCitationId } from "../../../../../../../../shared/citations/webSourceCitations";
 
 const { smoothTextMock, speakMock, stopMock } = vi.hoisted(() => ({
   smoothTextMock: vi.fn((text: string | undefined) => [text ?? ""]),

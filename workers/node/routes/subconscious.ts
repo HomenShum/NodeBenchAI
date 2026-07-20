@@ -13,10 +13,10 @@ import {
   getRecentWhispers,
   type BlockType,
   ALL_BLOCK_TYPES,
-} from "../../packages/mcp-local/src/subconscious/blocks.js";
-import { getGraphSummary } from "../../packages/mcp-local/src/subconscious/graphEngine.js";
-import { classifyPrompt } from "../../packages/mcp-local/src/subconscious/classifier.js";
-import { generateWhisper, type SubconsciousMode } from "../../packages/mcp-local/src/subconscious/whisperPolicy.js";
+} from "../../../packages/mcp-local/src/subconscious/blocks.js";
+import { getGraphSummary } from "../../../packages/mcp-local/src/subconscious/graphEngine.js";
+import { classifyPrompt } from "../../../packages/mcp-local/src/subconscious/classifier.js";
+import { generateWhisper, type SubconsciousMode } from "../../../packages/mcp-local/src/subconscious/whisperPolicy.js";
 
 export function createSubconsciousRouter(): Router {
   const router = Router();

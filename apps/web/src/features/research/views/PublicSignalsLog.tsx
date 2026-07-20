@@ -1,7 +1,7 @@
 ﻿import { useMemo, useState, useCallback } from "react";
 import { useQuery } from "convex/react";
 import { useEffect } from "react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import ReactMarkdown from "react-markdown";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { sanitizeReadableText } from "@/lib/displayText";

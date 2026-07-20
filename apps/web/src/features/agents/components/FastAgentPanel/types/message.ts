@@ -1,5 +1,5 @@
 // Message types for FastAgentPanel
-import { Id } from "../../../../../../convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 
 export type MessageRole = 'user' | 'assistant' | 'system';
 export type MessageStatus = 'sending' | 'streaming' | 'complete' | 'error';

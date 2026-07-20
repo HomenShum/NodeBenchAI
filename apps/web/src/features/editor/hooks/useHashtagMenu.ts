@@ -6,8 +6,8 @@
 import { useCallback } from 'react';
 import { useConvex } from 'convex/react';
 import { DefaultReactSuggestionItem } from '@blocknote/react';
-import { api } from '../../../../convex/_generated/api';
-import { Id } from '../../../../convex/_generated/dataModel';
+import { api } from '@convex/_generated/api';
+import { Id } from '@convex/_generated/dataModel';
 
 interface UseHashtagMenuOptions {
   editor: any; // BlockNote editor instance

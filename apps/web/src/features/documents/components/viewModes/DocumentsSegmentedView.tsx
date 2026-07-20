@@ -7,7 +7,7 @@
 
 import React, { memo, useCallback } from "react";
 import { Calendar, File, FileText, Star } from "lucide-react";
-import { Id } from "../../../../../convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 import {
   DocumentCardMemo,
   type DocumentCardData,

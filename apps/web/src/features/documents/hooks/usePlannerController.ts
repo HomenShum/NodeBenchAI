@@ -14,7 +14,7 @@
  */
 
 import { useEffect, useMemo } from "react";
-import type { Id } from "../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 import type { PlannerMode, AgendaPopoverState } from "@features/documents/components/documentsHub";
 import { usePlannerState } from "@/hooks/usePlannerState";
 import { usePlannerMutations } from "./usePlannerMutations";

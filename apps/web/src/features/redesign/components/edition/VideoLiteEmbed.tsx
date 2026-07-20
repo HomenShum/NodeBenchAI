@@ -28,7 +28,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAction, useQuery } from "convex/react";
-import { api } from "../../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { detectVideoProviderClient, sha256Hex } from "../../utils/videoProvider";
 
 interface Props {

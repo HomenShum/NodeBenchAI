@@ -7,7 +7,7 @@
  * to maintain backward compatibility. This file defines additional types.
  */
 
-import { Id } from "../../../../../convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 
 // Re-export core types from utils for convenience
 export type { TaskStatus } from "./utils/statusHelpers";

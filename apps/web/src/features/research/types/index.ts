@@ -24,7 +24,7 @@ export type {
   DashboardState,
   AgentDashboardUpdate,
   StorySection
-} from "../types";
+} from "./";
 
 // Export Daily Brief canonical schema
 export type {

@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { X, RefreshCw, Building2, MapPin, Calendar, Globe, Users, DollarSign, ArrowUpRight } from "lucide-react";
 import { useAction } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { useFastAgent } from "@/features/agents/context/FastAgentContext";
 import { AUDIT_MOCKS } from "../data/audit_mocks";
 import { RepoStatsPanel } from "./RepoStatsPanel";

@@ -3,7 +3,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { useQuery } from 'convex/react';
-import { api } from '../../../../../convex/_generated/api';
+import { api } from '@convex/_generated/api';
 import { Search, Loader2, Sparkles, Zap } from 'lucide-react';
 
 interface SkillsPanelProps {

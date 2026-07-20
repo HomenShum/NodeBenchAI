@@ -12,10 +12,10 @@ import {
   getLlmModel,
   resolveModelAlias,
   getModelWithFailover,
-} from "../../../shared/llm/modelCatalog";
+} from "../../../../shared/llm/modelCatalog";
 import { runPiOrAiSdkCompletion } from "../pipelines/piRuntime";
 import { linkupSearch } from "../../tools/media/linkupSearch";
-import { getStockPrice } from "../../domains/agents/core/subagents/openbb_subagent/tools/equityTools";
+import { getStockPrice } from "../agents/core/subagents/openbb_subagent/tools/equityTools";
 
 type SourceMatrixItem = {
   title: string;

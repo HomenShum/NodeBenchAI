@@ -11,7 +11,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery } from 'convex/react';
-import { api } from '../../../../convex/_generated/api';
+import { api } from '@convex/_generated/api';
 import { Search, ArrowRight, FileText, Sparkles, Clock, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 

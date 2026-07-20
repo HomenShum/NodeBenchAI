@@ -1,7 +1,7 @@
 import React from "react";
-import type { Id } from "../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 import { useMutation } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { toast } from "sonner";
 import PopoverMiniEditor from "./PopoverMiniEditor";
 

@@ -217,7 +217,7 @@ export const generateAndCreateDocument = action({
       const { google } = await import("@ai-sdk/google");
 
       // Use model catalog for consistent model selection
-      const { getLlmModel } = await import("../../../shared/llm/modelCatalog");
+      const { getLlmModel } = await import("../../../../shared/llm/modelCatalog");
       const agentModel = getLlmModel("agent", "openai");
 
       // Helper to get language model based on model name

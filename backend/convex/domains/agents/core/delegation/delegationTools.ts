@@ -23,7 +23,7 @@ import { createSECAgent } from "../subagents/sec_subagent/secAgent";
 import { createOpenBBAgent } from "../subagents/openbb_subagent/openbbAgent";
 import { createEntityResearchAgent } from "../subagents/entity_subagent/entityResearchAgent";
 import { createDossierAgent } from "../subagents/dossier_subagent/dossierAgent";
-import { getLlmModel } from "../../../../../shared/llm/modelCatalog";
+import { getLlmModel } from "../../../../../../shared/llm/modelCatalog";
 
 type DelegationTool = Tool<any, any>;
 

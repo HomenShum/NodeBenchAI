@@ -22,7 +22,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { Link } from "react-router-dom";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { useScratchnodeSessionId } from "../hooks/useScratchnodeSessionId";
 import { getAnonymousProductSessionId } from "../../product/lib/productIdentity";
 

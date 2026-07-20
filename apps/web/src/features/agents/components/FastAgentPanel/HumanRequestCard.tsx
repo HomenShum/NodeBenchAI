@@ -5,9 +5,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { MessageCircleQuestion, Send, X, CheckCircle2, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMutation } from 'convex/react';
-import { api } from '../../../../../convex/_generated/api';
+import { api } from '@convex/_generated/api';
 import { toast } from 'sonner';
-import type { Id } from '../../../../../convex/_generated/dataModel';
+import type { Id } from '@convex/_generated/dataModel';
 
 interface HumanRequest {
   _id: Id<'humanRequests'>;

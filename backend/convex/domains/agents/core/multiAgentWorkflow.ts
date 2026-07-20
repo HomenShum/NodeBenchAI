@@ -127,7 +127,7 @@ export const runWorkflow = internalAction({
             ]);
 
             // Use model catalog for consistent model selection
-            const { getLlmModel } = await import("../../../../shared/llm/modelCatalog");
+            const { getLlmModel } = await import("../../../../../shared/llm/modelCatalog");
             const coordinatorModel = getLlmModel("agent", "openai");
             const { createCoordinatorAgent } = await import("./coordinatorAgent");
             const coordinator = createCoordinatorAgent(coordinatorModel);

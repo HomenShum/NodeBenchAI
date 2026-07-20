@@ -7,7 +7,7 @@ import React from 'react';
 import { EditorProvider } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { PmBridge } from './PmBridge';
-import { Id } from '../../../../../convex/_generated/dataModel';
+import { Id } from '@convex/_generated/dataModel';
 
 interface ShadowTiptapProps {
   documentId: Id<"documents">;

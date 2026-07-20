@@ -16,7 +16,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, startTransition, Suspense, lazy } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useConvexAuth } from "convex/react";
-import { Id } from "../../convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 import { useFastAgent } from "@/features/agents/context/FastAgentContext";
 import { useCommandPalette } from "../hooks/useCommandPalette";
 import { useGlobalEventListeners } from "../hooks/useGlobalEventListeners";

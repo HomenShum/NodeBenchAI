@@ -33,7 +33,7 @@ import { ComposerRoutingPreview } from "@/features/product/components/ComposerRo
 import { useProductBootstrap } from "@/features/product/lib/useProductBootstrap";
 import { buildOperatorContextHint, buildOperatorContextLabel } from "@/features/product/lib/operatorContext";
 import { uploadProductDraftFiles } from "@/features/product/lib/uploadDraftFiles";
-import { buildEntityAliasKey } from "../../../../shared/reportArtifacts";
+import { buildEntityAliasKey } from "../../../../../../shared/reportArtifacts";
 import { EntityMentionText, seedEntitiesFromReports } from "@/features/notebook/components/EntityMentionText";
 
 const SUGGESTED_PROMPTS = [

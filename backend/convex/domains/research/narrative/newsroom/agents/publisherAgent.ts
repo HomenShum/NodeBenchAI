@@ -21,7 +21,7 @@ import { getLanguageModelSafe } from "../../../../agents/mcp_tools/models";
 import {
   fnv1a32Hex,
   makeWebSourceCitationId,
-} from "../../../../../../shared/citations/webSourceCitations";
+} from "../../../../../../../shared/citations/webSourceCitations";
 import type {
   NewsroomState,
   NarrativeShift,

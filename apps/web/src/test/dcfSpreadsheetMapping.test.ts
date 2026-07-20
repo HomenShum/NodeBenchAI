@@ -4,7 +4,7 @@ import {
   mapCellToField,
   normalizeDCFParameterValue,
   setParameterAtPath,
-} from "../../convex/domains/financial/dcfSpreadsheetMapping";
+} from "@convex/domains/financial/dcfSpreadsheetMapping";
 
 describe("dcfSpreadsheetMapping", () => {
   test("mapCellToField maps editable input cells", () => {

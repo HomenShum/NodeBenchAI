@@ -5,7 +5,7 @@
 
 import React, { useState } from "react";
 import { useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { Zap, TrendingUp, CheckCircle, Clock, Play } from "lucide-react";
 
 export function AgentMarketplace() {

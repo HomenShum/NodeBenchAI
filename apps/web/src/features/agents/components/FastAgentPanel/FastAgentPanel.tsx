@@ -4,8 +4,8 @@
 import React, { memo, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useConvex, usePaginatedQuery, useQuery, useMutation, useAction, useConvexAuth } from 'convex/react';
-import { api } from '../../../../../convex/_generated/api';
-import { Id } from '../../../../../convex/_generated/dataModel';
+import { api } from '@convex/_generated/api';
+import { Id } from '@convex/_generated/dataModel';
 import { X, Loader2, ChevronDown, ArrowDown, MessageSquare, Activity, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
@@ -53,7 +53,7 @@ import { DEFAULT_MODEL, type ApprovedModel } from '@shared/llm/approvedModels';
 import {
   ANONYMOUS_FAST_AGENT_MODEL_ID,
   FAST_AGENT_SIGN_IN_BENEFIT_COPY,
-} from '../../../../../shared/llm/fastAgentRuntimeContract';
+} from '../../../../../../../shared/llm/fastAgentRuntimeContract';
 import { cn } from '@/lib/utils';
 import { buildCockpitPath } from '@/lib/registry/viewRegistry';
 import { useAnonymousSession } from '../../hooks/useAnonymousSession';

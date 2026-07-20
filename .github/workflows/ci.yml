@@ -59,7 +59,7 @@ jobs:
         run: npx tsc --noEmit --pretty false
 
       - name: Convex typecheck
-        run: npx tsc -p convex --noEmit --pretty false
+        run: npx tsc -p backend/convex --noEmit --pretty false
 
   runtime-smoke:
     name: Runtime smoke
@@ -79,31 +79,31 @@ jobs:
       - name: Runtime smoke tests
         run: >
           npx vitest run
-          server/lib/jsonObjectParser.test.ts
-          server/agentHarnessStructuredOutput.test.ts
-          src/features/product/lib/captureRouter.test.ts
-          src/features/workspace/lib/eventWorkspacePersistence.test.ts
-          src/features/workspace/data/eventWorkspaceMemory.test.ts
-          convex/__tests__/scratchnode.events.test.ts
-          server/searchRoute.test.ts
-          convex/workflows/ainewsBriefFormat.test.ts
-          convex/__tests__/agentRuntimeTierFallback.test.ts
-          src/features/agents/components/FastAgentPanel/__tests__/RunState.test.tsx
-          convex/domains/agents/autonomy/autonomy.integration.test.ts
-          convex/domains/agents/autonomy/autonomyTasteBench.integration.test.ts
-          convex/domains/evaluation/tasteBench.integration.test.ts
-          convex/domains/evaluation/tasteBenchPolicy.test.ts
-          convex/domains/product/diligenceTenantIsolation.test.ts
-          src/features/entities/components/notebook/entityNotebookAuthorityHelpers.test.ts
-          src/features/agents/authority/AuthorityControl.test.tsx
-          src/features/agents/authority/DelegatedReceiptRow.test.tsx
-          src/features/dogfood/components/TasteBenchPanel.test.tsx
-          src/features/evaluation/data/tasteBenchScenario.test.ts
+          workers/node/lib/jsonObjectParser.test.ts
+          workers/node/agentHarnessStructuredOutput.test.ts
+          apps/web/src/features/product/lib/captureRouter.test.ts
+          apps/web/src/features/workspace/lib/eventWorkspacePersistence.test.ts
+          apps/web/src/features/workspace/data/eventWorkspaceMemory.test.ts
+          backend/convex/__tests__/scratchnode.events.test.ts
+          workers/node/searchRoute.test.ts
+          backend/convex/workflows/ainewsBriefFormat.test.ts
+          backend/convex/__tests__/agentRuntimeTierFallback.test.ts
+          apps/web/src/features/agents/components/FastAgentPanel/__tests__/RunState.test.tsx
+          backend/convex/domains/agents/autonomy/autonomy.integration.test.ts
+          backend/convex/domains/agents/autonomy/autonomyTasteBench.integration.test.ts
+          backend/convex/domains/evaluation/tasteBench.integration.test.ts
+          backend/convex/domains/evaluation/tasteBenchPolicy.test.ts
+          backend/convex/domains/product/diligenceTenantIsolation.test.ts
+          apps/web/src/features/entities/components/notebook/entityNotebookAuthorityHelpers.test.ts
+          apps/web/src/features/agents/authority/AuthorityControl.test.tsx
+          apps/web/src/features/agents/authority/DelegatedReceiptRow.test.tsx
+          apps/web/src/features/dogfood/components/TasteBenchPanel.test.tsx
+          apps/web/src/features/evaluation/data/tasteBenchScenario.test.ts
           scripts/__tests__/releaseWorkflowContracts.test.ts
-          convex/domains/redesign/chatRuns.responseShape.test.ts
-          convex/domains/redesign/chatRuns.contract.test.ts
-          src/features/redesign/components/UniversalComposer.test.tsx
-          src/features/redesign/surfaces/ScratchnodeEventsSurface.test.tsx
+          backend/convex/domains/redesign/chatRuns.responseShape.test.ts
+          backend/convex/domains/redesign/chatRuns.contract.test.ts
+          apps/web/src/features/redesign/components/UniversalComposer.test.tsx
+          apps/web/src/features/redesign/surfaces/ScratchnodeEventsSurface.test.tsx
 
   scratchnode-launch-gates:
     name: ScratchNode launch gates
@@ -126,9 +126,9 @@ jobs:
       - name: Verify demo route gate and live route honesty
         run: >
           npx playwright test
-          tests/e2e/vercel-preview-security.spec.ts
-          tests/e2e/scratchnode-demo-route-gate.spec.ts
-          tests/e2e/scratchnode-live-route-honesty.spec.ts
+          evals/e2e/vercel-preview-security.spec.ts
+          evals/e2e/scratchnode-demo-route-gate.spec.ts
+          evals/e2e/scratchnode-live-route-honesty.spec.ts
           --project=chromium
           --workers=1
           --reporter=list

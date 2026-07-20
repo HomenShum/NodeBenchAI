@@ -27,7 +27,7 @@ const reporter = [
 ];
 
 export default defineConfig({
-  testDir: "./tests/e2e",
+  testDir: "./evals/e2e",
   timeout: 30 * 1000,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

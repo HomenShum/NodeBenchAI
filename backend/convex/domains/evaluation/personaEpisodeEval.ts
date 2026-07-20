@@ -6,7 +6,7 @@ import { internal, components } from "../../_generated/api";
 import { Agent, stepCountIs } from "@convex-dev/agent";
 import { getLanguageModelSafe, DEFAULT_MODEL } from "../agents/mcp_tools/models";
 import { PERSONAS, type Persona, GROUND_TRUTH_ENTITIES } from "./groundTruth";
-import { calculateRequestCost } from "../../../shared/llm/modelCatalog";
+import { calculateRequestCost } from "../../../../shared/llm/modelCatalog";
 
 type DebriefV1 = {
   schemaVersion: "debrief_v1";

@@ -1,7 +1,7 @@
 import { memo, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { CheckCircle2, Clock3, ShieldAlert } from "lucide-react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { cn } from "@/lib/utils";
 import { formatApprovalQueueTime, toActionReceipt } from "../lib/receiptPresentation";
 

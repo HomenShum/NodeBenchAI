@@ -2,7 +2,7 @@
 
 import { internalAction } from "../../_generated/server";
 import { internal } from "../../_generated/api";
-import type { DashboardState, KeyStat, CapabilityEntry, MarketShareSegment } from "../../../src/features/research/types";
+import type { DashboardState, KeyStat, CapabilityEntry, MarketShareSegment } from "../../../../apps/web/src/features/research/types";
 import { createHash } from "crypto";
 
 /**

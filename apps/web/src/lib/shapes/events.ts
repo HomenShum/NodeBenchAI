@@ -1,4 +1,4 @@
-import { Id } from "../../../convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 
 // Typed payload for quick prompt events used across the app
 export type QuickPromptEventDetail = {

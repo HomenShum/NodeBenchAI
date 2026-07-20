@@ -10,8 +10,8 @@
 
 import { useMemo } from "react";
 import { useQuery } from "convex/react";
-import type { Id } from "../../../../../../convex/_generated/dataModel";
-import { api } from "../../../../../../convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
 
 export interface RefsPillsProps {
   refs?: Array<{ kind: "document" | "task" | "event"; id: string }> | null;

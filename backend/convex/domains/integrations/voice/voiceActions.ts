@@ -9,7 +9,7 @@ import { httpAction } from "../../../_generated/server";
 import { internal, components } from "../../../_generated/api";
 import { createVoiceAgent, createVoiceCoordinatorAgent, createVoicePlannerAgent, voicePlanSchema } from "./voiceAgent";
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { getLlmModel } from "../../../../shared/llm/modelCatalog";
+import { getLlmModel } from "../../../../../shared/llm/modelCatalog";
 
 /**
  * Voice session state stored in DB

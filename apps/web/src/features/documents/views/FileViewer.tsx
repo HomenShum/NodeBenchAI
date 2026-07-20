@@ -1,7 +1,7 @@
 import React, { Suspense, useState, useEffect } from 'react';
 import { useQuery, useAction } from 'convex/react';
-import { api } from '../../../../convex/_generated/api';
-import { Id } from '../../../../convex/_generated/dataModel';
+import { api } from '@convex/_generated/api';
+import { Id } from '@convex/_generated/dataModel';
 import { ErrorBoundary } from "@shared/components/ErrorBoundary";
 import {
   FileText,

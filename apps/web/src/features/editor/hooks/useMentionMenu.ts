@@ -6,7 +6,7 @@
 import { useCallback } from 'react';
 import { useConvex } from 'convex/react';
 import { DefaultReactSuggestionItem } from '@blocknote/react';
-import { api } from '../../../../convex/_generated/api';
+import { api } from '@convex/_generated/api';
 
 interface UseMentionMenuOptions {
   editor: any; // BlockNote editor instance

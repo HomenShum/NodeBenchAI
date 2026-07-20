@@ -11,7 +11,7 @@
 import { type ReactNode, type CSSProperties } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { Id } from "../../../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 
 export interface KanbanSortableItemProps {
   id: Id<"userEvents"> | Id<"events"> | string; // supports both task and event ids

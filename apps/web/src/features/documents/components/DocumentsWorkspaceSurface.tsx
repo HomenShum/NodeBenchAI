@@ -10,7 +10,7 @@
  */
 
 import type React from "react";
-import type { Id } from "../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 import { FileText, FileSpreadsheet } from "lucide-react";
 import { TopDividerBar } from "@shared/ui/TopDividerBar";
 import { UnifiedHubPills } from "@shared/ui/UnifiedHubPills";

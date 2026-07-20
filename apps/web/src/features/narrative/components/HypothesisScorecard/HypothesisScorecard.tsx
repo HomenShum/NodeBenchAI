@@ -12,7 +12,7 @@
  */
 
 import React from "react";
-import type { Id } from "../../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 import { useHypothesisScorecard } from "../../hooks/useHypotheses";
 
 interface HypothesisScorecardProps {

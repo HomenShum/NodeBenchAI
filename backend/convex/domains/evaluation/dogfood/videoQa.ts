@@ -5,7 +5,7 @@ import { action } from "../../../_generated/server";
 import { internal } from "../../../_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { GoogleGenAI, createPartFromUri, Type } from "@google/genai";
-import { getLlmModel } from "../../../../shared/llm/modelCatalog";
+import { getLlmModel } from "../../../../../shared/llm/modelCatalog";
 import crypto from "node:crypto";
 
 /** Primary: gemini-3.1-flash for temporal video reasoning.

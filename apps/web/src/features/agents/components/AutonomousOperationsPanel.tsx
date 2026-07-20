@@ -20,7 +20,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 
 // ============================================================================
 // Types

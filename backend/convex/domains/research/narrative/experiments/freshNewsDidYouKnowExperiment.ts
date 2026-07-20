@@ -5,7 +5,7 @@ import { internalAction } from "../../../../_generated/server";
 import type { ActionCtx } from "../../../../_generated/server";
 import { api, internal } from "../../../../_generated/api";
 import type { Id } from "../../../../_generated/dataModel";
-import { makeWebSourceCitationId } from "../../../../../shared/citations/webSourceCitations";
+import { makeWebSourceCitationId } from "../../../../../../shared/citations/webSourceCitations";
 import { getCurrentWeekNumber } from "../newsroom/state";
 
 type FetchedSource = {

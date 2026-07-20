@@ -6,7 +6,7 @@
  */
 
 import { type ReactNode, lazy, Suspense } from "react";
-import { Id } from "../../../../../../convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 import { SortableList } from "@/shared/components/SortableList";
 import { TaskRowGlobal, HolidayRowGlobal } from "../rows";
 import AgendaMiniRow from "@features/calendar/components/agenda/AgendaMiniRow";

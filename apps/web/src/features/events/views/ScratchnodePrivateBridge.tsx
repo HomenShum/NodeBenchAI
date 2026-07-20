@@ -17,7 +17,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import DOMPurify from "dompurify";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 
 type NoteSnapshot = { title: string; bodyHtml: string; pinned: boolean; updatedAt: number };
 type ConsumeResult =

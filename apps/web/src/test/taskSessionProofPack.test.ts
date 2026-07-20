@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildTaskSessionProofPack } from "../../convex/domains/operations/taskManager/proofPack";
+import { buildTaskSessionProofPack } from "@convex/domains/operations/taskManager/proofPack";
 
 /* ── Helpers ───────────────────────────────────────────────────── */
 

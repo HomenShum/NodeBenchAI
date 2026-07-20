@@ -6,8 +6,8 @@
  */
 
 import { useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
-import type { EvidenceChecklist } from "../../../../convex/domains/research/narrative/validators";
+import { api } from "@convex/_generated/api";
+import type { EvidenceChecklist } from "@convex/domains/research/narrative/validators";
 
 export interface EditionHypothesis {
   _id: string;

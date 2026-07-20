@@ -18,7 +18,7 @@ import OpenAI from "openai";
 import { productionTestCases } from "./productionTestCases";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { z } from "zod";
-import { getLlmModel } from "../../../../shared/llm/modelCatalog";
+import { getLlmModel } from "../../../../../shared/llm/modelCatalog";
 import { Id } from "../../../_generated/dataModel";
 
 // ═══════════════════════════════════════════════════════════════════════════

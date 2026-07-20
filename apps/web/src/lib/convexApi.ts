@@ -23,7 +23,7 @@
 
 import { useState, useEffect } from "react";
 
-type ConvexApi = typeof import("../../convex/_generated/api")["api"];
+type ConvexApi = typeof import("@convex/_generated/api")["api"];
 
 let _cached: ConvexApi | null = null;
 let _promise: Promise<ConvexApi> | null = null;
@@ -32,7 +32,7 @@ let _promise: Promise<ConvexApi> | null = null;
 // By the time React renders the first component that calls useConvexApi(),
 // the promise is likely already resolved, eliminating the null flash.
 if (typeof window !== "undefined") {
-  _promise = import("../../convex/_generated/api").then((mod) => {
+  _promise = import("@convex/_generated/api").then((mod) => {
     _cached = mod.api;
     return _cached;
   });
@@ -42,7 +42,7 @@ if (typeof window !== "undefined") {
 export function getApi(): Promise<ConvexApi> {
   if (_cached) return Promise.resolve(_cached);
   if (_promise) return _promise;
-  _promise = import("../../convex/_generated/api").then((mod) => {
+  _promise = import("@convex/_generated/api").then((mod) => {
     _cached = mod.api;
     return _cached;
   });

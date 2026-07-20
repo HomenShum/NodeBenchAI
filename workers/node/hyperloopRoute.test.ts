@@ -12,7 +12,7 @@ describe("createHyperloopRouter", () => {
   let server: ReturnType<express.Express["listen"]>;
   let baseUrl = "";
   let tempDir = "";
-  let evaluateTask: typeof import("../packages/mcp-local/src/sync/hyperloopEval.js").evaluateTask;
+  let evaluateTask: typeof import("../../packages/mcp-local/src/sync/hyperloopEval.js").evaluateTask;
   let createHyperloopRouter: typeof import("./routes/hyperloop.js").createHyperloopRouter;
 
   beforeAll(async () => {
@@ -20,7 +20,7 @@ describe("createHyperloopRouter", () => {
     process.env.NODEBENCH_DATA_DIR = tempDir;
     vi.resetModules();
 
-    ({ evaluateTask } = await import("../packages/mcp-local/src/sync/hyperloopEval.js"));
+    ({ evaluateTask } = await import("../../packages/mcp-local/src/sync/hyperloopEval.js"));
     ({ createHyperloopRouter } = await import("./routes/hyperloop.js"));
 
     evaluateTask({

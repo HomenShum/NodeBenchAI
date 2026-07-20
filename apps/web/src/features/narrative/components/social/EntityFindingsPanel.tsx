@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { api } from "../../../../../convex/_generated/api";
-import type { Id } from "../../../../../convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import { useStableQuery } from "@/hooks/useStableQuery";
 import { Building2, ExternalLink, FileText } from "lucide-react";
 

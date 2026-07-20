@@ -6,9 +6,9 @@
  */
 
 import { useQuery, useMutation, useAction } from "convex/react";
-import { api } from "../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { useMemo, useCallback } from "react";
-import type { Id } from "../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES

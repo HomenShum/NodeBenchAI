@@ -29,7 +29,7 @@ import { judgeTurn } from "./judge";
 import {
   calculateRequestCost,
   getModelPricing,
-} from "../../../../shared/llm/modelCatalog";
+} from "../../../../../shared/llm/modelCatalog";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CONSTANTS

@@ -7,7 +7,7 @@
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import type { PlannerDateNavSlice } from "./usePlannerDateNav";
 
 // ---------------------------------------------------------------------------

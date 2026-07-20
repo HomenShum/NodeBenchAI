@@ -9,7 +9,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useConvexAuth, useMutation } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { Calendar, Layers } from "lucide-react";
 import { ExactComposer } from "@/features/designKit/exact/ExactComposer";
 import {

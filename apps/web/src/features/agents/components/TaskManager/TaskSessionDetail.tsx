@@ -10,7 +10,7 @@
 
 import React, { useState } from 'react';
 import { useQuery } from 'convex/react';
-import { api } from '../../../../../convex/_generated/api';
+import { api } from '@convex/_generated/api';
 import { 
   ChevronLeft,
   Clock, 
@@ -31,7 +31,7 @@ import {
 import { cn } from '@/lib/utils';
 import { TelemetrySpanTree } from './TelemetrySpanTree';
 import type { TaskSession, TaskTrace, TaskSpan } from './types';
-import type { Id } from '../../../../../convex/_generated/dataModel';
+import type { Id } from '@convex/_generated/dataModel';
 import {
   formatDurationCompact,
   formatGoalReference,

@@ -29,7 +29,7 @@
 import { Router } from "express";
 import crypto from "node:crypto";
 import { ConvexHttpClient } from "convex/browser";
-import { api } from "../../convex/_generated/api.js";
+import { api } from "../../../backend/convex/_generated/api.js";
 
 // ── Constants (BOUND, BOUND_READ) ─────────────────────────────────────────────
 

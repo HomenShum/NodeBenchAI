@@ -2,8 +2,8 @@
 // Central tool wrapper for artifact extraction and persistence
 // Wraps ALL tools at registration time - extraction decides "no-op"
 
-import { extractArtifacts } from "../../shared/artifactExtractors";
-import { canonicalizeUrl, generateIdempotencyKey } from "../../shared/artifacts";
+import { extractArtifacts } from "../../../shared/artifactExtractors";
+import { canonicalizeUrl, generateIdempotencyKey } from "../../../shared/artifacts";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 

@@ -10,7 +10,7 @@
 import React, { useMemo, useState } from "react";
 import { useAction, useQuery } from "convex/react";
 import { Calendar, ChevronLeft, ChevronRight, RefreshCw, RotateCcw } from "lucide-react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { StickyDashboard } from "../components/StickyDashboard";
 import type { ChartDataPointContext } from "../components/EnhancedLineChart";
 import { useBriefDateSelection } from "@/lib/useBriefDateSelection";

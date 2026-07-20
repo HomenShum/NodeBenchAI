@@ -21,7 +21,7 @@
  * LLM-orchestrated execution loop.
  */
 
-import { recordAction, recordFailure, getReflectionPrompt, recordRecoveryOutcome, initSessionMemoryTables } from "../packages/mcp-local/src/sync/sessionMemory.js";
+import { recordAction, recordFailure, getReflectionPrompt, recordRecoveryOutcome, initSessionMemoryTables } from "../../packages/mcp-local/src/sync/sessionMemory.js";
 import {
   formatEntityMemoryRecallForPrompt,
   MEMORY_CONTEXT_STEP_ID,

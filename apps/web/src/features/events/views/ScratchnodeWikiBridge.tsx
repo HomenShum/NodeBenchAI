@@ -25,7 +25,7 @@
 import { useMemo } from "react";
 import { useQuery } from "convex/react";
 import DOMPurify from "dompurify";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 
 type PublishedWiki = {
   eventName: string;

@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useMemo, useCallback } from 'react';
 import { BlockNoteEditor, type PartialBlock } from '@blocknote/core';
-import { Id } from '../../../../convex/_generated/dataModel';
+import { Id } from '@convex/_generated/dataModel';
 import { blocksAreTriviallyEmpty, bnEnsureTopLevelBlock } from '../utils/blockUtils';
 
 // Caches for seeding state

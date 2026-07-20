@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { Globe2, MapPin, Radar, ShieldAlert, Siren, Tags } from "lucide-react";
 
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 
 const SEVERITY_TONE: Record<string, string> = {
   low: "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",

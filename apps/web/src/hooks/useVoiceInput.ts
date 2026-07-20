@@ -9,7 +9,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { useAction } from 'convex/react';
-import { api } from '../../convex/_generated/api';
+import { api } from '@convex/_generated/api';
 import { useStreamingTranscription } from './useStreamingTranscription';
 import { useGeminiLiveSession } from './useGeminiLiveSession';
 

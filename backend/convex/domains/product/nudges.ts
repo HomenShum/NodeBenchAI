@@ -3,8 +3,8 @@ import { v } from "convex/values";
 import { internal } from "../../_generated/api";
 import { resolveProductIdentitySafely, resolveProductReadOwnerKeys, requireProductIdentity } from "./helpers";
 import { listOpenProductNudgesInGroup, upsertOpenProductNudge } from "./nudgeHelpers";
-import { collapseNudgesIntoGroups } from "../../../shared/nudges";
-import { isLegacyPromptArtifact, isPlaceholderPrepEntity } from "../../../shared/reportArtifacts";
+import { collapseNudgesIntoGroups } from "../../../../shared/nudges";
+import { isLegacyPromptArtifact, isPlaceholderPrepEntity } from "../../../../shared/reportArtifacts";
 
 function buildSuggestedActions(nudges: Array<{ actionLabel?: string; type?: string }>): string[] {
   const suggestions = new Set<string>();

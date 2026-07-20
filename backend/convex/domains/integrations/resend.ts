@@ -5,7 +5,7 @@
 import { action, internalAction } from "../../_generated/server";
 import { v } from "convex/values";
 import { api, internal } from "../../_generated/api";
-import type { EmailDigest } from "../../../src/features/research/components/EmailDigestPreview";
+import type { EmailDigest } from "../../../../apps/web/src/features/research/components/EmailDigestPreview";
 
 /**
  * Send email via Resend API

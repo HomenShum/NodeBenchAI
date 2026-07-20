@@ -3,18 +3,18 @@
 import { v } from "convex/values";
 import { internalAction } from "../../_generated/server";
 import { api, internal } from "../../_generated/api";
-import type { McpTool } from "../../../packages/mcp-local/src/types.js";
-import { entityEnrichmentTools } from "../../../packages/mcp-local/src/tools/entityEnrichmentTools.js";
-import { founderLocalPipelineTools } from "../../../packages/mcp-local/src/tools/founderLocalPipeline.js";
-import { llmTools } from "../../../packages/mcp-local/src/tools/llmTools.js";
-import { monteCarloTools } from "../../../packages/mcp-local/src/tools/monteCarloTools.js";
-import { reconTools } from "../../../packages/mcp-local/src/tools/reconTools.js";
-import { webTools } from "../../../packages/mcp-local/src/tools/webTools.js";
+import type { McpTool } from "../../../../packages/mcp-local/src/types.js";
+import { entityEnrichmentTools } from "../../../../packages/mcp-local/src/tools/entityEnrichmentTools.js";
+import { founderLocalPipelineTools } from "../../../../packages/mcp-local/src/tools/founderLocalPipeline.js";
+import { llmTools } from "../../../../packages/mcp-local/src/tools/llmTools.js";
+import { monteCarloTools } from "../../../../packages/mcp-local/src/tools/monteCarloTools.js";
+import { reconTools } from "../../../../packages/mcp-local/src/tools/reconTools.js";
+import { webTools } from "../../../../packages/mcp-local/src/tools/webTools.js";
 import {
   executeHarness,
   generatePlan,
   synthesizeResults,
-} from "../../../server/agentHarness.js";
+} from "../../../../workers/node/agentHarness.js";
 import { buildSearchForecastGate } from "./searchForecastGate.js";
 
 type SearchTraceEntry = {

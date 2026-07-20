@@ -3,7 +3,7 @@
  * Extracted from UnifiedEditor.tsx for modularity
  */
 
-import { Id } from "../../../convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 
 export type EditorMode = "quickEdit" | "quickNote" | "full";
 

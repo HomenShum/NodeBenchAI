@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
-import { Id } from "../../../../convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 import { CalendarView } from "@/features/calendar/views/CalendarView";
 
 import { usePlannerState } from "@/hooks/usePlannerState";

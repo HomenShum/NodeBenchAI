@@ -1,4 +1,4 @@
-import type { UltraLongChatWorkingSet } from "../../../shared/ultraLongChatContext";
+import type { UltraLongChatWorkingSet } from "../../../../shared/ultraLongChatContext";
 import {
   NODEBENCH_ADVISOR_MODEL,
   NODEBENCH_BACKGROUND_MODELS,

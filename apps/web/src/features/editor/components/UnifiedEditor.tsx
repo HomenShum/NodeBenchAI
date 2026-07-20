@@ -7,8 +7,8 @@ import StarterKit from "@tiptap/starter-kit";
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 
-import { api } from "../../../../convex/_generated/api";
-import { Id } from "../../../../convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
+import { Id } from "@convex/_generated/dataModel";
 import { useBlockNoteSync } from "@convex-dev/prosemirror-sync/blocknote";
 import { useQuery, useMutation, useConvex } from "convex/react";
 

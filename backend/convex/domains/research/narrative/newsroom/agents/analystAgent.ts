@@ -16,7 +16,7 @@ import { generateText } from "ai";
 import type { ActionCtx } from "../../../../../_generated/server";
 import { internal } from "../../../../../_generated/api";
 import { getLanguageModelSafe } from "../../../../agents/mcp_tools/models";
-import { fnv1a32Hex } from "../../../../../../shared/citations/webSourceCitations";
+import { fnv1a32Hex } from "../../../../../../../shared/citations/webSourceCitations";
 import type {
   NewsroomState,
   NarrativeShift,

@@ -6,7 +6,7 @@
 import { memo, useMemo, useState } from "react";
 import { Filter, Shield, ShieldAlert } from "lucide-react";
 import { useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { cn } from "@/lib/utils";
 import { ReceiptApprovalQueue } from "../components/ReceiptApprovalQueue";
 import { ReceiptCard } from "../components/ReceiptCard";

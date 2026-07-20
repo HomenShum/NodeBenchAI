@@ -11,8 +11,8 @@
 
 import { memo, useMemo } from "react";
 import { useQuery } from "convex/react";
-import { api } from "../../../../../../convex/_generated/api";
-import type { Id } from "../../../../../../convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import { Calendar, Star, Trash2, MessageCircle, Loader2, Sparkles, Edit3, Share2 } from "lucide-react";
 import { FileTypeIcon } from "@/shared/components/FileTypeIcon";
 import { sanitizeDocumentTitle } from "@/lib/displayText";

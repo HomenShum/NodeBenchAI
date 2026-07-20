@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, Lightbulb, FileText, Users, Bell, Sparkles, ChevronRight, ThumbsUp, ThumbsDown, Star } from 'lucide-react';
-import { Id } from '../../../../convex/_generated/dataModel';
+import { Id } from '@convex/_generated/dataModel';
 import { useMotionConfig } from '@/lib/motion';
 
 interface RecommendationCardProps {

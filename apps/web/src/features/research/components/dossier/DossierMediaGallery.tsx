@@ -5,7 +5,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Video, Image as ImageIcon, FileText, Play, ExternalLink, X, Download } from 'lucide-react';
 import type { VideoAsset, ImageAsset, DocumentAsset } from './mediaExtractor';
 import MiniEditorPopover from '@/shared/components/MiniEditorPopover';
-import type { Id } from '../../../../../convex/_generated/dataModel';
+import type { Id } from '@convex/_generated/dataModel';
 
 interface DossierMediaGalleryProps {
   videos: VideoAsset[];

@@ -4,7 +4,7 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { useAction } from 'convex/react';
-import { api } from '../../../../../convex/_generated/api';
+import { api } from '@convex/_generated/api';
 import { parseMarkdownToDossier } from '../../utils/newsletterParser';
 import { NewsletterSectionBlock, DigestHero, type NewsletterSection, type NewsletterMediaItem } from './NewsletterComponents';
 import { EvidenceDrawer, type EvidenceSource } from './EvidenceDrawer';

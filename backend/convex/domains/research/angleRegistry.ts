@@ -15,9 +15,9 @@
  */
 
 import { v } from "convex/values";
-import type { AngleId } from "../../../shared/research/angleIds";
+import type { AngleId } from "../../../../shared/research/angleIds";
 
-export type { AngleId } from "../../../shared/research/angleIds";
+export type { AngleId } from "../../../../shared/research/angleIds";
 
 export const angleIdValidator = v.union(
   v.literal("entity_profile"),

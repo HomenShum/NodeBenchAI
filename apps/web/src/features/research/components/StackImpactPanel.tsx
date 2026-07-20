@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useAction } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { EntityRadar } from "./EntityRadar";
 

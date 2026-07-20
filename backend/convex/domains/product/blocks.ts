@@ -30,7 +30,7 @@ import {
   resolveProductReadOwnerKeys,
   requireProductIdentity,
 } from "./helpers";
-import { getSystemEntityNodeBySlug } from "../../../shared/systemIntelligence";
+import { getSystemEntityNodeBySlug } from "../../../../shared/systemIntelligence";
 import {
   comparePositions,
   comparePositionsWithId,

@@ -11,8 +11,8 @@
 
 import { Router, type Request, type Response } from "express";
 import { runSearchPipelineWithEnvelope, stateToResultPacket } from "../pipeline/searchPipeline.js";
-import { evaluateTask } from "../../packages/mcp-local/src/sync/hyperloopEval.js";
-import { runPromotionCycle } from "../../packages/mcp-local/src/sync/hyperloopArchive.js";
+import { evaluateTask } from "../../../packages/mcp-local/src/sync/hyperloopEval.js";
+import { runPromotionCycle } from "../../../packages/mcp-local/src/sync/hyperloopArchive.js";
 import { runPreSearchHooks, runPostSearchHooks } from "../pipeline/hooks.js";
 
 // ── Attrition retention bridge (inline push in route handler) ──

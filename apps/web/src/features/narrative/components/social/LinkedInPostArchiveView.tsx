@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from "react";
-import { api } from "../../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { useStableQuery } from "@/hooks/useStableQuery";
 import { LinkedInPostCard } from "./LinkedInPostCard";
 import { EntityFindingsPanel } from "./EntityFindingsPanel";

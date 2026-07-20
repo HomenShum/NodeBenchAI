@@ -1,6 +1,6 @@
 import type { Doc, Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
-import { getNudgeGroupKey } from "../../../shared/nudges";
+import { getNudgeGroupKey } from "../../../../shared/nudges";
 
 type ProductNudgeType = Doc<"productNudges">["type"];
 type ProductNudgePriority = Doc<"productNudges">["priority"];

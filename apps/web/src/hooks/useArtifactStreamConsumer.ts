@@ -4,9 +4,9 @@
 
 import { useEffect, useMemo } from "react";
 import { useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { useArtifactStore } from "./useArtifactStore";
-import type { ArtifactCard } from "../../shared/artifacts";
+import type { ArtifactCard } from "../../../../shared/artifacts";
 
 interface UseArtifactStreamConsumerOptions {
   /** Agent thread ID (runId) - stable for entire dossier */

@@ -25,7 +25,7 @@
 
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useAction } from "convex/react";
-import { api } from "../../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { getAnonymousProductSessionId } from "@/features/product/lib/productIdentity";
 
 export type EntityMatch = {

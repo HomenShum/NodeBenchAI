@@ -1,6 +1,6 @@
 import type { Doc, Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
-import { ALL_BLOCK_TYPES, classifyAuthority, type BlockType, type AuthorityTier } from "../../../server/pipeline/authority/defaultTiers";
+import { ALL_BLOCK_TYPES, classifyAuthority, type BlockType, type AuthorityTier } from "../../../../workers/node/pipeline/authority/defaultTiers";
 
 export type ProjectionBlockType = "projection" | BlockType;
 

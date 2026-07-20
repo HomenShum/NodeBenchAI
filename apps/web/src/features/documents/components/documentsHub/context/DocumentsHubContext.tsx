@@ -7,7 +7,7 @@
  */
 
 import { createContext, useContext, type ReactNode } from "react";
-import { Id, Doc } from "../../../../../../convex/_generated/dataModel";
+import { Id, Doc } from "@convex/_generated/dataModel";
 import type { TaskStatus, AgendaMode, DocViewMode, AgendaEntry } from "../types";
 
 // Re-export types for convenience (consumers can also import from types directly)

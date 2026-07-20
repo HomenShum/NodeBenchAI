@@ -7,7 +7,7 @@ import React, { useState, useMemo, useRef } from "react";
 import { motion } from "framer-motion";
 import { useQuery, useMutation } from "convex/react";
 import { SignatureOrb } from "../../../shared/ui/SignatureOrb";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import {
   Bookmark,
   ExternalLink,

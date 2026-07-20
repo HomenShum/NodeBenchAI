@@ -2,7 +2,7 @@
 
 import { internalAction } from "../_generated/server";
 import { v } from "convex/values";
-import { getLlmModel } from "../../shared/llm/modelCatalog";
+import { getLlmModel } from "../../../shared/llm/modelCatalog";
 import { getModelSpec, resolveModelAlias, type ApprovedModel } from "../domains/agents/mcp_tools/models/modelResolver";
 
 type Provider = "openai" | "gemini";

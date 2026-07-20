@@ -175,7 +175,7 @@ if (import.meta.env.PROD && convex) {
       if (now - last < 30_000) return;
       lastSentBySig.set(signature, now);
 
-      import("../convex/_generated/api").then(({ api }) => {
+      import("@convex/_generated/api").then(({ api }) => {
         convex.mutation(api.domains.operations.bugLoop.reportClientError, {
           message: args.message,
           stack: args.stack,

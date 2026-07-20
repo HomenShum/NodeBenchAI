@@ -1,5 +1,5 @@
 import type { UnifiedItem } from "@/types/unified";
-import type { Id } from "../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 
 export const docToUnified = (doc: any) => ({
   id: String(doc._id),

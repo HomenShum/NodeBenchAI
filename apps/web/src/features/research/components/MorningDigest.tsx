@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useAction, useMutation } from 'convex/react';
-import { api } from '../../../../convex/_generated/api';
+import { api } from '@convex/_generated/api';
 import {
   Sparkles,
   ChevronDown,

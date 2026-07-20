@@ -1,5 +1,5 @@
-import { api } from "../../../convex/_generated/api";
-import { Id } from "../../../convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
+import { Id } from "@convex/_generated/dataModel";
 import usePresence from "@convex-dev/presence/react";
 import FacePile from "@convex-dev/presence/facepile";
 import { useAuthToken } from "@convex-dev/auth/react";

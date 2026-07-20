@@ -49,7 +49,7 @@ import {
   MAX_CHECKPOINTS,
   MAX_THINKING_BUDGET_TOKENS,
   MAX_OUTPUT_TOKENS,
-} from "../../../server/pipeline/extendedThinkingRunner";
+} from "../../../../workers/node/pipeline/extendedThinkingRunner";
 
 const DEFAULT_MODEL = "claude-sonnet-4.6";
 const DEFAULT_CHECKPOINTS = 8;

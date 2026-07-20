@@ -18,7 +18,7 @@ import { getReportWorkspaceRouteFromPath } from "@/features/reports/lib/reportNo
 import type {
   ResourceCard,
   ResourceUri,
-} from "../../../../shared/research/resourceCards";
+} from "../../../../../../shared/research/resourceCards";
 
 const API_BASE =
   (import.meta as unknown as { env?: { VITE_NODEBENCH_API_URL?: string } })

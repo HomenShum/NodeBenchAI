@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery, useMutation } from "convex/react";
-import { api } from "../../../../../convex/_generated/api";
-import type { Id } from "../../../../../convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import { X, Trash2, Calendar, Flag, ChevronDown, Tag, User, Link as LinkIcon } from "lucide-react";
 import { toast } from "sonner";
 

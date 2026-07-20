@@ -9,7 +9,7 @@ import streamData from "@/features/research/content/researchStream.json";
 import LiveDashboard from "./LiveDashboard";
 import SafeVegaChart from "./SafeVegaChart";
 import type { DashboardState, StorySection } from "@/features/research/types";
-import { isUIFlagEnabled } from "../../../../convex/lib/featureFlags";
+import { isUIFlagEnabled } from "@convex/lib/featureFlags";
 import type { Signal, Action, VizArtifact } from "@/features/research/types/dailyBriefSchema";
 import { PageHeroHeader } from "@shared/ui/PageHeroHeader";
 import { SignalList } from "./SignalCard";

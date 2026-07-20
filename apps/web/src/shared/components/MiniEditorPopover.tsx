@@ -1,8 +1,8 @@
 import React, { Suspense, useMemo, Component, type ReactNode, type ErrorInfo } from "react";
-import { Id } from "../../../convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 import { X } from "lucide-react";
 import { useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ai-ui/popover";
 
 // Lazy-load heavy editors so they don't bloat the main bundle.

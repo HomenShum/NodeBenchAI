@@ -2,8 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import Spreadsheet from "react-spreadsheet";
-import { api } from "../../../../../convex/_generated/api";
-import type { Id } from "../../../../../convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { useFastAgent } from "@/features/agents/context/FastAgentContext";
 

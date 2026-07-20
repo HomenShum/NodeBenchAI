@@ -10,7 +10,7 @@ import {
   ShieldX,
 } from "lucide-react";
 
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { SharedContextProtocolPanel } from "@/features/mcp/components/SharedContextProtocolPanel";
 import { SyncBridgeAccountPanel } from "@/features/mcp/components/SyncBridgeAccountPanel";
 import { cn } from "@/lib/utils";

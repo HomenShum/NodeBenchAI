@@ -13,7 +13,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useQuery, useMutation } from 'convex/react';
-import { api } from '../../../../convex/_generated/api';
+import { api } from '@convex/_generated/api';
 
 export type Act = 'actI' | 'actII' | 'actIII';
 export type FocusSource = 'chart_hover' | 'text_hover' | 'agent_tool' | 'panel_action';

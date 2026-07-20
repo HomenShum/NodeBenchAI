@@ -8,7 +8,7 @@
  */
 
 import { useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {

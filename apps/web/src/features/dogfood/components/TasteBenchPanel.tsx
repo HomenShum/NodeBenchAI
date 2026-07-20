@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import {
   TASTE_BENCH_CORRECTIONS,
   TASTE_BENCH_DIMENSIONS,

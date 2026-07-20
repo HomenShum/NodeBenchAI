@@ -11,9 +11,9 @@
 
 import { memo } from "react";
 import { useQuery, useMutation } from "convex/react";
-import type { Id } from "../../../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 import { CalendarDays, ListTodo, Star, Trash2, Edit3, ArrowRightLeft } from "lucide-react";
-import { api } from "../../../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { toast } from "sonner";
 import { statusChipClasses, statusLabel, priorityClasses, type TaskStatus } from "../utils/statusHelpers";
 import { isAllDayEvent, renderEventTime } from "../utils/eventHelpers";

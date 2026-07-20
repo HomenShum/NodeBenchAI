@@ -5,7 +5,7 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery } from "../_generated/server";
 import { Doc } from "../_generated/dataModel";
-import { hashSync, canonicalizeUrl, extractHost } from "../../shared/artifacts";
+import { hashSync, canonicalizeUrl, extractHost } from "../../../shared/artifacts";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CONSTANTS

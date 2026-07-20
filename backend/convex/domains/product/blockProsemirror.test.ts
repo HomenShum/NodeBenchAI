@@ -21,11 +21,11 @@ import {
   chipsToProsemirrorDoc,
   prosemirrorDocToChips,
   type NotebookBlockChip,
-} from "../../../shared/notebookBlockProsemirror";
+} from "../../../../shared/notebookBlockProsemirror";
 import {
   buildProductBlockSyncId,
   parseProductBlockSyncId,
-} from "../../../shared/productBlockSync";
+} from "../../../../shared/productBlockSync";
 
 function roundTrip(chips: NotebookBlockChip[]): NotebookBlockChip[] {
   const doc = chipsToProsemirrorDoc(chips);

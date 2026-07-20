@@ -11,7 +11,7 @@
 
 import { useMemo } from 'react';
 import { useQuery } from 'convex/react';
-import { api } from '../../../../convex/_generated/api';
+import { api } from '@convex/_generated/api';
 import { normalizeBriefDateString } from '@/lib/briefDate';
 // Source-of-truth types live in `dailyBriefSchema.ts`; the duplicates in
 // `../types.ts` are a legacy minimal shape that predates the full schema.

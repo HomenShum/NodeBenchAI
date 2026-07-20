@@ -25,7 +25,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '../../lib/utils';
-import { SignatureOrb } from '../../shared/ui/SignatureOrb';
+import { SignatureOrb } from './SignatureOrb';
 import { useMotionConfig } from '@/lib/motion';
 
 type EmptyStateVariant = 'documents' | 'search' | 'inbox' | 'tasks' | 'error' | 'success' | 'orb';

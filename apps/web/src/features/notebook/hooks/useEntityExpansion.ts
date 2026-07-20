@@ -73,7 +73,7 @@ async function getConvexClient(): Promise<{ client: any; api: any } | null> {
   if (!_clientPromise) {
     _clientPromise = (async () => {
       const { ConvexHttpClient } = await import("convex/browser");
-      const { api } = await import("../../../../convex/_generated/api");
+      const { api } = await import("@convex/_generated/api");
       const client = new ConvexHttpClient(convexUrl);
       return { client, api };
     })();

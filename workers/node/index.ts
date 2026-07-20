@@ -30,7 +30,7 @@ import { getMemoryStore, generateApiKey, hashPrefix, type ApiKeyRecord } from ".
 import { CommandBridge } from "./commandBridge.js";
 import { mountProviderBus } from "./providerBus.js";
 import { SyncBridgeServer } from "./syncBridge.js";
-import type { McpTool } from "../packages/mcp-local/src/types.js";
+import type { McpTool } from "../../packages/mcp-local/src/types.js";
 import { createSessionRouter } from "./routes/session.js";
 import { createVoiceCaptureRouter } from "./routes/voiceCapture.js";
 import { createTtsRouter } from "./routes/tts.js";
@@ -62,7 +62,7 @@ const PORT = portIdx >= 0 && args[portIdx + 1] ? parseInt(args[portIdx + 1], 10)
 async function loadTools(): Promise<McpTool[]> {
   try {
     // loadAllToolsets() must be called first — TOOLSET_MAP starts empty with lazy-loading
-    const { TOOLSET_MAP, loadAllToolsets } = await import("../packages/mcp-local/src/toolsetRegistry.js");
+    const { TOOLSET_MAP, loadAllToolsets } = await import("../../packages/mcp-local/src/toolsetRegistry.js");
     await loadAllToolsets();
     const allTools: McpTool[] = [];
     // TOOLSET_MAP is a Map — use .values() if Map, or Object.values() if plain object

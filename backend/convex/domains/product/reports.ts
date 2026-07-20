@@ -19,7 +19,7 @@ import {
   isLegacyPromptArtifact,
   isPlaceholderPrepEntity,
   isPrepBriefType,
-} from "../../../shared/reportArtifacts";
+} from "../../../../shared/reportArtifacts";
 
 function buildReportRefreshPrompt(report: {
   title: string;

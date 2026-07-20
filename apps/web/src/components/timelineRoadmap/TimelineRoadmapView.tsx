@@ -22,7 +22,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { TopDividerBar } from "@shared/ui/TopDividerBar";
 import { UnifiedHubPills } from "@shared/ui/UnifiedHubPills";
 import { PageHeroHeader } from "@shared/ui/PageHeroHeader";

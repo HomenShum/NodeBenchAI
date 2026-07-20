@@ -8,8 +8,8 @@
 
 import { Router, type Request, type Response } from "express";
 import { getTrajectoryStats, listTrajectorySummaries, estimateCostSaved } from "../lib/trajectoryStore.js";
-import { getArchiveStats, listTopEntries } from "../../packages/mcp-local/src/sync/hyperloopArchive.js";
-import { listRecentEvaluations } from "../../packages/mcp-local/src/sync/hyperloopEval.js";
+import { getArchiveStats, listTopEntries } from "../../../packages/mcp-local/src/sync/hyperloopArchive.js";
+import { listRecentEvaluations } from "../../../packages/mcp-local/src/sync/hyperloopEval.js";
 
 // Cost constant moved to trajectoryStore.ts — use estimateCostSaved()
 

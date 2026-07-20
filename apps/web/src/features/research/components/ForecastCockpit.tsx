@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { TrendingUp, Target, BarChart3, ChevronDown, ChevronUp } from "lucide-react";
 import { useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { ForecastCard } from "./ForecastCard";
 import { CalibrationPlot } from "./CalibrationPlot";
 import { BrierTrendChart } from "./BrierTrendChart";
-import type { Id } from "../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FORECAST COCKPIT

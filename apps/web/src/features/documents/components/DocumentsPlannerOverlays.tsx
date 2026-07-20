@@ -11,7 +11,7 @@
  */
 
 import { lazy, Suspense, useMemo } from "react";
-import type { Id } from "../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 import { X } from "lucide-react";
 import {
   Dialog,

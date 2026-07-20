@@ -9,7 +9,7 @@ import { EventEmitter } from "node:events";
 import { WebSocket } from "ws";
 
 import { SyncBridgeServer } from "./syncBridge.js";
-import type { SyncBridgeEnvelope } from "../packages/mcp-local/src/sync/protocol.js";
+import type { SyncBridgeEnvelope } from "../../packages/mcp-local/src/sync/protocol.js";
 
 class MockWebSocket extends EventEmitter {
   static OPEN = WebSocket.OPEN;

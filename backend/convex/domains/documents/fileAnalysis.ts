@@ -15,7 +15,7 @@ import {
   FileState,
 } from "@google/genai";
 import { Id } from "../../_generated/dataModel";
-import { getLlmModel } from "../../../shared/llm/modelCatalog";
+import { getLlmModel } from "../../../../shared/llm/modelCatalog";
 
 // Type definitions
 interface AnalysisResult {

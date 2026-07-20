@@ -6,7 +6,7 @@ import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
-import { getLlmModel, getProviderForModel, resolveModelAlias, getModelWithFailover } from "../../../shared/llm/modelCatalog";
+import { getLlmModel, getProviderForModel, resolveModelAlias, getModelWithFailover } from "../../../../shared/llm/modelCatalog";
 
 // NOTE: Query is in morningDigestQueries.ts (Convex requires queries in non-Node files)
 // Import it via: api.domains.ai.morningDigestQueries.getDigestData

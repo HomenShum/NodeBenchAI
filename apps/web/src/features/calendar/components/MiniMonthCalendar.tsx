@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import type { Id } from "../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 import { useMutation, useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import CalendarDatePopover from "./CalendarDatePopover";
 import DualCreateMiniPanel from "@/features/documents/editors/DualCreateMiniPanel";

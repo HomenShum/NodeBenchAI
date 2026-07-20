@@ -2,7 +2,7 @@ import { action, internalAction, internalMutation, internalQuery, mutation, quer
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { api, internal } from "../../_generated/api";
-import { getLlmModel } from "../../../shared/llm/modelCatalog";
+import { getLlmModel } from "../../../../shared/llm/modelCatalog";
 import { Doc, Id } from "../../_generated/dataModel";
 
 /**

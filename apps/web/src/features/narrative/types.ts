@@ -6,7 +6,7 @@
  * @module features/narrative/types
  */
 
-import type { Id } from "../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 
 /**
  * Thread phase for narrative arc progression

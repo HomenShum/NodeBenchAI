@@ -6,7 +6,7 @@
 
 import React, { useMemo } from "react";
 import { useStableQuery } from "@/hooks/useStableQuery";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { Gauge, TrendingUp } from "lucide-react";
 import { getAnonymousProductSessionId } from "@/features/product/lib/productIdentity";
 

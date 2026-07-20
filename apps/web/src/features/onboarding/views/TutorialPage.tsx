@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useAction } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import ReactMarkdown from 'react-markdown';
 import {
   Bot,
@@ -23,7 +23,7 @@ import {
   Megaphone,
   Stethoscope,
 } from "lucide-react";
-import { Id } from "../../../../convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 
 interface OnboardingStep {
   id: string;

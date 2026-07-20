@@ -1,5 +1,5 @@
 import React from "react";
-import type { Id } from "../../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 import { Mail, CalendarDays } from "lucide-react";
 import { Checkbox } from "@/components/ai-ui/checkbox";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ai-ui/hover-card";

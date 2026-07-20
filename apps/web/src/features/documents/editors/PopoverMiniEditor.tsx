@@ -1,5 +1,5 @@
 import React, { Suspense } from "react";
-import type { Id } from "../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 import InlineTaskEditor from "@features/calendar/components/agenda/InlineTaskEditor";
 import InlineEventEditor from "@features/calendar/components/agenda/InlineEventEditor";
 import DocumentMiniEditor from "./DocumentMiniEditor";

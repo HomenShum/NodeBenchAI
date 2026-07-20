@@ -7,7 +7,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { useAction } from 'convex/react';
-import { api } from '../../../../../convex/_generated/api';
+import { api } from '@convex/_generated/api';
 import { cn } from '@/lib/utils';
 import { ExternalLink, FileText, Loader2, Search, Copy, Check } from 'lucide-react';
 

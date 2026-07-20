@@ -7,7 +7,7 @@ import { api, internal } from "../../_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import type { Id } from "../../_generated/dataModel";
 import { GoogleGenAI, createUserContent } from "@google/genai";
-import { getLlmModel } from "../../../shared/llm/modelCatalog";
+import { getLlmModel } from "../../../../shared/llm/modelCatalog";
 
 // Shared constants
 const METADATA_HEADING = "\uD83D\uDCCA Metadata (Auto-Generated)";

@@ -21,11 +21,11 @@ import {
   compactTopic,
   type CompactionFact,
   type TopicFileContent,
-} from "../../../server/pipeline/topicCompaction";
+} from "../../../../workers/node/pipeline/topicCompaction";
 import {
   diffTopicFacts,
   buildNudgeText,
-} from "../../../server/pipeline/changeDetector";
+} from "../../../../workers/node/pipeline/changeDetector";
 
 const MAX_TOPICS_PER_ENTITY = 20;
 

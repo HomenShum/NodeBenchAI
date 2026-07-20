@@ -31,8 +31,8 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useConvex, useAction, useMutation, useConvexAuth } from 'convex/react';
 import { useUIMessages } from '@convex-dev/agent/react';
-import { api } from '../../../../convex/_generated/api';
-import type { Id } from '../../../../convex/_generated/dataModel';
+import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
 import { JarvisHUDLayout } from '../../../components/hud/JarvisHUDLayout';
 import type { VoiceMode } from '../../../hooks/useVoiceInput';
 

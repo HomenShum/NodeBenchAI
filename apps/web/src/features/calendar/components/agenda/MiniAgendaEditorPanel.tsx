@@ -1,5 +1,5 @@
 import React from "react";
-import type { Id } from "../../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 import PopoverMiniEditor from "@/features/documents/editors/PopoverMiniEditor";
 
 export type MiniAgendaEditorPanelProps =

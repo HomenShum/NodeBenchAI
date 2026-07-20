@@ -4,7 +4,7 @@
  * Utility functions for handling documents
  */
 
-import { Id } from "../../../../../../convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 import { FileType, inferFileType } from "@/lib/fileTypes";
 import { FileText, Calendar, File } from "lucide-react";
 

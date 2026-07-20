@@ -1,6 +1,6 @@
 import { query } from "../../_generated/server";
 import { v } from "convex/values";
-import { buildSystemEntityNodes, getSystemEntityNodeBySlug } from "../../../shared/systemIntelligence";
+import { buildSystemEntityNodes, getSystemEntityNodeBySlug } from "../../../../shared/systemIntelligence";
 
 const SYSTEM_POST_LIMIT = 240;
 const GENERIC_SYSTEM_NAME_PATTERNS = [

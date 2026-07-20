@@ -11,8 +11,8 @@
 
 import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
-import { api, internal } from "../../../convex/_generated/api";
-import { Id } from "../../../convex/_generated/dataModel";
+import { api, internal } from "@convex/_generated/api";
+import { Id } from "@convex/_generated/dataModel";
 
 interface FundingIssue {
   id: Id<"fundingEvents">;

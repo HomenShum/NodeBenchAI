@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useAction, useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { Sparkline, SparkBars } from "./Sparkline";
 import { GitBranch, Star, Clock, RefreshCw } from "lucide-react";
 

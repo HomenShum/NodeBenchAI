@@ -1,6 +1,6 @@
 import { useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
-import { Id } from "../../../../convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
+import { Id } from "@convex/_generated/dataModel";
 import { Globe } from "lucide-react";
 import { DocumentCard } from "@features/documents/components/documentsHub";
 import { PageHeroHeader } from "@shared/ui/PageHeroHeader";

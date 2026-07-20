@@ -1,5 +1,5 @@
 import { ConvexHttpClient } from "convex/browser";
-import { api } from "../convex/_generated/api";
+import { api } from "../backend/convex/_generated/api";
 
 async function test() {
   const client = new ConvexHttpClient("https://agile-caribou-964.convex.cloud");

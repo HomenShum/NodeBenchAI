@@ -1,6 +1,6 @@
 import { useAction } from 'convex/react';
 import { useCallback, useRef, useState } from 'react';
-import { api } from '../../convex/_generated/api';
+import { api } from '@convex/_generated/api';
 
 interface UseRealtimeTranscriptionOptions {
     onTranscript: (text: string) => void;

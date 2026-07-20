@@ -53,13 +53,13 @@ import {
   emitDiligenceProjectionInstrumented,
   type EmitProjectionArgs,
   type EmitProjectionResult,
-} from "../../../server/pipeline/diligenceProjectionWriter";
+} from "../../../../workers/node/pipeline/diligenceProjectionWriter";
 import {
   classifyError,
   fingerprintFailure,
   normalizeMessageStem,
-} from "../../../server/pipeline/retryPolicy";
-import { judgeDiligenceRun } from "../../../server/pipeline/diligenceJudge";
+} from "../../../../workers/node/pipeline/retryPolicy";
+import { judgeDiligenceRun } from "../../../../workers/node/pipeline/diligenceJudge";
 
 const DILIGENCE_BLOCK_TYPE_VALIDATOR = v.union(
   v.literal("projection"),

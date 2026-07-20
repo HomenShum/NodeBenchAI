@@ -5,8 +5,8 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useConvex, useAction, useMutation, useQuery } from "convex/react";
 import { useUIMessages } from "@convex-dev/agent/react";
-import { api, internal } from "../../../../../convex/_generated/api";
-import { Id } from "../../../../../convex/_generated/dataModel";
+import { api, internal } from "@convex/_generated/api";
+import { Id } from "@convex/_generated/dataModel";
 import type { BlockNoteEditor } from "@blocknote/core";
 
 interface InlineFastAgentOptions {

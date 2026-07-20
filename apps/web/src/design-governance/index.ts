@@ -2,7 +2,7 @@
  * Design Governance — public API.
  *
  * Usage:
- *   import { spec, isApprovedColor, getViolationsForSource } from '../design-governance';
+ *   import { spec, isApprovedColor, getViolationsForSource } from './';
  */
 
 export type {

@@ -59,7 +59,7 @@ import {
   type ResearchStage,
   type ResearchStageId,
 } from "../../research/LiveResearchChecklist";
-import { isStructuredAnswer } from "../../../../shared/redesign/answerFormat";
+import { isStructuredAnswer } from "../../../../../../shared/redesign/answerFormat";
 import type { ChatAnswer } from "../hooks/useRedesignChatRun";
 import { showToast } from "./Toast";
 

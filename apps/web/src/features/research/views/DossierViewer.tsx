@@ -1,7 +1,7 @@
 import { useQuery, useAction, useMutation } from "convex/react";
 import { useRef, useState, useMemo, useEffect, useCallback, Suspense, lazy } from "react";
-import { api } from "../../../../convex/_generated/api";
-import { Id } from "../../../../convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
+import { Id } from "@convex/_generated/dataModel";
 import { PanelGroup, Panel, PanelResizeHandle, type ImperativePanelGroupHandle, type ImperativePanelHandle } from "react-resizable-panels";
 import { ChevronLeft, ChevronRight, Sparkles, Loader2, Video, Image as ImageIcon, FileText, Maximize2, Edit3, LayoutList, Search, Home, ChevronDown, Filter, SortAsc, ExternalLink } from "lucide-react";
 import { DossierMediaGallery } from "@/features/research/components/dossier/DossierMediaGallery";

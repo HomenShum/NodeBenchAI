@@ -1,10 +1,10 @@
 import { Router } from "express";
-import { getArchiveStats } from "../../packages/mcp-local/src/sync/hyperloopArchive.js";
+import { getArchiveStats } from "../../../packages/mcp-local/src/sync/hyperloopArchive.js";
 import {
   computeImprovementAtK,
   listRecentEvaluations,
   listTrackedClassifications,
-} from "../../packages/mcp-local/src/sync/hyperloopEval.js";
+} from "../../../packages/mcp-local/src/sync/hyperloopEval.js";
 
 export function createHyperloopRouter(): Router {
   const router = Router();

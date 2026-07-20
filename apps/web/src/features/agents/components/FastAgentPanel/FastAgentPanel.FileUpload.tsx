@@ -3,10 +3,10 @@
 
 import React, { useCallback, useState } from 'react';
 import { useAction, useMutation } from 'convex/react';
-import { api } from '../../../../../convex/_generated/api';
+import { api } from '@convex/_generated/api';
 import { Upload, X, FileText, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Id } from '../../../../../convex/_generated/dataModel';
+import type { Id } from '@convex/_generated/dataModel';
 
 interface FileUploadProps {
   threadId: Id<"chatThreadsStream">;

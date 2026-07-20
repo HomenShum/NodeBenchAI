@@ -9,7 +9,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useConvex, useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import type { PulseMetric, PulseCard, PublicResearchCard, ReportCardData, SignalClass } from "../fixtures";
 
 interface ArchivePost {

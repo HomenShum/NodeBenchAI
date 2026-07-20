@@ -16,7 +16,7 @@ import { useMemo } from "react";
 import { useDropzone } from "react-dropzone";
 import { useMutation } from "convex/react";
 
-import { Id } from "../../../../convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 import type { DocumentCardData } from "@features/documents/components/documentsHub/utils/documentHelpers";
 
 import { useDocumentData } from "./useDocumentData";

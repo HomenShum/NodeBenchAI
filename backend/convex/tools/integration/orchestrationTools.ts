@@ -5,7 +5,7 @@
 import { createTool } from "@convex-dev/agent";
 import { z } from "zod";
 import { GoogleGenAI, createUserContent, Type } from "@google/genai";
-import { getLlmModel } from "../../../shared/llm/modelCatalog";
+import { getLlmModel } from "../../../../shared/llm/modelCatalog";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // VERSIONING & CACHING

@@ -5,7 +5,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { Github, Star, TrendingUp, Code, ExternalLink, Tag } from "lucide-react";
 import { PageHeroHeader } from "../../../shared/ui/PageHeroHeader";
 

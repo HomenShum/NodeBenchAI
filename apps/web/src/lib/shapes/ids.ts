@@ -1,4 +1,4 @@
-import type { Id } from "../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 
 // Runtime guard for Convex Id strings. Keeps it intentionally simple:
 // - must be a non-empty string. Further shape checks (like prefix) are avoided

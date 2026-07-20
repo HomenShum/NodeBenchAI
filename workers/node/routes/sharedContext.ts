@@ -10,14 +10,14 @@ import {
   proposeSharedContextTask,
   publishSharedContextPacket,
   registerSharedContextPeer,
-} from "../../packages/mcp-local/src/sync/store.js";
+} from "../../../packages/mcp-local/src/sync/store.js";
 import {
   appendFounderEpisodeSpan,
   finalizeFounderEpisode,
   getFounderEpisode,
   listFounderEpisodes,
   startFounderEpisode,
-} from "../../packages/mcp-local/src/sync/founderEpisodeStore.js";
+} from "../../../packages/mcp-local/src/sync/founderEpisodeStore.js";
 
 import {
   appendFounderEpisodeSpanConvex,

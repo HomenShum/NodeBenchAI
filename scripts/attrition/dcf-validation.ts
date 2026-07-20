@@ -10,8 +10,8 @@
  */
 
 // Import directly since this runs via tsx
-import { runDCF, runReverseDCF, extractDCFInputs } from "../../server/lib/dcfModel.js";
-import { generateDCFSpreadsheetCells } from "../../server/lib/dcfSpreadsheetBridge.js";
+import { runDCF, runReverseDCF, extractDCFInputs } from "../../workers/node/lib/dcfModel.js";
+import { generateDCFSpreadsheetCells } from "../../workers/node/lib/dcfSpreadsheetBridge.js";
 
 interface TestResult {
   name: string;

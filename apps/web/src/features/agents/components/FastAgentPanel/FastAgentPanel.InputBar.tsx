@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { useSelection } from '@/features/agents/context/SelectionContext';
 import { InlineEnhancer } from './FastAgentPanel.PromptEnhancer';
 import { useAction } from 'convex/react';
-import { api } from '../../../../../convex/_generated/api';
+import { api } from '@convex/_generated/api';
 import {
   PromptInput,
   PromptInputBody,

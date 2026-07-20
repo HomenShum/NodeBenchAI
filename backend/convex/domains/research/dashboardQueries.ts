@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { query, mutation, action, internalQuery } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { Doc } from "../../_generated/dataModel";
-import type { DashboardState } from "../../../src/features/research/types";
+import type { DashboardState } from "../../../../apps/web/src/features/research/types";
 
 /**
  * Internal query to fetch feed items for metrics calculation

@@ -8,7 +8,7 @@ import type {
   SubAgentAdapter,
 } from "../types";
 import { DEFAULT_SDK_CONFIG } from "../types";
-import { getLlmModel } from "../../../../../shared/llm/modelCatalog";
+import { getLlmModel } from "../../../../../../shared/llm/modelCatalog";
 
 export const GEMINI_DEEP_RESEARCH_AGENT_IDS = [
   "deep-research-preview-04-2026",

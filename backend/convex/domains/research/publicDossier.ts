@@ -10,7 +10,7 @@
 import { v } from "convex/values";
 import { action, internalAction } from "../../_generated/server";
 import { api, internal } from "../../_generated/api";
-import { getLlmModel } from "../../../shared/llm/modelCatalog";
+import { getLlmModel } from "../../../../shared/llm/modelCatalog";
 
 // NOTE: Queries and mutations are in publicDossierQueries.ts
 // Import them via api.domains.research.publicDossierQueries instead

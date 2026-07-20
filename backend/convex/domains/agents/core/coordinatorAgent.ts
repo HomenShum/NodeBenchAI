@@ -234,7 +234,7 @@ import { wrapAllToolsWithResourceLinkWrapping } from "../../../lib/withResourceL
 import type { Id } from "../../../_generated/dataModel";
 
 // Section ID generation for artifact linking
-import { generateSectionId } from "../../../../shared/sectionIds";
+import { generateSectionId } from "../../../../../shared/sectionIds";
 
 // Note: DEFAULT_MODEL is imported from "../mcp_tools/models" (line 16)
 

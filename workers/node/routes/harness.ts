@@ -19,7 +19,7 @@
 import { Router, type Request, type Response } from "express";
 import { HarnessRuntime, type TraceEvent } from "../harnessRuntime.js";
 import { getPricingSnapshot, getPricingSummary } from "../pricingScraper.js";
-import type { McpTool } from "../../packages/mcp-local/src/types.js";
+import type { McpTool } from "../../../packages/mcp-local/src/types.js";
 
 export function createHarnessRouter(tools: McpTool[]): Router {
   const router = Router();

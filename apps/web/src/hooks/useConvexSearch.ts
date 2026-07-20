@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ConvexHttpClient } from "convex/browser";
-import type { Id } from "../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 import { getApi } from "@/lib/convexApi";
 
 export interface ConvexSearchState {

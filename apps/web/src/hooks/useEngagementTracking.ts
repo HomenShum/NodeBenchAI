@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useMutation } from 'convex/react';
-import { api } from '../../convex/_generated/api';
+import { api } from '@convex/_generated/api';
 
 export type ReportType = 'daily_brief' | 'weekly_digest' | 'funding_report' | 'research_highlights';
 export type EngagementType = 'view' | 'click' | 'expand' | 'scroll' | 'time_spent';

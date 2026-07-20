@@ -16,10 +16,10 @@
 import { config as loadEnv } from "dotenv";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { judgeAgentRun } from "../../convex/domains/evaluation/agentRunJudge";
-import { runPiOrAiSdkCompletion } from "../../convex/domains/pipelines/piRuntime";
-import { buildBriefPrompt, buildDeltaSummaryPrompt } from "../../convex/domains/operations/batchAutopilot/promptBuilder";
-import { judgeDiligenceRun } from "../../server/pipeline/diligenceJudge";
+import { judgeAgentRun } from "../../backend/convex/domains/evaluation/agentRunJudge";
+import { runPiOrAiSdkCompletion } from "../../backend/convex/domains/pipelines/piRuntime";
+import { buildBriefPrompt, buildDeltaSummaryPrompt } from "../../backend/convex/domains/operations/batchAutopilot/promptBuilder";
+import { judgeDiligenceRun } from "../../workers/node/pipeline/diligenceJudge";
 import {
   createChatMultiplyHandoff,
   createRedesignUniverseUpsertArgs,
@@ -27,7 +27,7 @@ import {
   proposeMemoryPatch,
   toRedesignDocumentPatchProposal,
   toRedesignStyleProfileUpsertArgs,
-} from "../../convex/domains/operatorProfile/manifest";
+} from "../../backend/convex/domains/operatorProfile/manifest";
 
 loadEnv({ path: ".env.local" });
 loadEnv({ path: ".env" });

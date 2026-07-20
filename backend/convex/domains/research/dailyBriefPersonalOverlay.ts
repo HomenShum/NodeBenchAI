@@ -20,7 +20,7 @@ import {
   getLlmModel,
   resolveModelAlias,
   getModelWithFailover,
-} from "../../../shared/llm/modelCatalog";
+} from "../../../../shared/llm/modelCatalog";
 
 async function generateWithProvider(
   modelInput: string,

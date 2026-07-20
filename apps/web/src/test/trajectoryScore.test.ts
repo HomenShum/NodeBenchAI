@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeTrajectoryScores } from "../../convex/domains/trajectory/lib";
+import { computeTrajectoryScores } from "@convex/domains/trajectory/lib";
 
 describe("computeTrajectoryScores", () => {
   it("marks repeated evidence-backed improvement as compounding", () => {

@@ -12,7 +12,7 @@ import {
   getLlmModel,
   resolveModelAlias,
   getModelWithFailover,
-} from "../../../shared/llm/modelCatalog";
+} from "../../../../shared/llm/modelCatalog";
 import { linkupSearch } from "../../tools/media/linkupSearch";
 
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;

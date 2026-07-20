@@ -31,8 +31,8 @@ import {
   ArrowLeft,
   Sparkles,
 } from "lucide-react";
-import { api } from "../../../../convex/_generated/api";
-import type { Id } from "../../../../convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import { FinancialOperatorTimeline } from "./FinancialOperatorTimeline";
 import { setActiveFinancialRun } from "./FinancialOperatorOverlay";
 import {

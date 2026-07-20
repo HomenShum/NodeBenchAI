@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { chooseNodeBenchRuntimeRoute } from "./runtimeRouting";
-import type { UltraLongChatWorkingSet } from "../../../shared/ultraLongChatContext";
+import type { UltraLongChatWorkingSet } from "../../../../shared/ultraLongChatContext";
 
 function buildWorkingSet(
   overrides: Partial<UltraLongChatWorkingSet> = {},

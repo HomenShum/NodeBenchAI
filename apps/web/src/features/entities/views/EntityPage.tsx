@@ -56,7 +56,7 @@ import {
   buildPrepBriefPrompt,
   getReportArtifactLabel,
   isPrepBriefType,
-} from "../../../../shared/reportArtifacts";
+} from "../../../../../../shared/reportArtifacts";
 import {
   buildEntityPath,
   buildCrmSummary,

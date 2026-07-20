@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import { HarnessRuntime, decideHarnessRouting } from "./harnessRuntime.js";
-import type { McpTool } from "../packages/mcp-local/src/types.js";
+import type { McpTool } from "../../packages/mcp-local/src/types.js";
 
 function createTool(name: string, handler: McpTool["handler"]): McpTool {
   return {

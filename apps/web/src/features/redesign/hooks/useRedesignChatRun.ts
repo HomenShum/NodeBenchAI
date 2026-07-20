@@ -16,7 +16,7 @@
  */
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import type { ChatAnswer as BaseChatAnswer } from "../fixtures";
 import type { RouterTier } from "../components/UniversalComposer";
 import type { LiveGroundingDecision } from "shared/redesign/contextRuntimePolicy";

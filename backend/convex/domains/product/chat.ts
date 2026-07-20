@@ -5,8 +5,8 @@ import { buildPreviewText, deriveDomainFromUrl, requireProductIdentity, summariz
 import { ensureEntityForReport, upsertEntityContextItem, upsertExplicitRelatedEntitiesForReport } from "./entities";
 import { productRoutingDecisionValidator } from "./schema";
 import { isProductRuntimeFlagEnabled } from "../../lib/featureFlags";
-import { deriveCanonicalReportSections } from "../../../shared/reportSections";
-import { buildPrepBriefTitle, deriveReportArtifactMode, type ReportArtifactMode } from "../../../shared/reportArtifacts";
+import { deriveCanonicalReportSections } from "../../../../shared/reportSections";
+import { buildPrepBriefTitle, deriveReportArtifactMode, type ReportArtifactMode } from "../../../../shared/reportArtifacts";
 import { upsertOpenProductNudge } from "./nudgeHelpers";
 import {
   recomputeEntitySearchableText,
@@ -16,7 +16,7 @@ import { syncGenericDiligenceProjectionDrafts, buildGenericDiligenceProjectionDr
 import {
   buildProductProviderBudgetSummary,
   type ProductProviderBudgetSummary,
-} from "../../../shared/productRuntime";
+} from "../../../../shared/productRuntime";
 import {
   classifyProductRequest,
   compileActionItems,
@@ -32,7 +32,7 @@ import {
   type ProductClaimLedgerSummary,
   type ProductPersistenceDecision,
   type ProductResolvedTarget,
-} from "../../../shared/productAnswerControl";
+} from "../../../../shared/productAnswerControl";
 // Defense-in-depth save gate. Composes with productAnswerControl.decidePersistence.
 // See: convex/domains/agents/safety/artifactDecisionGate.ts
 import {

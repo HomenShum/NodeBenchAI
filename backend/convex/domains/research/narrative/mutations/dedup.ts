@@ -16,7 +16,7 @@ import { internal } from "../../../../_generated/api";
 import { claimSetValidator } from "../validators";
 import type { Id } from "../../../../_generated/dataModel";
 import { fnv1a32Hex } from "../adapters/types";
-import { makeWebSourceCitationId } from "../../../../../shared/citations/webSourceCitations";
+import { makeWebSourceCitationId } from "../../../../../../shared/citations/webSourceCitations";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CONTENT HASH COMPUTATION

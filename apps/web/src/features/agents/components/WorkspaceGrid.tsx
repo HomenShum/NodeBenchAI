@@ -11,7 +11,7 @@ import {
   FolderOpen,
 } from 'lucide-react';
 import { useQuery } from 'convex/react';
-import { api } from '../../../../convex/_generated/api';
+import { api } from '@convex/_generated/api';
 import { sanitizeDocumentTitle } from '@/lib/displayText';
 
 interface WorkspaceGridProps {

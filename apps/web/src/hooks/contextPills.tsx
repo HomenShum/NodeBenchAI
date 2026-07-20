@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
-import { Id } from "../../convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 
 // Types
 export type ViewingDoc = { id: Id<"documents">; title?: string };

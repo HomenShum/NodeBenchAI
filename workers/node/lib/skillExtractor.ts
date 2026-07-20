@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { genId, getDb } from "../../packages/mcp-local/src/db.js";
+import { genId, getDb } from "../../../packages/mcp-local/src/db.js";
 import type { HarnessPlan, HarnessStepResult } from "../agentHarness.js";
 
 export interface ExtractedSkillTemplateRecord {

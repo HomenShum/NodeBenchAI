@@ -6,7 +6,7 @@ import { memo, useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { ArrowRight, Database, KeyRound, Lock, ShieldAlert, ShieldCheck, ShieldX } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { ReceiptApprovalQueue } from "../components/ReceiptApprovalQueue";
 import { ReceiptCard } from "../components/ReceiptCard";
 import { DEMO_PASSPORT, DEMO_RECEIPTS } from "../data/receiptFixtures";

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Id } from '../../convex/_generated/dataModel';
+import { Id } from '@convex/_generated/dataModel';
 import type { MainView } from '@/lib/registry/viewRegistry';
 
 interface UseGlobalEventListenersOptions {

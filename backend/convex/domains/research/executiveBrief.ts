@@ -19,7 +19,7 @@ import { api, internal } from "../../_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
 import OpenAI from "openai";
-import { getLlmModel } from "../../../shared/llm/modelCatalog";
+import { getLlmModel } from "../../../../shared/llm/modelCatalog";
 import { createHash, randomUUID } from "crypto";
 
 import {
@@ -29,16 +29,16 @@ import {
   type Signal,
   type Action as BriefAction,
   type VizArtifact,
-} from "../../../src/features/research/types/dailyBriefSchema";
+} from "../../../../apps/web/src/features/research/types/dailyBriefSchema";
 import {
   BRIEF_SYSTEM_PROMPT,
   BRIEF_OUTPUT_CONSTRAINTS,
   BRIEF_EXAMPLE_PROMPT,
-} from "../../../src/features/research/prompts/briefConstraints";
+} from "../../../../apps/web/src/features/research/prompts/briefConstraints";
 import {
   parseAndValidateBrief,
   buildRetryPrompt,
-} from "../../../src/features/research/utils/briefGenerator";
+} from "../../../../apps/web/src/features/research/utils/briefGenerator";
 
 type FeedItem = {
   sourceId?: string;

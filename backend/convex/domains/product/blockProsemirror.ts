@@ -5,11 +5,11 @@ import { query, mutation, type MutationCtx, type QueryCtx } from "../../_generat
 import { v } from "convex/values";
 
 import { requireBlockReadAccessById, requireBlockWriteAccessById, requireProductIdentity } from "./helpers";
-import { parseProductBlockSyncId } from "../../../shared/productBlockSync";
+import { parseProductBlockSyncId } from "../../../../shared/productBlockSync";
 import {
   chipsToProsemirrorDoc,
   prosemirrorDocToChips,
-} from "../../../shared/notebookBlockProsemirror";
+} from "../../../../shared/notebookBlockProsemirror";
 import { productBlockChipValidator } from "./schema";
 
 const prosemirrorSync = new ProsemirrorSync(components.prosemirrorSync);

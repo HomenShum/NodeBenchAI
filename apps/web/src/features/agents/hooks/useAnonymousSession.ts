@@ -10,7 +10,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery } from 'convex/react';
 import { useConvexAuth } from 'convex/react';
-import { api } from '../../../../convex/_generated/api';
+import { api } from '@convex/_generated/api';
 
 const STORAGE_KEY = 'nodebench:anonymous:sessionId';
 

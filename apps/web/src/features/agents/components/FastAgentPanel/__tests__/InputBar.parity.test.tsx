@@ -8,7 +8,7 @@ import {
   useSelection,
 } from '@/features/agents/context/SelectionContext';
 import { FastAgentInputBar } from '../FastAgentPanel.InputBar';
-import { ANONYMOUS_FAST_AGENT_MODEL_ID } from '../../../../../../shared/llm/fastAgentRuntimeContract';
+import { ANONYMOUS_FAST_AGENT_MODEL_ID } from '../../../../../../../../shared/llm/fastAgentRuntimeContract';
 
 const enhancePrompt = vi.fn();
 

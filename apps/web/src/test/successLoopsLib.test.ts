@@ -4,7 +4,7 @@ import {
   computeLoopHealth,
   defaultNextRecommendedAction,
   type SuccessLoopsDashboardSnapshot,
-} from "../../convex/domains/successLoops/lib";
+} from "@convex/domains/successLoops/lib";
 
 describe("successLoops lib", () => {
   it("marks a well-instrumented loop as strengthening", () => {

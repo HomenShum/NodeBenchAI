@@ -2,8 +2,8 @@
 
 import { useQuery, useMutation, useConvexAuth } from "convex/react";
 import { useEffect, useState, useRef, useMemo, useCallback, lazy, Suspense } from "react";
-import { api } from "../../../../convex/_generated/api";
-import { Id } from "../../../../convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
+import { Id } from "@convex/_generated/dataModel";
 
 import {
   CalendarIcon,

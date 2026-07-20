@@ -19,7 +19,7 @@ import {
   getBestModelForTier,
   getProviderForModel,
   type LlmTask,
-} from "../../../../shared/llm/modelCatalog";
+} from "../../../../../shared/llm/modelCatalog";
 
 const UNLIMITED_SMALL_MODELS = new Set([
   "gpt-5.4-nano",

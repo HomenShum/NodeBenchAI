@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useRef, memo, useMemo, useState, lazy, Suspense } from "react";
-import type { Id } from "../../../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 import {
   Edit3, Star, Trash2, Link2, Sparkles, GripVertical, Clock, Play, Eye,
 } from "lucide-react";
@@ -17,7 +17,7 @@ import type { FileType } from "@/lib/fileTypes";
 import { getThemeForFileType } from "@/lib/documentThemes";
 import { getAIStatus, type DocumentCardData } from "../utils/documentHelpers";
 import { useQuery } from "convex/react";
-import { api } from "../../../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { formatDistanceToNow } from "date-fns";
 import { sanitizeDocumentTitle } from "@/lib/displayText";
 import {

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ConvexHttpClient } from "convex/browser";
 import { useConvex } from "convex/react";
 
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { inferCaptureRoute } from "@/features/product/lib/captureRouter";
 import { getAnonymousProductSessionId } from "@/features/product/lib/productIdentity";
 import {

@@ -3,7 +3,7 @@
 // Subscribes to agentDelegations + agentWriteEvents for live multi-lane streaming
 
 import { useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { useMemo, useRef, useState, useEffect } from "react";
 
 // ═══════════════════════════════════════════════════════════════════════════

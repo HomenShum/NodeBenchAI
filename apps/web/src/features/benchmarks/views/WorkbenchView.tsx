@@ -25,7 +25,7 @@ import React, { useEffect, useState, lazy, Suspense } from "react";
 import { useQuery } from "convex/react";
 import { ChevronDown, ChevronUp, Settings, Play, CheckCircle2, AlertTriangle, Activity } from "lucide-react";
 import { SignatureOrb } from "@/shared/ui/SignatureOrb";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import type { TrajectorySummaryData, TrajectoryTimelineItem } from "@/features/trajectory/types";
 
 // Lazy-load sub-panels — these are below the fold or behind expandable sections

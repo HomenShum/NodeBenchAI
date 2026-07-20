@@ -39,7 +39,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMutation } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { UniversalComposer } from "../components/UniversalComposer";
 import { StreamingMarkdown } from "../components/StreamingMarkdown";
 import { EditorialSection } from "../components/edition/EditorialSection";

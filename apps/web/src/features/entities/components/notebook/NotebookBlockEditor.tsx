@@ -20,7 +20,7 @@ import { useTiptapSync } from "@convex-dev/prosemirror-sync/tiptap";
 import { useConvexApi } from "@/lib/convexApi";
 import type { EntityMatch } from "./MentionPicker";
 import { BlockChipRenderer, type BlockChip } from "./BlockChipRenderer";
-import { chipsToProsemirrorDoc, prosemirrorDocToChips } from "../../../../../shared/notebookBlockProsemirror";
+import { chipsToProsemirrorDoc, prosemirrorDocToChips } from "../../../../../../../shared/notebookBlockProsemirror";
 import {
   createDiligenceDecorationPlugin,
   diligenceDecorationPluginKey,

@@ -8,7 +8,7 @@ import {
   type EntityFastLaneCache,
   type UltraLongChatMessage,
   type UltraLongChatWorkingSet,
-} from "../../../../shared/ultraLongChatContext";
+} from "../../../../../shared/ultraLongChatContext";
 
 type AngleId = UltraLongChatWorkingSet["activeAngles"][number];
 

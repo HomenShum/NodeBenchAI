@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import * as citations from "../../../shared/citations";
+import * as citations from "../../../../shared/citations";
 
 describe("FastAgent citation provenance guard", () => {
   it("does not expose a helper that turns retrieval into claim citations", () => {

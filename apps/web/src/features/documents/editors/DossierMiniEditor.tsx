@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
-import type { Id } from "../../../../convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import { FileStack, ExternalLink, Copy, X } from "lucide-react";
 import { toast } from "sonner";
 import { FileTypeIcon } from "@/shared/components/FileTypeIcon";

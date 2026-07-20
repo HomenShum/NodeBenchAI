@@ -11,7 +11,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { useQuery } from 'convex/react';
-import { api } from '../../../../convex/_generated/api';
+import { api } from '@convex/_generated/api';
 import { useTimeContext } from '../../../hooks/useTimeContext';
 import { useMotionConfig } from '@/lib/motion';
 

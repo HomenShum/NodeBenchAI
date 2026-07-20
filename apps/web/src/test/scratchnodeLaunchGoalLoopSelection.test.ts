@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { selectDevelopmentCandidate } from "../../scripts/scratchnode/runLaunchGoalLoop.mjs";
+import { selectDevelopmentCandidate } from "../../../../scripts/scratchnode/runLaunchGoalLoop.mjs";
 
 describe("selectDevelopmentCandidate", () => {
   it("explains why blocker work wins", () => {

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { Id } from "../../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 import DualCreateMiniPanel from "@/features/documents/editors/DualCreateMiniPanel";
 import DualEditMiniPanel from "@/features/documents/editors/DualEditMiniPanel";
 import PopoverMiniEditor from "@/features/documents/editors/PopoverMiniEditor";

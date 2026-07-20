@@ -36,11 +36,11 @@ import {
   traceSpan,
   startSpan,
   closeSpan,
-} from "../../../shared/research/tracing.js";
+} from "../../../../shared/research/tracing.js";
 import {
   SPAN_ROOT_SELECTION,
   SPAN_ENTITY_HYDRATION,
-} from "../../../shared/research/spanNames.js";
+} from "../../../../shared/research/spanNames.js";
 
 // Deterministic slug for canonical entity lookup (intelligenceEntities.entityKey).
 // Must match the slug we accept at /v1/resources/expand so the URI round-trips.

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useConvexAuth, useQuery } from "convex/react";
 import { Cloud, CloudOff, Loader2 } from "lucide-react";
 
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { getSyncBridgeAccountUrl, getSyncBridgeHealthUrl } from "@/lib/syncBridgeApi";
 import { PUBLIC_SEARCH_SYNC_STATUS_API_ENDPOINT } from "@/lib/searchApi";
 

@@ -23,7 +23,7 @@ import { CardInspector } from "@/features/research/components/CardInspector";
 import type {
   ResourceCard,
   ResourceUri,
-} from "../../../../shared/research/resourceCards";
+} from "../../../../../../shared/research/resourceCards";
 
 export type WorkspaceTab = "brief" | "cards" | "map" | "sources";
 

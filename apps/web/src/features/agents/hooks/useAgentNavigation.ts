@@ -8,7 +8,7 @@
 
 import { useQuery, useMutation } from "convex/react";
 import { useCallback, useEffect, useRef } from "react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 
 interface UseAgentNavigationOptions {
   threadId: string | null;

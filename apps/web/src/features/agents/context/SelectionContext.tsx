@@ -6,7 +6,7 @@
  */
 
 import React, { createContext, useContext, useState, useCallback, useMemo, ReactNode } from 'react';
-import type { Id } from '../../../../convex/_generated/dataModel';
+import type { Id } from '@convex/_generated/dataModel';
 
 export type SelectionSourceType = 
   | 'spreadsheet' 

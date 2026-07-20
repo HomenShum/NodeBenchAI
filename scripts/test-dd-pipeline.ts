@@ -7,7 +7,7 @@
  */
 
 import { ConvexHttpClient } from "convex/browser";
-import { api, internal } from "../convex/_generated/api";
+import { api, internal } from "../backend/convex/_generated/api";
 
 // Configuration
 const CONVEX_URL = process.env.CONVEX_URL ?? "https://formal-shepherd-851.convex.cloud";

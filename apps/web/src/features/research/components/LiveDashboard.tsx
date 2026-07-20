@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useQuery, useAction } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { StickyDashboard } from "./StickyDashboard";
 import { RefreshCw, AlertCircle, ChevronLeft, ChevronRight, Calendar, RotateCcw } from "lucide-react";
 import type { DashboardState } from "@/features/research/types";

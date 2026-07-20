@@ -1,4 +1,4 @@
-import type { Id } from "../../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 import type { AcceptedNotebookBlockDraft } from "./acceptDecorationIntoNotebook";
 import type { BlockChip } from "./BlockChipRenderer";
 import {

@@ -8,8 +8,8 @@
 import React, { lazy, memo, Suspense, useCallback, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { FileText, Calendar, File, Loader2 } from "lucide-react";
-import { Id } from "../../../../convex/_generated/dataModel";
-import { api } from "../../../../convex/_generated/api";
+import { Id } from "@convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
 
 import {
   type DocumentCardData,

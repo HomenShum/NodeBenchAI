@@ -19,8 +19,8 @@
  */
 
 import { useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
-import type { Id } from "../../convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 
 /** Full user doc, or `null` (signed out), or `undefined` (loading). */
 export function useCurrentUser() {

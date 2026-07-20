@@ -21,4 +21,4 @@ export type {
   ToolCallPayload,
   ValidationFinding,
   ValidationPayload,
-} from "../../../convex/domains/financialOperator/types";
+} from "@convex/domains/financialOperator/types";

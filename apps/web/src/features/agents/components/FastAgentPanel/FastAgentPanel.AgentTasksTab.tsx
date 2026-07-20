@@ -15,7 +15,7 @@ import {
   Loader2,
   Zap,
 } from 'lucide-react';
-import { api } from '../../../../../convex/_generated/api';
+import { api } from '@convex/_generated/api';
 import { TokenUsageBadge } from './TokenUsageBadge';
 import { cn } from '@/lib/utils';
 

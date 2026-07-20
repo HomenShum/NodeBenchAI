@@ -6,7 +6,7 @@
  */
 
 import React, { useMemo, useState } from "react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { useStableQuery } from "@/hooks/useStableQuery";
 import { useWindowedList } from "@/lib/performance/useWindowedList";
 import { getAnonymousProductSessionId } from "@/features/product/lib/productIdentity";

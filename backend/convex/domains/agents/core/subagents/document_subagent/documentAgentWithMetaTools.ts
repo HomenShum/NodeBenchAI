@@ -19,7 +19,7 @@ import { openai } from "@ai-sdk/openai";
 import { components } from "../../../../../_generated/api";
 
 // Import centralized model resolver (2025 consolidated - 7 models only)
-import { getLanguageModelSafe } from "../../../../agents/mcp_tools/models";
+import { getLanguageModelSafe } from "../../../mcp_tools/models";
 
 // Import meta-tools (hybrid search)
 import {

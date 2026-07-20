@@ -22,7 +22,7 @@ import {
   ClipboardList,
   ExternalLink,
 } from "lucide-react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { loadAgentsViewMode, saveAgentsViewMode } from "@/features/controlPlane/lib/onboardingState";
 
 // Shared UI components

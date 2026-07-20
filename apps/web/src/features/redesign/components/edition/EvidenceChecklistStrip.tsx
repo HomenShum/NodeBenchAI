@@ -9,7 +9,7 @@
  * the caller should pass null and we render a hyphen.
  */
 
-import type { EvidenceChecklist } from "../../../../../convex/domains/research/narrative/validators";
+import type { EvidenceChecklist } from "@convex/domains/research/narrative/validators";
 import { DotGrid } from "./DotGrid";
 
 const LEVEL_LABEL: Record<"grounded" | "mixed" | "speculative", string> = {

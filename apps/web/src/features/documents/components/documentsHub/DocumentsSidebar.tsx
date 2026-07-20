@@ -1,5 +1,5 @@
 import { Plus, Sparkles, FileText, Grid3X3, Edit3 } from "lucide-react";
-import type { Id } from "../../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 import { sanitizeDocumentTitle } from "@/lib/displayText";
 import { TaskRowGlobal } from "./rows";
 

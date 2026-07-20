@@ -4,8 +4,8 @@ on:
   pull_request:
     paths:
       - "packages/mcp-local/**"
-      - "server/routes/search.ts"
-      - "server/searchRoute.test.ts"
+      - "workers/node/routes/search.ts"
+      - "workers/node/searchRoute.test.ts"
       - ".github/workflows/delta-dogfood-gate.yml"
   workflow_dispatch:
 
@@ -31,8 +31,8 @@ jobs:
 
       - name: Typecheck Delta tool slice
         working-directory: packages/mcp-local
-        run: npx tsc --noEmit --module Node16 --moduleResolution Node16 --target ES2022 --lib ES2022 --strict --esModuleInterop --skipLibCheck --types node,vitest src/tools/deltaTools.ts src/__tests__/deltaDogfoodGate.test.ts src/__tests__/deltaTools.test.ts src/__tests__/founderDirectionAssessment.test.ts
+        run: npx tsc --noEmit --module Node16 --moduleResolution Node16 --target ES2022 --lib ES2022 --strict --esModuleInterop --skipLibCheck --types node,vitest apps/web/src/tools/deltaTools.ts apps/web/src/__tests__/deltaDogfoodGate.test.ts apps/web/src/__tests__/deltaTools.test.ts apps/web/src/__tests__/founderDirectionAssessment.test.ts
 
       - name: Run Delta self-dogfood gate
         working-directory: packages/mcp-local
-        run: npx vitest run src/__tests__/deltaDogfoodGate.test.ts src/__tests__/deltaTools.test.ts src/__tests__/founderDirectionAssessment.test.ts
+        run: npx vitest run apps/web/src/__tests__/deltaDogfoodGate.test.ts apps/web/src/__tests__/deltaTools.test.ts apps/web/src/__tests__/founderDirectionAssessment.test.ts

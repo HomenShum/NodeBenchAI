@@ -19,7 +19,7 @@ import {
   Wrench,
   Zap,
 } from "lucide-react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { cn } from "@/lib/utils";
 import { AgentResponseFlywheelPanel } from "./AgentResponseFlywheelPanel";
 import {

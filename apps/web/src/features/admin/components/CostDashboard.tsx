@@ -7,7 +7,7 @@
 
 import React, { useState, useMemo } from "react";
 import { useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { DollarSign, TrendingDown, Zap, Clock, Database, Users } from "lucide-react";
 import { ViewSkeleton } from "../../../components/skeletons";
 import { PageHeroHeader } from "../../../shared/ui/PageHeroHeader";

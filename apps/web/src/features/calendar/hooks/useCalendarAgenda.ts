@@ -1,7 +1,7 @@
 import { useQuery } from "convex/react";
 import { useMemo } from "react";
-import { api } from "../../../../convex/_generated/api";
-import type { Id } from "../../../../convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 
 export interface CalendarEvent {
   _id: Id<"events"> | string;

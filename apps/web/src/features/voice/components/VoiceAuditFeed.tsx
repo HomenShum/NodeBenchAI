@@ -17,7 +17,7 @@ import { useQuery } from "convex/react";
 import { useMemo } from "react";
 // The api object has the new realtimeAudit module after PR #274's codegen.
 // Until codegen runs in CI, fall back to a relaxed lookup so tsc passes.
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 
 type AuditGate =
   | "anonymous_no_persist"

@@ -7,7 +7,7 @@
  */
 
 import { useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import type { NarrativeThread } from "../types";
 
 export interface UseNarrativeThreadsOptions {

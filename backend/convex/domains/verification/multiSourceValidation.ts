@@ -289,7 +289,7 @@ async function validateWithNews(
 
   try {
     // Use fusion search to find multiple sources
-    const { SearchOrchestrator } = await import("../../domains/search/fusion/orchestrator");
+    const { SearchOrchestrator } = await import("../search/fusion/orchestrator");
     const orchestrator = new SearchOrchestrator(ctx);
 
     const searchResults = await orchestrator.search({

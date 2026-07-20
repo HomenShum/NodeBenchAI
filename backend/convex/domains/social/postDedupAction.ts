@@ -23,7 +23,7 @@ import {
   getLlmModel,
   resolveModelAlias,
   getModelWithFailover,
-} from "../../../shared/llm/modelCatalog";
+} from "../../../../shared/llm/modelCatalog";
 import { generateDedupJudgePrompt, type DedupVerdict } from "./postDedup";
 
 // ═══════════════════════════════════════════════════════════════════════════

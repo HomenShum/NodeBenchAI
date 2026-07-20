@@ -4,7 +4,7 @@
 
 import React, { useState } from 'react';
 import { HelpCircle, Check, Building2, User, Calendar, MapPin, Package } from 'lucide-react';
-import type { ProductResolutionCandidate } from '../../../../shared/productAnswerControl';
+import type { ProductResolutionCandidate } from '../../../../../../shared/productAnswerControl';
 
 // ============================================================================
 // Types

@@ -9,7 +9,7 @@
  */
 
 import { useMemo, type ReactNode } from "react";
-import type { Id } from "../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 import { usePlannerState } from "@/hooks/usePlannerState";
 import { usePlannerController } from "../hooks/usePlannerController";
 import {

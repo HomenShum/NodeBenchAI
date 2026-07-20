@@ -17,7 +17,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, ExternalLink, Link2, Lock } from "lucide-react";
-import type { Id } from "../../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 import {
   chipsEqual,
   chipsToPlainText,
@@ -74,7 +74,7 @@ import {
   readQueue,
   removeById as removeOfflineEdit,
 } from "./notebookOfflineQueue";
-import { buildProductBlockSyncId } from "../../../../../shared/productBlockSync";
+import { buildProductBlockSyncId } from "../../../../../../../shared/productBlockSync";
 import { useDiligenceBlocks } from "./useDiligenceBlocks";
 import type { DiligenceDecorationData } from "./DiligenceDecorationPlugin";
 import { acceptDecorationIntoNotebook } from "./acceptDecorationIntoNotebook";

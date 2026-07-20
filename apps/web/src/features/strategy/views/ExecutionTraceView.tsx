@@ -18,8 +18,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ai-ui/tab
 import { ToggleGroup, ToggleGroupItem } from "@/components/ai-ui/toggle-group";
 import { cn } from "@/lib/utils";
 import { SourceChip } from "@/shared/ui";
-import { api } from "../../../../convex/_generated/api";
-import type { Id } from "../../../../convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import type {
   TaskSession,
   TaskSpan,

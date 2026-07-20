@@ -14,8 +14,8 @@
  * free change once v1 is proven.
  */
 
-import type { AngleId } from "../../../shared/research/angleIds";
-import type { LensId, DepthId } from "../../../shared/research/lensIds";
+import type { AngleId } from "../../../../shared/research/angleIds";
+import type { LensId, DepthId } from "../../../../shared/research/lensIds";
 
 /** A single layer of a lens's rendered hierarchy. */
 export interface LensLayer {

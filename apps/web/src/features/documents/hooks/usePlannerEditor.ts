@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import type { Id } from "../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 import type { AgendaPopoverState } from "@features/documents/components/documentsHub";
 import type { PlannerMode } from "@features/documents/components/documentsHub";
 

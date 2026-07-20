@@ -7,8 +7,8 @@
  */
 
 import { useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
-import type { Id } from "../../../../convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import type { NarrativeEvent, WeekColumn } from "../types";
 
 export interface UseNarrativeEventsOptions {

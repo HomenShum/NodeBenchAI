@@ -5,8 +5,8 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useQuery, useMutation } from 'convex/react';
-import { api } from '../../../../convex/_generated/api';
-import { Id } from '../../../../convex/_generated/dataModel';
+import { api } from '@convex/_generated/api';
+import { Id } from '@convex/_generated/dataModel';
 import type { AIToolAction } from '../types';
 
 interface PendingProposal {

@@ -2,7 +2,7 @@
 import { useAction, useConvex, useMutation, useQuery } from "convex/react";
 import { useConvexAuth } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { PageHeroHeader } from "@/shared/ui/PageHeroHeader";
 import { TasteBenchPanel } from "../components/TasteBenchPanel";
 

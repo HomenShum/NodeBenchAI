@@ -27,7 +27,7 @@ import {
   isLegacyPromptArtifact,
   isPlaceholderPrepEntity,
   isPrepBriefType,
-} from "../../../shared/reportArtifacts";
+} from "../../../../shared/reportArtifacts";
 
 const TOKEN_STOPWORDS = new Set([
   "the",

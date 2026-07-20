@@ -31,7 +31,7 @@ import {
   type EntityFastLaneCache,
   type UltraLongChatMessage,
   type UltraLongChatWorkingSet,
-} from "../../../../shared/ultraLongChatContext";
+} from "../../../../../shared/ultraLongChatContext";
 import {
   NODEBENCH_ADVISOR_MODEL,
   NODEBENCH_EXECUTOR_MODELS,

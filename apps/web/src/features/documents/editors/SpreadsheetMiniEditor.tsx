@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
-import type { Id } from "../../../../convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import { Save, X, Maximize2, Minimize2, Download, Sparkles, Loader2, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import Papa from "papaparse";

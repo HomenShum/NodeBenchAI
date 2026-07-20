@@ -8,7 +8,7 @@
  */
 
 import { useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
 import {
   Activity,

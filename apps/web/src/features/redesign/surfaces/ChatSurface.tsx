@@ -40,7 +40,7 @@ import { buildGraphContextBridgePacket } from "../lib/graphContextBridge";
 import { buildConversationContext } from "../lib/chatContinuation";
 import { STARTER_ICONS } from "../components/ChatEmptyState";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { LiveResearchChecklist } from "../../research/LiveResearchChecklist";
 import {
   Conversation,

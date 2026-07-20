@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { Id } from "../../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 import { acceptDecorationIntoNotebook } from "./acceptDecorationIntoNotebook";
 import type { DiligenceDecorationData } from "./DiligenceDecorationPlugin";
 import {

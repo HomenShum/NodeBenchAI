@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { modelForTier } from "../../../../convex/domains/redesign/chatRuns";
+import { modelForTier } from "@convex/domains/redesign/chatRuns";
 import {
   CANCEL_ARM_DELAY_MS,
   DEFAULT_TIERS,

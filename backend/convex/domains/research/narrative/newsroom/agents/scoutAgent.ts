@@ -18,7 +18,7 @@ import { internal } from "../../../../../_generated/api";
 import { SearchOrchestrator } from "../../../../search/fusion/orchestrator";
 import type { SearchResult } from "../../../../search/fusion/types";
 import type { NewsroomState, NewsItem, SearchLogEntry } from "../state";
-import { fnv1a32Hex } from "../../../../../../shared/citations/webSourceCitations";
+import { fnv1a32Hex } from "../../../../../../../shared/citations/webSourceCitations";
 import {
   processAllContent,
   type NarrativeEventInput,

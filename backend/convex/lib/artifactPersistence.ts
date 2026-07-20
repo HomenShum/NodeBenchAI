@@ -17,7 +17,7 @@ import {
   extractHost, 
   classifyProvider,
   generateArtifactIdSync,
-} from "../../shared/artifacts";
+} from "../../../shared/artifacts";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FEATURE FLAGS & CONSTANTS

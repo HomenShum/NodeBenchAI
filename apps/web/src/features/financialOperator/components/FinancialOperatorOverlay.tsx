@@ -22,7 +22,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { ChevronRight, X, Maximize2, Minimize2 } from "lucide-react";
-import type { Id } from "../../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 import { FinancialOperatorTimeline } from "./FinancialOperatorTimeline";
 import { ModelCapabilityBadge } from "./ModelCapabilityBadge";
 

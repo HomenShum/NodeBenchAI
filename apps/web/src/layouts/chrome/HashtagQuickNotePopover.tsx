@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { Id } from "../../../convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 import { X, ExternalLink } from "lucide-react";
 import { useQuery, useMutation, useAction} from "convex/react";
 import { useConvexApi } from "@/lib/convexApi";

@@ -1,7 +1,7 @@
 ﻿import { useQuery } from "convex/react";
 import { useEffect, useRef, useState, useCallback, lazy, Suspense } from "react";
-import { api } from "../../../../convex/_generated/api";
-import { Id } from "../../../../convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
+import { Id } from "@convex/_generated/dataModel";
 import { DocumentHeader } from "@/features/documents/components/DocumentHeader";
 // Editor wrapper with UnifiedEditor (BlockNote/ProseMirror)
 import { Editor } from "@/components/Editor/Editor";

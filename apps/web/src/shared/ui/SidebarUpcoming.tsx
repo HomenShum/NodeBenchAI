@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import AgendaMiniRow from "@features/calendar/components/agenda/AgendaMiniRow";
 import MiniEditorPopover from "@/shared/components/MiniEditorPopover";
-import type { Id } from "../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 
 export interface SidebarUpcomingProps {
   // Hook shape can evolve; keep it permissive to avoid churn.

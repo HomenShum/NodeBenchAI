@@ -8,7 +8,7 @@
  * Bounded: each collection has MAX with LRU eviction.
  */
 
-import { getDb as getCanonicalDb } from "../../packages/mcp-local/src/db.js";
+import { getDb as getCanonicalDb } from "../../../packages/mcp-local/src/db.js";
 
 // ── DB setup ─────────────────────────────────────────────────────────
 

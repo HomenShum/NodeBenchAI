@@ -8,7 +8,7 @@ import {
   classifyAuthority,
   type AuthorityTier,
   type BlockType as AuthorityBlockType,
-} from "../../../server/pipeline/authority/defaultTiers";
+} from "../../../../workers/node/pipeline/authority/defaultTiers";
 import {
   DEFAULT_MODEL,
   executeWithModelFallback,

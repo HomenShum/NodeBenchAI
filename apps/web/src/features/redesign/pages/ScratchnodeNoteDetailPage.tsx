@@ -13,7 +13,7 @@
 
 import { useQuery } from "convex/react";
 import { Link, useParams } from "react-router-dom";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { useScratchnodeSessionId } from "../hooks/useScratchnodeSessionId";
 
 type NoteDetail = {

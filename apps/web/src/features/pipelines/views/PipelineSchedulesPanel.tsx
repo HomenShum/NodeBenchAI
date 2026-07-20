@@ -7,8 +7,8 @@
 
 import React from "react";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
-import type { Id } from "../../../../convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import { useWindowedList } from "@/lib/performance/useWindowedList";
 import {
   Calendar,

@@ -119,7 +119,7 @@ import {
   type EntityLibrary
 } from '@/features/research/types/index';
 import type { EntityType } from '@/features/research/types/entitySchema';
-import { makeWebSourceCitationId } from '../../../../../shared/citations/webSourceCitations';
+import { makeWebSourceCitationId } from '../../../../../../../shared/citations/webSourceCitations';
 import { formatBriefDateTime } from '@/lib/briefDate';
 import { useMessageHandlers } from './MessageHandlersContext';
 import {

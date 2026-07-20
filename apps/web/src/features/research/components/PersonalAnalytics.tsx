@@ -18,7 +18,7 @@ import {
   Flame,
 } from 'lucide-react';
 import { useQuery } from 'convex/react';
-import { api } from '../../../../convex/_generated/api';
+import { api } from '@convex/_generated/api';
 import { staggerContainerVariants, staggerItemVariants } from '../../../utils/animations';
 import { useMotionConfig } from '@/lib/motion';
 

@@ -1,7 +1,7 @@
 name: Tier B regression (preview)
 
 # The single highest-leverage check in this repo. Runs the full
-# Tier B Playwright suite (tests/e2e/exact-kit-parity-prod.spec.ts)
+# Tier B Playwright suite (evals/e2e/exact-kit-parity-prod.spec.ts)
 # against the Vercel PR preview URL BEFORE merge.
 #
 # Why this matters: A9 took 4 separate PRs to land on prod earlier
@@ -98,7 +98,7 @@ jobs:
           # tests, __tests__/__mocks__ fixtures, and *.stories never reach the Vercel
           # bundle, so a PR that ONLY touches them cannot change the preview — and
           # must NOT burn the ~10-min preview-resolve poll. Without this, a
-          # convex/__tests__/*.test.ts PR matches the broad `convex` path and waits
+          # backend/convex/__tests__/*.test.ts PR matches the broad `convex` path and waits
           # the full 10 min to skip-green (the "why is Tier B taking forever" case).
           SHIPPING=$(echo "$CHANGED" | grep -vE '(\.test\.[cm]?tsx?$|\.spec\.[cm]?tsx?$|(^|/)__tests__/|(^|/)__mocks__/|\.stories\.[cm]?tsx?$)' || true)
           if [ -z "$SHIPPING" ]; then
@@ -305,7 +305,7 @@ jobs:
           # one-flow-regression: full surface tour + A9 fallback + interactive chip behavior
           # ui-contract-runner: executes docs/design/ui-contract/surfaces/*.contract.json
           #   (anchors, computed geometry, theme wiring, state copy) against the preview
-          npx playwright test tests/e2e/vercel-preview-security.spec.ts tests/e2e/exact-kit-parity-prod.spec.ts tests/e2e/one-flow-regression.spec.ts tests/e2e/ui-contract-runner.spec.ts --project=chromium --reporter=line
+          npx playwright test evals/e2e/vercel-preview-security.spec.ts evals/e2e/exact-kit-parity-prod.spec.ts evals/e2e/one-flow-regression.spec.ts evals/e2e/ui-contract-runner.spec.ts --project=chromium --reporter=line
 
       - name: Upload Playwright artifacts on failure
         if: failure()

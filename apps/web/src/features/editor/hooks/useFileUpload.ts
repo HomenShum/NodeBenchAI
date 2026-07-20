@@ -5,7 +5,7 @@
 
 import { useCallback } from 'react';
 import { useMutation, useConvex } from 'convex/react';
-import { api } from '../../../../convex/_generated/api';
+import { api } from '@convex/_generated/api';
 
 export function useFileUpload() {
   const convex = useConvex();

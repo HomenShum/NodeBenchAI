@@ -16,8 +16,8 @@
  */
 
 import { Request, Response, Router } from "express";
-import { getDb, genId } from "../../packages/mcp-local/src/db.js";
-import { initBehaviorTables, logSession, logQuery, logToolCall, findSimilarPriorQuery } from "../../packages/mcp-local/src/profiler/behaviorStore.js";
+import { getDb, genId } from "../../../packages/mcp-local/src/db.js";
+import { initBehaviorTables, logSession, logQuery, logToolCall, findSimilarPriorQuery } from "../../../packages/mcp-local/src/profiler/behaviorStore.js";
 import { ConvexHttpClient } from "convex/browser";
 import { anyApi } from "convex/server";
 import {
@@ -32,11 +32,11 @@ import {
   type EntityMemoryRecallEntry,
 } from "../lib/entityMemoryRecall.js";
 import { buildRoutingGuidance, decideHarnessRouting } from "../harnessRuntime.js";
-import type { McpTool } from "../../packages/mcp-local/src/types.js";
+import type { McpTool } from "../../../packages/mcp-local/src/types.js";
 import {
   detectFounderCompanyMode,
   getFounderRolePacketDefault,
-} from "../../packages/mcp-local/src/tools/founderOperatingModel.js";
+} from "../../../packages/mcp-local/src/tools/founderOperatingModel.js";
 import { classifySignals } from "../lib/signalTaxonomy.js";
 import { createEvidenceSpans } from "../lib/evidenceSpan.js";
 import { computeRoutingHints, formatRoutingHintsForPrompt } from "../lib/routingHints.js";
@@ -48,24 +48,24 @@ import {
   recordLocalArtifact,
   recordLocalOutcome,
   upsertDurableObject,
-} from "../../packages/mcp-local/src/sync/store.js";
-import { buildContextBundle } from "../../packages/mcp-local/src/tools/contextInjection.js";
-import { evaluateTask } from "../../packages/mcp-local/src/sync/hyperloopEval.js";
+} from "../../../packages/mcp-local/src/sync/store.js";
+import { buildContextBundle } from "../../../packages/mcp-local/src/tools/contextInjection.js";
+import { evaluateTask } from "../../../packages/mcp-local/src/sync/hyperloopEval.js";
 import { buildWorkflowAssetFromEnvelope, createEnvelopeFromResultPacket } from "../lib/workflowEnvelope.js";
 // Demo-safety guards (see docs/architecture/DEMO_PREFLIGHT.md)
-import { checkAllLayers } from "../../convex/domains/agents/safety/rateLimitGuard.js";
+import { checkAllLayers } from "../../../backend/convex/domains/agents/safety/rateLimitGuard.js";
 import {
   webSearchSingleflight,
   canonicalFetchSingleflight,
   entitySummarySingleflight,
   stableKey,
-} from "../../convex/domains/agents/safety/singleflightMap.js";
+} from "../../../backend/convex/domains/agents/safety/singleflightMap.js";
 import {
   classifyRetrievalConfidence,
   buildLowConfidenceCard,
   shouldStreamAnswer,
   type RetrievalState,
-} from "../../convex/domains/agents/safety/lowConfidenceGuard.js";
+} from "../../../backend/convex/domains/agents/safety/lowConfidenceGuard.js";
 
 const SEARCH_SOURCE = "search_api";
 const CONTROL_PLANE_VIEW_ID = "view:control-plane";
@@ -1893,7 +1893,7 @@ let _judgeToolOutput: ((args: any) => Promise<any>) | null = null;
 async function getJudge() {
   if (!_judgeToolOutput) {
     try {
-      const { llmJudgeLoopTools } = await import("../../packages/mcp-local/src/tools/llmJudgeLoop.js");
+      const { llmJudgeLoopTools } = await import("../../../packages/mcp-local/src/tools/llmJudgeLoop.js");
       const tool = llmJudgeLoopTools.find(t => t.name === "judge_tool_output");
       if (tool) _judgeToolOutput = tool.handler;
     } catch { /* judge not available */ }

@@ -7,7 +7,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { useQuery, useAction } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import {
   DollarSign,
   TrendingUp,

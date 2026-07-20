@@ -1,5 +1,5 @@
 // Calendar helper utilities moved from CalendarView.tsx
-import type { Id } from "../../../convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 
 // ============ DATE UTILITY FUNCTIONS (internal) ============
 const formatFullDate = (date: Date) => {
