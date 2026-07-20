@@ -10,7 +10,8 @@ commandProfile: untracked
 # NodeBenchAI is not a canonical contract owner in the current platform
 # registry. Runtime, trace, memory, and proof ownership remain external targets.
 canonicalFor: []
-consumes: []
+consumes:
+  - nodeagent.policy-context
 
 commands:
   dev:
