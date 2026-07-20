@@ -1180,6 +1180,9 @@ if (syncConfigsFlag) {
   // Find rules directory relative to this file
   const thisDir = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/, "$1"));
   const rulesSearchPaths = [
+    ...(process.env.NODEBENCH_MCP_PACKAGE_ROOT
+      ? [path.resolve(process.env.NODEBENCH_MCP_PACKAGE_ROOT, "rules")]
+      : []),
     path.resolve(thisDir, "..", "rules"),         // dist/../rules (installed package)
     path.resolve(thisDir, "..", "..", "rules"),    // src/../../rules (dev mode)
   ];

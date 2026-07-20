@@ -20,6 +20,7 @@ import { chromium } from "playwright";
 import { existsSync, mkdirSync, writeFileSync, renameSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { execSync } from "node:child_process";
+import { buildNodeWorkerDevCommand } from "../lib/standardTreePaths.mjs";
 
 // ── CLI args ──────────────────────────────────────────────────────────────
 
@@ -114,7 +115,7 @@ async function main() {
     console.log("[coordination-demo] Server healthy");
   } catch (err) {
     console.error(`[coordination-demo] Server not reachable at ${serverURL}: ${err.message}`);
-    console.error("  Start it with: npx tsx server/index.ts");
+    console.error(`  Start it with: ${buildNodeWorkerDevCommand()}`);
     process.exit(1);
   }
 

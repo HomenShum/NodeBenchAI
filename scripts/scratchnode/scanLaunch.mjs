@@ -17,7 +17,7 @@ const SLOW_ROUTE_INTERACTIVE_GOTO_TIMEOUT_MS = 35_000;
 const slowInteractiveRoutePatterns = [/^https:\/\/nodebenchai\.com\/scratchnode-events\/?$/i];
 const commitReadyInteractiveRoutePatterns = [/^https:\/\/nodebenchai\.com\/scratchnode-events\/?$/i];
 
-const files = {
+export const launchContractFiles = Object.freeze({
   homeV5: "public/proto/home-v5.html",
   vercel: "vercel.json",
   configEndpoint: "api/scratchnode-config.js",
@@ -27,10 +27,10 @@ const files = {
   launchRunbook: "docs/runbooks/SCRATCHNODE_LAUNCH_DAY.md",
   housekeepingRunbook: "docs/runbooks/WORKSPACE_HOUSEKEEPING.md",
   routeHonestySpec: "evals/e2e/scratchnode-live-route-honesty.spec.ts",
-  wikiBridgeSpec: "src/features/events/views/ScratchnodeWikiBridge.test.tsx",
-  eventHandoffGoal: "goals/nodebench/001-event-handoff.md",
-  boundaryGoal: "goals/scratchnode/003-privacy-boundary-honesty-gates.md",
-};
+  wikiBridgeSpec: "apps/web/src/features/events/views/ScratchnodeWikiBridge.test.tsx",
+  eventHandoffGoal: "adw/goals/nodebench/001-event-handoff.md",
+  boundaryGoal: "adw/goals/scratchnode/003-privacy-boundary-honesty-gates.md",
+});
 
 const staticChecks = [];
 const findings = [];
@@ -171,7 +171,7 @@ function checkFile(relativePath, name = relativePath) {
 }
 
 function scanStaticContracts() {
-  for (const [label, path] of Object.entries(files)) {
+  for (const [label, path] of Object.entries(launchContractFiles)) {
     checkFile(path, label);
   }
 
@@ -197,7 +197,7 @@ function scanStaticContracts() {
     }
   }
 
-  const homeV5 = readText(files.homeV5);
+  const homeV5 = readText(launchContractFiles.homeV5);
   const hasScratchNodeBrand = /ScratchNode/i.test(homeV5);
   addStaticCheck({
     ok: hasScratchNodeBrand,
@@ -222,15 +222,15 @@ function scanStaticContracts() {
     detail: hasPublicPrivateSignals ? "public/private cues present" : "workflow cues missing",
   });
 
-  const boundaryGoal = readText(files.boundaryGoal);
+  const boundaryGoal = readText(launchContractFiles.boundaryGoal);
   addStaticCheck({
     ok: /tests-only|boundary/i.test(boundaryGoal),
     name: "privacy boundary goal card is present for follow-up work",
     plane: "goal-automation",
-    detail: files.boundaryGoal,
+    detail: launchContractFiles.boundaryGoal,
   });
 
-  const goalLoop = readText(files.goalLoop);
+  const goalLoop = readText(launchContractFiles.goalLoop);
   const missingGoalLoopEvidenceFields = goalLoopEvidenceFieldNames.filter((field) => !goalLoop.includes(field));
   const goalLoopEvidenceOk = missingGoalLoopEvidenceFields.length === 0;
   addStaticCheck({
@@ -247,14 +247,14 @@ function scanStaticContracts() {
       safety: "auto",
       plane: "goal-automation",
       title: "Goal loop report evidence is incomplete",
-      path: files.goalLoop,
+      path: launchContractFiles.goalLoop,
       detail: `missing fields=${missingGoalLoopEvidenceFields.join(",")}`,
       recommendation:
         "Restore branch-status, command-exit, and goal-card eligibility summary fields so clean-worktree reports keep actionable evidence.",
     });
   }
 
-  const housekeepingRunbook = readText(files.housekeepingRunbook);
+  const housekeepingRunbook = readText(launchContractFiles.housekeepingRunbook);
   const timeoutRunbookEvidence = [
     { label: "scratchnode:launch:goal", pattern: /scratchnode:launch:goal/ },
     { label: "240 second timeout", pattern: /240 second/i },
@@ -279,14 +279,14 @@ function scanStaticContracts() {
       safety: "auto",
       plane: "goal-automation",
       title: "Housekeeping runbook is missing goal-loop timeout guidance",
-      path: files.housekeepingRunbook,
+      path: launchContractFiles.housekeepingRunbook,
       detail: `missing evidence=${missingTimeoutRunbookEvidence.join(",")}`,
       recommendation:
         "Restore the operator note that healthy launch-goal runs can exceed short shell timeouts and should use the slow-command report fields for diagnosis.",
     });
   }
 
-  const routeHonestySpec = readText(files.routeHonestySpec);
+  const routeHonestySpec = readText(launchContractFiles.routeHonestySpec);
   const missingBoundaryGateIds = requiredBoundaryGateIds.filter((gateId) => !routeHonestySpec.includes(gateId));
   const missingBoundaryEvidence = requiredBoundaryEvidence
     .filter((item) => !item.pattern.test(routeHonestySpec))
@@ -306,7 +306,7 @@ function scanStaticContracts() {
       safety: "auto",
       plane: "privacy",
       title: "Privacy boundary gate coverage is incomplete",
-      path: files.routeHonestySpec,
+      path: launchContractFiles.routeHonestySpec,
       detail: `missing gates=${missingBoundaryGateIds.join(",") || "none"}; missing evidence=${missingBoundaryEvidence.join(",") || "none"}`,
       recommendation: "Restore the SN-LIVE-006..010 and SN-LIVE-012 route honesty gates before treating the public/private boundary as covered.",
     });

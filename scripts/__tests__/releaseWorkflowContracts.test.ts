@@ -1,6 +1,15 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { getDistributionSurfaces } from "../../packages/mcp-local/src/tools/deltaTools.js";
 import {
   describeFetchError,
   fetchWithRetry,
@@ -12,6 +21,16 @@ const root = resolve(import.meta.dirname, "../..");
 const readRepoFile = (path: string) =>
   readFileSync(resolve(root, path), "utf8");
 
+const listProductionWorkerSources = (directory: string): string[] =>
+  readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) return listProductionWorkerSources(path);
+    if (!entry.name.endsWith(".ts") || entry.name.endsWith(".test.ts")) {
+      return [];
+    }
+    return [path];
+  });
+
 describe("release workflow contracts", () => {
   it("keeps exact-head previews buildable across multi-commit PRs", () => {
     const ignoreBuild = readRepoFile("scripts/vercel-ignore-build.sh");
@@ -22,6 +41,180 @@ describe("release workflow contracts", () => {
       "Build: no previous successful branch deployment to compare",
     );
     expect(ignoreBuild).not.toContain("git diff --name-only HEAD~1 HEAD");
+  });
+
+  /**
+   * Scenario: a release operator migrates the served app, Convex backend, and
+   * Node worker, then lands a 100-file documentation follow-up before Vercel
+   * observes the branch. The cumulative preview must build for every physical
+   * standard-tree change, skip a later docs-only commit, and fail closed when
+   * deployment ancestry is malformed or unavailable.
+   *
+   * User: release operator. Goal: obtain an exact preview without wasting a
+   * deployment on docs-only work. Scale: 100-file sustained follow-up plus
+   * independent backend, worker, and root-manifest commits. Duration: six
+   * sequential deployment decisions. Degraded cases: invalid and shallow-clone
+   * ancestry. Expected: build=1, intentional skip=0.
+   */
+  it("adjudicates standard-tree preview changes across a sustained release history", () => {
+    const ignoreBuild = readRepoFile("scripts/vercel-ignore-build.sh");
+    const buildRelevantBlock = ignoreBuild.match(
+      /BUILD_RELEVANT=\(([\s\S]*?)\n\)/,
+    )?.[1];
+    expect(buildRelevantBlock).toBeDefined();
+    const buildRelevant = Array.from(
+      buildRelevantBlock?.matchAll(/"([^"]+)"/g) ?? [],
+      (match) => match[1],
+    );
+    const shouldBuild = (files: string[]) =>
+      files.some((file) =>
+        buildRelevant.some((path) => file === path || file.startsWith(`${path}/`)),
+      );
+
+    const sustainedDocsFollowUp = Array.from(
+      { length: 100 },
+      (_, index) => `docs/release-note-${index}.md`,
+    );
+    expect([
+      shouldBuild([
+        "backend/convex/schema/contracts.ts",
+        ...sustainedDocsFollowUp,
+      ]),
+      shouldBuild(["convex.json"]),
+      shouldBuild(["workers/node/routes/deploy-probe.ts"]),
+      shouldBuild(["tsconfig.app.json"]),
+      shouldBuild(["docs/docs-only.md"]),
+    ]).toEqual([true, true, true, true, false]);
+
+    expect(ignoreBuild).toContain(
+      '[[ "$changed_file" == "$path" || "$changed_file" == "$path/"* ]]',
+    );
+    expect(ignoreBuild).toContain(
+      "Build: previous deployment SHA is malformed",
+    );
+    expect(ignoreBuild).toContain(
+      "Build: previous deployment SHA is unavailable in the shallow clone",
+    );
+    expect(ignoreBuild).toContain(
+      "Build: unable to compute the cumulative deployment diff",
+    );
+    expect(ignoreBuild).not.toContain("grep -qE");
+  });
+
+  /**
+   * Scenario: a release operator asks Cloud Build to create the Node worker
+   * from a clean checkout with no global TypeScript tools or network access at
+   * process start. The image must compile once, retain only production
+   * dependencies, and boot emitted ESM from the standard tree.
+   */
+  it("keeps the clean-checkout Node worker image deterministic and offline-safe", () => {
+    const dockerfile = readRepoFile("workers/node/Dockerfile");
+    const dockerignore = readRepoFile(".dockerignore");
+    const cloudbuild = readRepoFile("workers/node/cloudbuild.yaml");
+    const codeowners = readRepoFile(".github/CODEOWNERS");
+
+    expect(dockerfile).toContain("FROM node:20-slim AS build");
+    expect(dockerfile).toContain("COPY workers/node/ workers/node/");
+    expect(dockerfile).toContain("COPY backend/convex/ backend/convex/");
+    expect(dockerfile).toContain("RUN npm run build:voice");
+    expect(dockerfile).toContain("FROM node:20-slim AS runtime");
+    expect(dockerfile).toContain("RUN npm ci --omit=dev");
+    expect(dockerfile).toContain(
+      "COPY --from=build /app/backend/convex/_generated/api.js dist/backend/convex/_generated/api.js",
+    );
+    for (const assetCopy of [
+      "/app/packages/mcp-local/scripts/install.sh packages/mcp-local/scripts/install.sh",
+      "/app/packages/mcp-local/smithery.yaml packages/mcp-local/smithery.yaml",
+      "/app/packages/mcp-local/.claude/plugin.json packages/mcp-local/.claude/plugin.json",
+      "/app/packages/mcp-local/.cursor/plugin.json packages/mcp-local/.cursor/plugin.json",
+      "/app/packages/mcp-local/README.md packages/mcp-local/README.md",
+      "/app/apps/web/src/features/mcp/views/McpLedgerPage.tsx apps/web/src/features/mcp/views/McpLedgerPage.tsx",
+      "/app/scripts/ui/runDogfoodGeminiQa.mjs scripts/ui/runDogfoodGeminiQa.mjs",
+    ]) {
+      expect(dockerfile).toContain(`COPY --from=build ${assetCopy}`);
+    }
+    expect(dockerfile).toContain("ENV NODEBENCH_MCP_PACKAGE_ROOT=/app/packages/mcp-local");
+    expect(dockerfile).toContain("ENV NODEBENCH_REPO_ROOT=/app");
+    expect(dockerfile).toContain('CMD ["node", "dist/workers/node/index.js"]');
+    expect(dockerfile).not.toContain("|| true");
+    expect(dockerfile).not.toContain('CMD ["npx"');
+    expect(dockerfile).not.toContain("COPY server/");
+    expect(dockerfile).not.toContain("COPY convex/");
+    expect(cloudbuild).toContain("'-f', 'workers/node/Dockerfile', '.'");
+    expect(cloudbuild).not.toContain("server/Dockerfile");
+    expect(dockerignore).toContain("packages/mcp-local/.mcpregistry_registry_token");
+    expect(dockerignore).toContain("packages/mcp-local/.mcpregistry_github_token");
+
+    const extensionlessImports = listProductionWorkerSources(
+      resolve(root, "workers/node"),
+    ).flatMap((file) => {
+      const source = readFileSync(file, "utf8");
+      return Array.from(
+        source.matchAll(/(?:from\s+|import\()["'](\.{1,2}\/[^"']+)["']/g),
+      )
+        .map((match) => match[1])
+        .filter((specifier) => !/\.(?:cjs|js|json|mjs)$/.test(specifier))
+        .map((specifier) => `${file}:${specifier}`);
+    });
+    expect(extensionlessImports).toEqual([]);
+
+    expect(codeowners).toContain("/backend/convex/ @HomenShum");
+    expect(codeowners).toContain("/workers/node/ @HomenShum");
+    expect(codeowners).toContain("/apps/web/src/ @HomenShum");
+    expect(codeowners).not.toMatch(/^\/(?:convex|server|src)\/ /m);
+  });
+
+  it("preserves file-backed MCP distribution evidence in an isolated runtime layout", () => {
+    const runtimeRoot = mkdtempSync(join(tmpdir(), "nodebench-worker-runtime-"));
+    const writeRuntimeAsset = (relativePath: string, content = "runtime contract\n") => {
+      const target = resolve(runtimeRoot, relativePath);
+      mkdirSync(resolve(target, ".."), { recursive: true });
+      writeFileSync(target, content, "utf8");
+    };
+
+    try {
+      writeRuntimeAsset(
+        "packages/mcp-local/package.json",
+        JSON.stringify({ name: "nodebench-mcp", version: "3.2.1" }),
+      );
+      for (const relativePath of [
+        "packages/mcp-local/scripts/install.sh",
+        "packages/mcp-local/smithery.yaml",
+        "packages/mcp-local/.claude/plugin.json",
+        "packages/mcp-local/.cursor/plugin.json",
+        "packages/mcp-local/README.md",
+        "apps/web/src/features/mcp/views/McpLedgerPage.tsx",
+        "scripts/ui/runDogfoodGeminiQa.mjs",
+      ]) {
+        writeRuntimeAsset(relativePath);
+      }
+
+      const surfaces = getDistributionSurfaces({
+        packageRoot: resolve(runtimeRoot, "packages/mcp-local"),
+        repoRoot: runtimeRoot,
+      });
+      expect(surfaces).toHaveLength(9);
+      expect(surfaces.map((surface) => [surface.id, surface.status])).toEqual(
+        expect.arrayContaining([
+          ["install_script", "ready"],
+          ["claude_config", "ready"],
+          ["cursor_config", "ready"],
+          ["smithery", "ready"],
+          ["readme", "ready"],
+          ["ledger_ui", "ready"],
+          ["dogfood_loop", "ready"],
+        ]),
+      );
+      expect(surfaces.every((surface) => surface.status === "ready")).toBe(true);
+
+      const founderOps = readRepoFile(
+        "packages/mcp-local/src/tools/founderStrategicOpsTools.ts",
+      );
+      expect(founderOps).toContain("McpLedgerPage.tsx");
+      expect(founderOps).not.toContain("McpToolLedgerView.tsx");
+    } finally {
+      rmSync(runtimeRoot, { recursive: true, force: true });
+    }
   });
 
   it("resolves an exact PR-head Vercel preview and fails closed", () => {

@@ -27,8 +27,12 @@ import {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const PACKAGE_ROOT = resolve(__dirname, "..", "..");
-const REPO_ROOT = resolve(PACKAGE_ROOT, "..", "..");
+const PACKAGE_ROOT = process.env.NODEBENCH_MCP_PACKAGE_ROOT
+  ? resolve(process.env.NODEBENCH_MCP_PACKAGE_ROOT)
+  : resolve(__dirname, "..", "..");
+const REPO_ROOT = process.env.NODEBENCH_REPO_ROOT
+  ? resolve(process.env.NODEBENCH_REPO_ROOT)
+  : resolve(PACKAGE_ROOT, "..", "..");
 
 type FounderDirectionInput = Parameters<typeof buildFounderDirectionAssessment>[0];
 
@@ -274,7 +278,7 @@ function getDistributionSurfacesInternal(): DistributionSurface[] {
   const installScriptPath = join(PACKAGE_ROOT, "scripts", "install.sh");
   const claudeDir = join(PACKAGE_ROOT, ".claude");
   const cursorDir = join(PACKAGE_ROOT, ".cursor");
-  const ledgerViewPath = join(REPO_ROOT, "apps", "web", "src", "features", "mcp", "views", "McpToolLedgerView.tsx");
+  const ledgerViewPath = join(REPO_ROOT, "apps", "web", "src", "features", "mcp", "views", "McpLedgerPage.tsx");
 
   return [
     {

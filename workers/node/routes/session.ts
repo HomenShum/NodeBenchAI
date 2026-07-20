@@ -26,7 +26,7 @@
 
 import { Router } from "express";
 import { ConvexHttpClient } from "convex/browser";
-import { api } from "../../../backend/convex/_generated/api";
+import { api } from "../../../backend/convex/_generated/api.js";
 import { getGeminiVoiceTools, executeVoiceTool } from "../agents/voiceAgent.js";
 import {
   DEFAULT_VOICE_DAILY_CAP_USD,

@@ -10,7 +10,7 @@
  */
 
 import { ConvexHttpClient } from "convex/browser";
-import { api } from "../../../backend/convex/_generated/api";
+import { api } from "../../../backend/convex/_generated/api.js";
 
 // ── Convex client ──────────────────────────────────────────────────────────
 

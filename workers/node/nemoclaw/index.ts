@@ -13,8 +13,8 @@
  *                                                        └── Codebase Context (files, git)
  *
  * Usage:
- *   npx tsx server/nemoclaw/index.ts           # Standalone mode
- *   # Or integrated into server/index.ts       # Alongside MCP gateway
+ *   npx tsx workers/node/nemoclaw/index.ts      # Standalone mode
+ *   # Or integrated into workers/node/index.ts  # Alongside MCP gateway
  */
 
 import express from 'express';
@@ -148,7 +148,7 @@ function getLocalIP(): string {
 
 /**
  * Mount NemoClaw into an existing Express app + HTTP server
- * Use this when integrating with server/index.ts
+ * Use this when integrating with workers/node/index.ts
  */
 export function mountNemoClaw(
   app: express.Application,

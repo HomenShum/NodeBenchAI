@@ -3,7 +3,7 @@
  * Design Linter — Standalone static analysis for design governance compliance.
  *
  * Usage:
- *   node scripts/ui/designLinter.mjs                   # scan src/, print summary
+ *   node scripts/ui/designLinter.mjs                   # scan apps/web/src/, print summary
  *   node scripts/ui/designLinter.mjs --json             # structured JSON output
  *   node scripts/ui/designLinter.mjs --fix-suggestions   # include fix suggestions
  *   node scripts/ui/designLinter.mjs --category color    # filter by category
@@ -17,12 +17,16 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  WEB_SOURCE_RELATIVE_PATH,
+  resolveWebSourceRoot,
+} from "../lib/standardTreePaths.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
-const SRC_DIR = path.join(ROOT, "apps", "web", "src");
+const SRC_DIR = resolveWebSourceRoot(ROOT);
 
-// ── Design Governance Spec (inlined from src/design-governance/defaultSpec.ts)
+// ── Design Governance Spec (inlined from apps/web/src/design-governance/defaultSpec.ts)
 // We inline the patterns here because this is an .mjs script that runs outside
 // the TypeScript build pipeline. The canonical source is defaultSpec.ts.
 // When updating patterns, update BOTH files.
@@ -145,10 +149,24 @@ function getStructuralViolations(content, relPath) {
 export async function scanForDesignViolations(srcDir, options = {}) {
   const { category, severity, fixSuggestions = false } = options;
   const allViolations = [];
+  const resolvedSourceDir = path.resolve(srcDir);
+  const source = resolvedSourceDir === SRC_DIR
+    ? WEB_SOURCE_RELATIVE_PATH
+    : path.relative(ROOT, resolvedSourceDir).replace(/\\/g, "/") || ".";
+  let filesScanned = 0;
+
+  let sourceStat;
+  try {
+    sourceStat = await fs.stat(resolvedSourceDir);
+  } catch (error) {
+    throw new Error(`Design linter source directory is unavailable: ${resolvedSourceDir}`, { cause: error });
+  }
+  if (!sourceStat.isDirectory()) {
+    throw new Error(`Design linter source path is not a directory: ${resolvedSourceDir}`);
+  }
 
   async function walk(dir) {
-    let entries;
-    try { entries = await fs.readdir(dir, { withFileTypes: true }); } catch { return; }
+    const entries = await fs.readdir(dir, { withFileTypes: true });
 
     for (const entry of entries) {
       const full = path.join(dir, entry.name);
@@ -164,8 +182,8 @@ export async function scanForDesignViolations(srcDir, options = {}) {
       const relPath = path.relative(ROOT, full).replace(/\\/g, "/");
       if (FILE_IGNORE.some((p) => p.test(relPath))) continue;
 
-      let content;
-      try { content = await fs.readFile(full, "utf8"); } catch { continue; }
+      const content = await fs.readFile(full, "utf8");
+      filesScanned += 1;
 
       const lines = content.split("\n");
 
@@ -202,7 +220,10 @@ export async function scanForDesignViolations(srcDir, options = {}) {
     }
   }
 
-  await walk(srcDir);
+  await walk(resolvedSourceDir);
+  if (filesScanned === 0) {
+    throw new Error(`Design linter scanned zero source files under: ${resolvedSourceDir}`);
+  }
 
   // Filter
   let filtered = allViolations;
@@ -229,6 +250,8 @@ export async function scanForDesignViolations(srcDir, options = {}) {
     byCategory,
     score,
     specVersion: "1.0.0",
+    source,
+    filesScanned,
   };
 }
 
@@ -264,7 +287,7 @@ async function main() {
   // Pretty print
   console.log(c.bold("\n  Design Governance Linter v1.0.0\n"));
   console.log(`  Spec version: ${result.specVersion}`);
-  console.log(`  Scanned: ${c.cyan("src/")}\n`);
+  console.log(`  Scanned: ${c.cyan(`${result.source}/`)} (${result.filesScanned} files)\n`);
 
   // Top violations by file (first 30)
   const byFile = {};

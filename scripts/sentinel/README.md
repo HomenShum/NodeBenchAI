@@ -40,7 +40,7 @@ Layer 2: SELF-DIAGNOSING (diagnose.mjs)
   - A11y violations → identify touch target / aria issues
   Output: .sentinel/diagnoses.json (triaged DiagnosisItems)
 
-Layer 3: SELF-CORRECTING (tests/prompts/sentinel-self-test.md)
+Layer 3: SELF-CORRECTING (evals/prompts/sentinel-self-test.md)
   Autonomous agent prompt that:
   1. Runs Layer 1 + 2
   2. For each diagnosis (highest severity first):
@@ -101,5 +101,5 @@ SentinelReport {
 | `scripts/sentinel/diagnose.mjs` | Layer 2: pattern-match failures, root-cause |
 | `scripts/sentinel/index.mjs` | Main entry: test → diagnose → report |
 | `scripts/sentinel/swarm.mjs` | Generate swarm agent prompts |
-| `tests/prompts/sentinel-self-test.md` | Layer 3: autonomous fixer agent prompt |
+| `evals/prompts/sentinel-self-test.md` | Layer 3: autonomous fixer agent prompt |
 | `.sentinel/` | Ephemeral reports (gitignored) |

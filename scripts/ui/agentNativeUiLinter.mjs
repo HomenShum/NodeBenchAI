@@ -2,10 +2,14 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  WEB_SOURCE_RELATIVE_PATH,
+  resolveWebSourceRoot,
+} from "../lib/standardTreePaths.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
-const SRC_DIR = path.join(ROOT, "apps", "web", "src");
+const SRC_DIR = resolveWebSourceRoot(ROOT);
 
 const FILE_IGNORE = [
   /node_modules/,
@@ -207,7 +211,7 @@ function printSummary(violations) {
   const medium = violations.filter((v) => v.severity === "medium");
 
   console.log("\nAgent Native UI Linter\n");
-  console.log(`Files scanned: src/`);
+  console.log(`Source scanned: ${WEB_SOURCE_RELATIVE_PATH}/`);
   console.log(`Violations: ${violations.length} (high=${high.length}, medium=${medium.length})\n`);
 
   for (const violation of violations.slice(0, 60)) {
@@ -225,7 +229,11 @@ async function main() {
   const violations = await walk(SRC_DIR);
 
   if (jsonMode) {
-    process.stdout.write(JSON.stringify({ total: violations.length, violations }, null, 2) + "\n");
+    process.stdout.write(JSON.stringify({
+      source: WEB_SOURCE_RELATIVE_PATH,
+      total: violations.length,
+      violations,
+    }, null, 2) + "\n");
   } else {
     printSummary(violations);
   }

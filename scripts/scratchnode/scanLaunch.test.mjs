@@ -1,10 +1,31 @@
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
+  launchContractFiles,
   resolveInteractiveGotoTimeoutMs,
   resolveInteractiveWaitUntil,
   summarizePackageScriptContractEvidence,
 } from "./scanLaunch.mjs";
+
+const repoRoot = resolve(import.meta.dirname, "../..");
+
+describe("Scenario: a launch operator scans the migrated ScratchNode release tree", () => {
+  it("resolves every required UI and goal artifact from its canonical location", () => {
+    expect(launchContractFiles).toMatchObject({
+      wikiBridgeSpec: "apps/web/src/features/events/views/ScratchnodeWikiBridge.test.tsx",
+      eventHandoffGoal: "adw/goals/nodebench/001-event-handoff.md",
+      boundaryGoal: "adw/goals/scratchnode/003-privacy-boundary-honesty-gates.md",
+    });
+
+    const missing = Object.values(launchContractFiles).filter(
+      (relativePath) => !existsSync(resolve(repoRoot, relativePath)),
+    );
+    expect(missing).toEqual([]);
+  });
+});
 
 describe("summarizePackageScriptContractEvidence", () => {
   it("passes when required automation scripts still point at the expected targets", () => {

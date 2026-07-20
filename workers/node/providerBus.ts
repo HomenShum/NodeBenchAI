@@ -240,7 +240,7 @@ export class ProviderBus extends EventEmitter {
   }
 
   /**
-   * Handle WebSocket upgrade requests. Called from server/index.ts httpServer.on("upgrade").
+   * Handle WebSocket upgrade requests. Called from workers/node/index.ts httpServer.on("upgrade").
    */
   async handleUpgrade(
     req: IncomingMessage,

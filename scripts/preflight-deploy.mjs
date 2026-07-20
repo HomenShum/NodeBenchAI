@@ -82,14 +82,14 @@ const gates = [
     id: "tsc-convex",
     name: "TypeScript Convex",
     check() {
-      const result = run("npx", ["tsc", "-p", "convex", "--noEmit", "--pretty", "false"]);
+      const result = run("npx", ["tsc", "-p", "backend/convex", "--noEmit", "--pretty", "false"]);
       return result.ok
         ? { ok: true, detail: "convex typecheck passed" }
         : {
             ok: false,
             detail: "convex typecheck failed",
             stderr: tail(result.stdout || result.stderr),
-            fix: "Run npx tsc -p convex --noEmit --pretty false.",
+            fix: "Run npx tsc -p backend/convex --noEmit --pretty false.",
           };
     },
   },
@@ -104,7 +104,7 @@ const gates = [
             ok: false,
             detail: "search API bundle failed",
             stderr: tail(result.stdout || result.stderr),
-            fix: "Check server/vercel/searchApp.ts imports.",
+            fix: "Check workers/node/vercel/searchApp.ts imports.",
           };
     },
   },

@@ -21,12 +21,12 @@
  *      .claude/rules/scratchpad_first.md
  */
 
-import { DEFAULT_TIERS } from "../authority/defaultTiers";
+import { DEFAULT_TIERS } from "../authority/defaultTiers.js";
 import type {
   DiligenceBlockConfig,
   VerificationGate,
   GateVerdict,
-} from "./types";
+} from "./types.js";
 
 /**
  * Block-specific candidate shape — what the founder sub-agent extracts.

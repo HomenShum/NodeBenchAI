@@ -45,7 +45,7 @@
     "test:run": "node scripts/testing/runSegmentedVitest.mjs",
     "test:run:full": "node scripts/testing/runSegmentedVitest.mjs --include-overstory true",
     "test:run:vitest": "vitest run",
-    "test:run:app": "node scripts/testing/runVitestSegment.mjs --cwd . --target src --mode dir",
+    "test:run:app": "node scripts/testing/runVitestSegment.mjs --cwd . --target apps/web/src --mode dir",
     "test:run:mcp-local": "npm --prefix packages/mcp-local test",
     "test:run:convex-mcp": "node scripts/testing/runVitestSegment.mjs --cwd packages/convex-mcp-nodebench --target src --mode filter",
     "test:run:openclaw-mcp": "node scripts/testing/runVitestSegment.mjs --cwd packages/openclaw-mcp-nodebench --target src --mode filter",

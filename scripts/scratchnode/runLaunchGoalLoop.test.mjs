@@ -1565,6 +1565,22 @@ describe("summarizeGitHeadEvidence", () => {
     });
   });
 
+  it("marks migrated web-app paths as visual-evidence relevant during sustained release work", () => {
+    const changedPaths = Array.from(
+      { length: 100 },
+      (_, index) => `apps/web/src/features/reports/views/ReleaseView${index}.tsx`,
+    );
+    const summary = summarizeGitHeadEvidence(
+      "7adbc124 migrate the web application tree\n",
+      null,
+      `${changedPaths.join("\n")}\n`,
+    );
+
+    expect(summary.gitHeadChangedPathCount).toBe(100);
+    expect(summary.gitHeadVisualEvidenceRelevant).toBe(true);
+    expect(summary.gitHeadVisualEvidenceRelevantPaths).toHaveLength(100);
+  });
+
   it("keeps empty git output explicit", () => {
     expect(summarizeGitHeadEvidence("")).toEqual({
       gitHeadSummary: null,
@@ -1889,6 +1905,22 @@ describe("summarizeCoordinationLedgerEvidence", () => {
         "- **2026-06-09 - Codex ->** `docs/runbooks/test.md` - docs-only pass.",
       ],
     });
+  });
+
+  it("treats current backend/convex claims as hot-file ownership after the tree migration", () => {
+    const summary = summarizeCoordinationLedgerEvidence(
+      `# Agent Coordination Ledger
+
+## Active claims (who is editing what RIGHT NOW)
+
+- **2026-07-19 - Release operator ->** \`backend/convex/events.ts#scratchnode-handoff\` - verifying the release boundary.
+`,
+      { asOfIso: "2026-07-19T12:00:00.000Z" },
+    );
+
+    expect(summary.coordinationActiveClaimHotFileRefs).toEqual([
+      "backend/convex/events.ts#scratchnode-handoff",
+    ]);
   });
 
   it("reports missing coordination ledger text without fabricating claims", () => {

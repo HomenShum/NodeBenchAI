@@ -15,9 +15,11 @@
  */
 
 import { execSync, spawn } from 'child_process';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { join, resolve } from 'path';
+import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from 'fs';
+import { join, relative, resolve } from 'path';
+import { pathToFileURL } from 'url';
 import { createReport, computeSummary, formatReportSummary } from './schema.mjs';
+import { APP_SOURCE_RELATIVE, appSourcePath } from './paths.mjs';
 
 const ROOT = resolve(import.meta.dirname, '../..');
 const REPORT_DIR = join(ROOT, '.sentinel');
@@ -228,13 +230,14 @@ async function probeDogfoodGate() {
 }
 
 // ── Probe: Voice Intent Router Coverage ──────────────────────────────────────
-async function probeVoiceCoverage() {
+export async function probeVoiceCoverage(options = {}) {
   log('  [voice] Voice intent router coverage...');
   const start = Date.now();
   const failures = [];
+  const root = options.root ?? ROOT;
 
   // Check that the router file exists and has all expected patterns
-  const routerPath = join(ROOT, 'src/hooks/useVoiceIntentRouter.ts');
+  const routerPath = join(root, appSourcePath('hooks/useVoiceIntentRouter.ts'));
   if (!existsSync(routerPath)) {
     return {
       probe: 'voice:router-coverage',
@@ -248,21 +251,25 @@ async function probeVoiceCoverage() {
 
   const routerCode = readFileSync(routerPath, 'utf8');
 
-  // Check VIEW_ALIASES covers all critical views (check both quote styles)
-  const criticalViews = [
+  // Check VIEW_ALIASES covers the spoken phrases users rely on. Object keys may
+  // be quoted or unquoted, so match the key declaration instead of a string literal.
+  const criticalAliases = [
     'research', 'documents', 'calendar', 'benchmarks', 'funding',
-    'cost-dashboard', 'agent-marketplace', 'showcase', 'signals',
+    'cost dashboard', 'marketplace', 'showcase', 'signals',
   ];
-  for (const view of criticalViews) {
-    if (!routerCode.includes(`"${view}"`) && !routerCode.includes(`'${view}'`)) {
-      failures.push(`VIEW_ALIASES missing target: ${view}`);
+  for (const alias of criticalAliases) {
+    const escapedAlias = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const aliasPattern = new RegExp(`(?:^|\\n)\\s*(?:["']${escapedAlias}["']|${escapedAlias})\\s*:`, 'm');
+    if (!aliasPattern.test(routerCode)) {
+      failures.push(`VIEW_ALIASES missing spoken alias: ${alias}`);
     }
   }
 
   // Check all action types are wired
   const requiredActions = [
     'navigateToView', 'setCockpitMode', 'openSettings', 'openCommandPalette',
-    'createDocument', 'setLayout', 'setThemeMode', 'triggerSearch', 'goBack', 'refresh',
+    'setThemeMode', 'toggleTheme', 'selectThread', 'triggerSearch', 'scrollTo',
+    'goBack', 'refresh',
   ];
   for (const action of requiredActions) {
     if (!routerCode.includes(action)) {
@@ -271,7 +278,7 @@ async function probeVoiceCoverage() {
   }
 
   // Check CockpitLayout wiring
-  const cockpitPath = join(ROOT, 'src/layouts/CockpitLayout.tsx');
+  const cockpitPath = join(root, appSourcePath('layouts/CockpitLayout.tsx'));
   if (existsSync(cockpitPath)) {
     const cockpitCode = readFileSync(cockpitPath, 'utf8');
     if (!cockpitCode.includes('useVoiceIntentRouter')) {
@@ -280,10 +287,12 @@ async function probeVoiceCoverage() {
     if (!cockpitCode.includes('onVoiceIntent')) {
       failures.push('CockpitLayout does not pass onVoiceIntent prop');
     }
+  } else {
+    failures.push('CockpitLayout.tsx missing');
   }
 
   // Check E2E test coverage
-  const testPath = join(ROOT, 'evals/e2e/voice-input.spec.ts');
+  const testPath = join(root, 'evals/e2e/voice-input.spec.ts');
   if (existsSync(testPath)) {
     const testCode = readFileSync(testPath, 'utf8');
     const scenarioCount = (testCode.match(/test\(/g) || []).length;
@@ -305,49 +314,132 @@ async function probeVoiceCoverage() {
 }
 
 // ── Probe: Accessibility Static Check ────────────────────────────────────────
-async function probeA11y() {
-  log('  [a11y] Accessibility static checks...');
-  const start = Date.now();
+function listTypeScriptSources(sourceRoot) {
+  if (!existsSync(sourceRoot)) {
+    return { files: [], errors: [`source directory missing: ${sourceRoot}`] };
+  }
+
+  const files = [];
+  const errors = [];
+  const visit = (directory) => {
+    let entries;
+    try {
+      entries = readdirSync(directory, { withFileTypes: true });
+    } catch (error) {
+      errors.push(`could not read ${directory}: ${error instanceof Error ? error.message : String(error)}`);
+      return;
+    }
+
+    for (const entry of entries) {
+      const absolutePath = join(directory, entry.name);
+      if (entry.isDirectory()) visit(absolutePath);
+      else if (entry.isFile() && /\.tsx?$/.test(entry.name)) files.push(absolutePath);
+    }
+  };
+
+  visit(sourceRoot);
+  files.sort();
+  return { files, errors };
+}
+
+export function inspectA11ySources(sourceRoot, options = {}) {
+  const repoRoot = options.repoRoot ?? ROOT;
+  const inventory = listTypeScriptSources(sourceRoot);
   const failures = [];
+  const inspectionErrors = [...inventory.errors];
+  let inspectedSourceFileCount = 0;
+  let interactiveFileCount = 0;
+  let missingAriaButtonCount = 0;
 
-  // Check for WCAG 2.5.8 touch target violations (< 44px buttons)
-  const result = run(
-    `grep -rn "w-[4-7] h-[4-7]\\|w-8 h-8\\|h-6 w-6\\|h-7 w-7" src/ --include="*.tsx" --include="*.ts" | grep -i "button\\|btn\\|click\\|tap\\|interactive" | head -20`,
-    { timeout: 15_000 }
-  );
+  const displayPath = (absolutePath) => relative(repoRoot, absolutePath).replaceAll('\\', '/');
 
-  if (result.ok && result.stdout.trim()) {
-    const lines = result.stdout.trim().split('\n');
-    for (const line of lines.slice(0, 10)) {
-      failures.push(`Touch target < 44px: ${line.trim().slice(0, 120)}`);
+  for (const filePath of inventory.files) {
+    let source;
+    try {
+      source = readFileSync(filePath, 'utf8');
+      inspectedSourceFileCount += 1;
+    } catch (error) {
+      inspectionErrors.push(
+        `could not inspect ${displayPath(filePath)}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      continue;
+    }
+
+    if (/onClick|onKeyDown/.test(source)) interactiveFileCount += 1;
+
+    const lines = source.split(/\r?\n/);
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+      const line = lines[lineIndex];
+      const location = `${displayPath(filePath)}:${lineIndex + 1}`;
+      const hasSmallTarget = /\b(?:w-[4-7]\s+h-[4-7]|w-8\s+h-8|h-6\s+w-6|h-7\s+w-7)\b/.test(line);
+      if (
+        failures.filter((failure) => failure.startsWith('Touch target < 44px:')).length < 10 &&
+        hasSmallTarget &&
+        /button|btn|click|tap|interactive/i.test(line)
+      ) {
+        failures.push(`Touch target < 44px: ${location}: ${line.trim().slice(0, 120)}`);
+      }
+
+      if (
+        missingAriaButtonCount < 10 &&
+        /<button\b/.test(line) &&
+        !/aria-label|aria-labelledby|title|children|>.*</.test(line)
+      ) {
+        missingAriaButtonCount += 1;
+      }
     }
   }
 
-  // Check for missing aria-labels on interactive elements
-  const ariaResult = run(
-    `grep -rn "onClick\\|onKeyDown" src/ --include="*.tsx" -l | head -30`,
-    { timeout: 15_000 }
-  );
-  const interactiveFiles = (ariaResult.stdout || '').trim().split('\n').filter(Boolean);
-
-  // Sample check: buttons without aria-label
-  const noAriaResult = run(
-    `grep -rn "<button" src/ --include="*.tsx" | grep -v "aria-label\\|aria-labelledby\\|title\\|children\\|>.*<" | head -10`,
-    { timeout: 15_000 }
-  );
-  if (noAriaResult.ok && noAriaResult.stdout.trim()) {
-    const lines = noAriaResult.stdout.trim().split('\n');
-    failures.push(`${lines.length} button(s) potentially missing aria-label`);
+  if (missingAriaButtonCount > 0) {
+    failures.push(`${missingAriaButtonCount} button(s) potentially missing aria-label`);
   }
+
+  if (inventory.files.length === 0 && inspectionErrors.length === 0) {
+    inspectionErrors.push(`no TypeScript source files found under ${sourceRoot}`);
+  }
+  if (inspectedSourceFileCount === 0 && inspectionErrors.length === 0) {
+    inspectionErrors.push(`zero source files inspected under ${sourceRoot}`);
+  }
+
+  const meta = {
+    sourceRoot: displayPath(sourceRoot),
+    sourceFileCount: inventory.files.length,
+    inspectedSourceFileCount,
+    interactiveFileCount,
+  };
+
+  if (inspectionErrors.length > 0) {
+    return {
+      status: 'fail',
+      summary: `A11y source inspection failed: ${inspectionErrors[0]}`,
+      failures: inspectionErrors.map((error) => `A11y source inspection failed: ${error}`),
+      meta,
+    };
+  }
+
+  return {
+    status: failures.length === 0 ? 'pass' : 'warn',
+    summary: `${failures.length} a11y concerns across ${inspectedSourceFileCount} source files`,
+    failures,
+    meta,
+  };
+}
+
+export async function probeA11y(options = {}) {
+  log('  [a11y] Accessibility static checks...');
+  const start = Date.now();
+  const root = options.root ?? ROOT;
+  const sourceRoot = options.sourceRoot ?? join(root, APP_SOURCE_RELATIVE);
+  const inspection = inspectA11ySources(sourceRoot, { repoRoot: root });
 
   return {
     probe: 'a11y:static',
     category: 'a11y',
-    status: failures.length === 0 ? 'pass' : 'warn',
+    status: inspection.status,
     duration: Date.now() - start,
-    summary: `${failures.length} a11y concerns`,
-    failures,
-    meta: { interactiveFileCount: interactiveFiles.length },
+    summary: inspection.summary,
+    failures: inspection.failures,
+    meta: inspection.meta,
   };
 }
 
@@ -594,7 +686,9 @@ async function main() {
   process.exit(report.summary.failed > 0 ? 1 : 0);
 }
 
-main().catch(err => {
-  console.error('Sentinel runner crashed:', err);
-  process.exit(2);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch(err => {
+    console.error('Sentinel runner crashed:', err);
+    process.exit(2);
+  });
+}

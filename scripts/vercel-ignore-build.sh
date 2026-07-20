@@ -29,10 +29,10 @@ esac
 # For everything else, skip the build if the commit only touches
 # paths that don't affect what Vercel serves.
 #
-# What Vercel serves:
-#   /src, /convex, /packages, /apps, /public, /server, /shared, /api,
-#   /scripts/vercel-build.sh, vercel.json, package.json, package-lock.json,
-#   tsconfig*.json, vite.config.*, *.html
+# What Vercel serves or bundles from the standard tree:
+#   /apps, /backend/convex, /workers/node, /packages, /public, /shared, /api,
+#   /scripts/vercel-build.sh, convex.json, vercel.json, package.json,
+#   package-lock.json, tsconfig*.json, vite.config.*, *.html
 #
 # What Vercel does NOT serve (safe to skip):
 #   .claude/, .cursor/, .windsurf/, .augment/, .serena/, .overstory/,
@@ -44,10 +44,10 @@ esac
 # branch's last successful deployment touches NONE of them, skip.
 
 BUILD_RELEVANT=(
-  "src" "convex" "packages" "apps" "public" "server" "shared" "api"
-  "scripts/vercel-build.sh" "vercel.json"
+  "apps" "backend/convex" "workers/node" "packages" "public" "shared" "api"
+  "scripts/vercel-build.sh" "convex.json" "vercel.json"
   "package.json" "package-lock.json"
-  "tsconfig.json" "tsconfig.node.json"
+  "tsconfig.json" "tsconfig.app.json" "tsconfig.node.json"
   "vite.config.ts" "vite.config.mjs"
   "index.html"
 )
@@ -59,6 +59,11 @@ BUILD_RELEVANT=(
 DIFF_BASE="${VERCEL_GIT_PREVIOUS_SHA:-}"
 if [ -z "$DIFF_BASE" ] || [[ "$DIFF_BASE" =~ ^0+$ ]]; then
   echo "Build: no previous successful branch deployment to compare"
+  exit 1
+fi
+
+if [[ ! "$DIFF_BASE" =~ ^([0-9a-fA-F]{40}|[0-9a-fA-F]{64})$ ]]; then
+  echo "Build: previous deployment SHA is malformed"
   exit 1
 fi
 
@@ -76,15 +81,20 @@ if [ -z "$CHANGED" ]; then
   exit 0
 fi
 
-# Check if any changed file matches a build-relevant path.
+# Check root-relative paths with Bash builtins. Avoiding a grep pipeline keeps a
+# large cumulative diff from being misclassified when grep -q closes its input
+# early under `set -o pipefail`.
+mapfile -t CHANGED_FILES <<< "$CHANGED"
 for path in "${BUILD_RELEVANT[@]}"; do
-  if echo "$CHANGED" | grep -qE "(^|/)${path}(/|$)"; then
-    echo "Build: changed files touch ${path}"
-    exit 1
-  fi
+  for changed_file in "${CHANGED_FILES[@]}"; do
+    if [[ "$changed_file" == "$path" || "$changed_file" == "$path/"* ]]; then
+      echo "Build: changed files touch ${path}"
+      exit 1
+    fi
+  done
 done
 
 echo "Skip: no build-relevant files changed"
 echo "Changed files:"
-echo "$CHANGED" | head -20
+printf '%s\n' "${CHANGED_FILES[@]:0:20}"
 exit 0

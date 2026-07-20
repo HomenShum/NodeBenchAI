@@ -27,8 +27,12 @@ function now(): string {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const PACKAGE_ROOT = resolve(__dirname, "..", "..");
-const REPO_ROOT = resolve(PACKAGE_ROOT, "..", "..");
+const PACKAGE_ROOT = process.env.NODEBENCH_MCP_PACKAGE_ROOT
+  ? resolve(process.env.NODEBENCH_MCP_PACKAGE_ROOT)
+  : resolve(__dirname, "..", "..");
+const REPO_ROOT = process.env.NODEBENCH_REPO_ROOT
+  ? resolve(process.env.NODEBENCH_REPO_ROOT)
+  : resolve(PACKAGE_ROOT, "..", "..");
 const DEFAULT_SERVER_URL = process.env.NODEBENCH_SERVER_URL || "http://127.0.0.1:3100";
 const DEFAULT_PRODUCTION_MCP_URL = process.env.NODEBENCH_PRODUCTION_MCP_URL || "https://nodebench-mcp-unified.onrender.com";
 const DEFAULT_PRODUCTION_APP_URL = process.env.NODEBENCH_PRODUCTION_APP_URL || "";
@@ -168,15 +172,20 @@ async function probeJson(url: string, timeoutMs = 5000, label?: string, idOverri
   }
 }
 
-function getDistributionSurfaces(): DistributionSurface[] {
-  const packageJson = safeReadJson<{ name?: string; version?: string }>(join(PACKAGE_ROOT, "package.json"));
-  const installScriptPath = join(PACKAGE_ROOT, "scripts", "install.sh");
-  const smitheryPath = join(PACKAGE_ROOT, "smithery.yaml");
-  const claudeDir = join(PACKAGE_ROOT, ".claude");
-  const cursorDir = join(PACKAGE_ROOT, ".cursor");
-  const readmePath = join(PACKAGE_ROOT, "README.md");
-  const ledgerViewPath = join(REPO_ROOT, "apps", "web", "src", "features", "mcp", "views", "McpLedgerPage.tsx");
-  const dogfoodScriptPath = join(REPO_ROOT, "scripts", "ui", "runDogfoodGeminiQa.mjs");
+export function getDistributionSurfaces(options: {
+  packageRoot?: string;
+  repoRoot?: string;
+} = {}): DistributionSurface[] {
+  const packageRoot = options.packageRoot ? resolve(options.packageRoot) : PACKAGE_ROOT;
+  const repoRoot = options.repoRoot ? resolve(options.repoRoot) : REPO_ROOT;
+  const packageJson = safeReadJson<{ name?: string; version?: string }>(join(packageRoot, "package.json"));
+  const installScriptPath = join(packageRoot, "scripts", "install.sh");
+  const smitheryPath = join(packageRoot, "smithery.yaml");
+  const claudeDir = join(packageRoot, ".claude");
+  const cursorDir = join(packageRoot, ".cursor");
+  const readmePath = join(packageRoot, "README.md");
+  const ledgerViewPath = join(repoRoot, "apps", "web", "src", "features", "mcp", "views", "McpLedgerPage.tsx");
+  const dogfoodScriptPath = join(repoRoot, "scripts", "ui", "runDogfoodGeminiQa.mjs");
 
   return [
     {

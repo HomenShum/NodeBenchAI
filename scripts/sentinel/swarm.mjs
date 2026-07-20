@@ -20,6 +20,7 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join, resolve } from 'path';
+import { SENTINEL_FIX_PROMPT_RELATIVE, appSourcePath } from './paths.mjs';
 
 const ROOT = resolve(import.meta.dirname, '../..');
 const SENTINEL_DIR = join(ROOT, '.sentinel');
@@ -52,7 +53,7 @@ You are the Visual Sentinel. Your job is to verify the visual quality of every v
    - Read Gemini QA scores
    - Flag any criteria below 70/100
 4. Scan for:
-   - Hardcoded hex colors in src/ (grep for #[0-9a-f]{6})
+   - Hardcoded hex colors in ${appSourcePath()} (grep for #[0-9a-f]{6})
    - bg-white / text-black without dark mode variant
    - Missing prefers-reduced-motion checks on animations
 
@@ -96,8 +97,8 @@ You are the Structural Sentinel. Your job is to verify the structural integrity 
    - If dist/ exists, find chunks > 500KB
    - Check for duplicate dependencies in node_modules
 4. Verify file structure:
-   - Every view in src/features/ has matching E2E test
-   - Every hook in src/hooks/ is imported somewhere
+   - Every view in ${appSourcePath('features/')} has matching E2E test
+   - Every hook in ${appSourcePath('hooks/')} is imported somewhere
    - No orphan files (created but never imported)
 
 ## Output Format
@@ -120,17 +121,17 @@ You are the Behavioral Sentinel. Your job is to verify that every interaction in
    - Collect all test failures
    - Read test-results.json for structured results
 2. Voice coverage:
-   - Read src/hooks/useVoiceIntentRouter.ts
-   - Read src/hooks/useMainLayoutRouting.ts
+   - Read ${appSourcePath('hooks/useVoiceIntentRouter.ts')}
+   - Read ${appSourcePath('hooks/useCockpitRouting.ts')}
    - Cross-reference: every MainView must have a voice alias
    - Every voice command must have an E2E test in evals/e2e/voice-input.spec.ts
 3. Accessibility:
    - grep for buttons without aria-label
    - grep for interactive elements < 44px (w-8 h-8 or smaller)
-   - Check skip links exist (src/components/SkipLinks.tsx)
+   - Check skip links exist (${appSourcePath('components/SkipLinks.tsx')})
    - Verify focus management on view transitions
 4. Keyboard navigation:
-   - Check useKeyboardNavigation.tsx covers all views
+   - Check keyboard handlers across ${appSourcePath()} cover the active views
    - Verify Escape closes modals/panels
    - Check tab order makes sense (no tabIndex > 0)
 
@@ -255,7 +256,7 @@ node scripts/sentinel/runner.mjs
 node scripts/sentinel/diagnose.mjs
 
 # Phase 3: Feed to Claude Code as a single agent
-# Use tests/prompts/sentinel-self-test.md as the prompt
+# Use ${SENTINEL_FIX_PROMPT_RELATIVE} as the prompt
 \`\`\`
 
 ### Option C: npm scripts

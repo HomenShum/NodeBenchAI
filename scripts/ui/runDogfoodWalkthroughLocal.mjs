@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { cp, rm, rename } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
+import { buildNodeWorkerDevCommand } from "../lib/standardTreePaths.mjs";
 
 const requireFromScript = createRequire(import.meta.url);
 const DEFAULT_DOGFOOD_CONVEX_URL = "https://agile-caribou-964.convex.cloud";
@@ -433,7 +434,7 @@ async function main() {
     console.log(`Starting sync bridge server on ${syncBridgeHost}:${syncBridgePort} for local dogfood...`);
     const voiceCommand = existsSync(path.join(repoRoot, ".env.local"))
       ? `${npmCmd} run dev:voice`
-      : `${npxCmd} tsx server/index.ts`;
+      : buildNodeWorkerDevCommand(npxCmd);
     syncBridgeProc = spawn(voiceCommand, {
       cwd: repoRoot,
       stdio: ["ignore", "pipe", "pipe"],

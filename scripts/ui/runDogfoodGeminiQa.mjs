@@ -33,6 +33,13 @@ import { existsSync, readFileSync } from "node:fs";
 import net from "node:net";
 import { spawn, execSync } from "node:child_process";
 import { chromium } from "playwright";
+import {
+  discoverRouteSeedsFromSource,
+  resolveDesignContextBaseFiles,
+  resolveRepairContextBaseFiles,
+  resolveWebSourcePath,
+  resolveWebSourceRoot,
+} from "../lib/standardTreePaths.mjs";
 
 const OFFICIAL_GEMINI_QA_MODEL = "gemini-3-pro-preview";
 const DEFAULT_GEMINI_QA_MODEL_INTENT = OFFICIAL_GEMINI_QA_MODEL;
@@ -506,7 +513,7 @@ const STABLE_DOGFOOD_CHAT_ROUTE =
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // LAYER 0: STATIC CODE ANALYSIS â€” Deterministic design token compliance
-// Greps src/ for banned CSS patterns that visual QA cannot detect from screenshots.
+// Greps apps/web/src/ for banned CSS patterns that visual QA cannot detect from screenshots.
 // Runs before any Gemini calls â€” zero cost, zero variance.
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
@@ -518,6 +525,9 @@ import { scanForDesignViolations } from "./designLinter.mjs";
 
 async function scanSourceForBannedPatterns(srcDir) {
   const result = await scanForDesignViolations(srcDir);
+  if (!Number.isInteger(result.filesScanned) || result.filesScanned <= 0) {
+    throw new Error(`Layer 0 static analysis scanned zero source files under ${srcDir}`);
+  }
   // Map to legacy shape expected by downstream Layer 0 scoring
   return {
     violations: result.violations.map((v) => ({
@@ -528,6 +538,8 @@ async function scanSourceForBannedPatterns(srcDir) {
     lowCount: result.low,
     score: result.score,
     total: result.total,
+    source: result.source,
+    filesScanned: result.filesScanned,
   };
 }
 
@@ -644,23 +656,10 @@ async function discoverRoutes(page, baseURL) {
 
   async function seedRoutesFromRoutingSource() {
     // NOTE(coworker): Keep route fallback learned from source of truth, not hardcoded lists.
-    // If new routes are added to useMainLayoutRouting, QA discovery picks them up automatically.
-    try {
-      const routingPath = path.join(process.cwd(), "src", "hooks", "useMainLayoutRouting.ts");
-      const raw = await fs.readFile(routingPath, "utf8");
-      const matches = raw.match(/pathname\.startsWith\((['"])\/[^'"]+\1\)/g) ?? [];
-      const paths = new Set();
-      for (const m of matches) {
-        const quote = m.includes('"') ? '"' : "'";
-        const route = m.replace(`pathname.startsWith(${quote}`, "").replace(`${quote})`, "").trim();
-        if (!route || route === "/") continue;
-        if (/\/(?:api|auth|oauth|callback|entity\/?$)/i.test(route)) continue;
-        paths.add(route.endsWith("/") ? route.slice(0, -1) : route);
-      }
-      return Array.from(paths);
-    } catch {
-      return [];
-    }
+    // The standard-tree route registry and app entry replaced useMainLayoutRouting.
+    // Reading them as text avoids importing the React runtime into this Node script.
+    const discovered = await discoverRouteSeedsFromSource(process.cwd());
+    return discovered.paths;
   }
 
   function getAppRouteFromUrl(urlStr) {
@@ -3355,12 +3354,12 @@ async function runQaAndCapture({ baseURL, headless, noAgentic = false, design = 
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // Layer 0: Static code analysis â€” deterministic, runs before browser
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-  const srcDir = path.join(process.cwd(), "src");
+  const srcDir = resolveWebSourceRoot(process.cwd());
   // eslint-disable-next-line no-console
   console.log("  ðŸ” Layer 0: Static code analysis...");
   const staticAnalysis = await scanSourceForBannedPatterns(srcDir);
   // eslint-disable-next-line no-console
-  console.log(`  ðŸ” Layer 0: ${staticAnalysis.total} violations (${staticAnalysis.highCount} high, ${staticAnalysis.medCount} medium, ${staticAnalysis.lowCount} low) â€” score ${staticAnalysis.score}/100`);
+  console.log(`  ðŸ” Layer 0: scanned ${staticAnalysis.filesScanned} files from ${staticAnalysis.source}; ${staticAnalysis.total} violations (${staticAnalysis.highCount} high, ${staticAnalysis.medCount} medium, ${staticAnalysis.lowCount} low) â€” score ${staticAnalysis.score}/100`);
   if (staticAnalysis.violations.length > 0) {
     // eslint-disable-next-line no-console
     console.log("  ðŸ“‹ Top violations:");
@@ -4078,9 +4077,7 @@ async function main() {
 
   async function selectContextFiles(loopContext) {
     const files = new Set();
-    files.add(path.join(repoRoot, "src", "index.css"));
-    files.add(path.join(repoRoot, "src", "main.tsx"));
-    files.add(path.join(repoRoot, "src", "components", "MainLayout.tsx"));
+    for (const file of resolveRepairContextBaseFiles(repoRoot)) files.add(file);
 
   const inferSegment = (route) => {
     if (!route) return "";
@@ -4119,7 +4116,7 @@ async function main() {
       const route = String(issue?.route ?? issue?.ts ?? "").trim();
       const seg = inferSegment(route);
       if (!seg) continue;
-      const featureDir = path.join(repoRoot, "src", "features", seg);
+      const featureDir = resolveWebSourcePath(repoRoot, "features", seg);
       const ok = await fs.stat(featureDir).then((s) => s.isDirectory()).catch(() => false);
       if (ok) {
         // eslint-disable-next-line no-await-in-loop
@@ -4136,11 +4133,7 @@ async function main() {
     // NOTE(coworker): Keep design patch prompts token-safe by scoping to a small,
     // relevant set of "design system + page surface" files.
     const files = new Set();
-    files.add(path.join(repoRoot, "src", "index.css"));
-    files.add(path.join(repoRoot, "tailwind.config.js"));
-    files.add(path.join(repoRoot, "src", "features", "redesign", "RedesignShell.tsx"));
-    files.add(path.join(repoRoot, "src", "features", "redesign", "primitives.css"));
-    files.add(path.join(repoRoot, "src", "layouts", "CockpitLayout.tsx"));
+    for (const file of resolveDesignContextBaseFiles(repoRoot)) files.add(file);
 
     const opportunities = Array.isArray(designReport?.opportunities) ? designReport.opportunities : [];
     const hint = JSON.stringify(opportunities.slice(0, 8));
@@ -4148,7 +4141,7 @@ async function main() {
     const wantsSidebar = /sidebar|nav|navigation/i.test(hint);
 
     if (wantsBench) {
-      const featureDir = path.join(repoRoot, "src", "features", "benchmarks");
+      const featureDir = resolveWebSourcePath(repoRoot, "features", "benchmarks");
       const ok = await fs.stat(featureDir).then((s) => s.isDirectory()).catch(() => false);
       if (ok) {
         const found = await listFilesRecursively(featureDir, 12);
@@ -4157,8 +4150,8 @@ async function main() {
     }
 
     if (wantsSidebar) {
-      files.add(path.join(repoRoot, "src", "features", "redesign", "components", "Rail.tsx"));
-      files.add(path.join(repoRoot, "src", "layouts", "WorkspaceRail.tsx"));
+      files.add(resolveWebSourcePath(repoRoot, "features", "redesign", "components", "Rail.tsx"));
+      files.add(resolveWebSourcePath(repoRoot, "layouts", "WorkspaceRail.tsx"));
     }
 
     return Array.from(files).slice(0, 10);

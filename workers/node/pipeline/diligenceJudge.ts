@@ -28,7 +28,7 @@
  *     that WRAPS this function and annotates the non-deterministic
  *     dimensions (e.g., prose quality, citation quality).
  */
-import type { EmitProjectionArgs, EmitProjectionResult } from "./diligenceProjectionWriter";
+import type { EmitProjectionArgs, EmitProjectionResult } from "./diligenceProjectionWriter.js";
 
 /** Single telemetry record emitted per projection write attempt. */
 export type RunTelemetry = {

@@ -19,7 +19,6 @@ const visualEvidenceRelevantPathPrefixes = [
   "apps/",
   "components/",
   "public/",
-  "src/",
   "styles/",
   "web/",
 ];
@@ -1767,6 +1766,7 @@ function isCoordinationHotFileRef(ref) {
   const normalized = normalizeEvidencePath(ref).toLowerCase();
   return (
     normalized.startsWith("public/proto/home-v5.html") ||
+    normalized.startsWith("backend/convex/") ||
     normalized.startsWith("convex/") ||
     (normalized.includes("scratchnode") && normalized.includes("e2e"))
   );

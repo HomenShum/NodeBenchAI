@@ -14,7 +14,7 @@
  *      .claude/rules/reference_attribution.md
  */
 
-import type { BlockType, BlockAuthorityConfig } from "../authority/defaultTiers";
+import type { BlockType, BlockAuthorityConfig } from "../authority/defaultTiers.js";
 
 /**
  * Budget envelope per sub-agent. All three must be set; the wrapper enforces.

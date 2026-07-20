@@ -254,7 +254,7 @@ async function maybeStartServer(baseUrl: string, port: number, allowPaidSearch: 
   }
 
   const npx = process.platform === "win32" ? "npx.cmd" : "npx";
-  const command = `${npx} tsx server/index.ts --port ${port}`;
+  const command = `${npx} tsx workers/node/index.ts --port ${port}`;
   const child = spawn(command, {
     cwd: process.cwd(),
     stdio: ["ignore", "pipe", "pipe"],

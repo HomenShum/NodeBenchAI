@@ -16,7 +16,9 @@
 
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join, resolve } from 'path';
+import { pathToFileURL } from 'url';
 import { triageDiagnoses, SEVERITY } from './schema.mjs';
+import { appSourcePath } from './paths.mjs';
 
 const ROOT = resolve(import.meta.dirname, '../..');
 const REPORT_DIR = join(ROOT, '.sentinel');
@@ -202,23 +204,26 @@ const DIAGNOSTIC_PATTERNS = [
             probe: p.probe,
             symptom: f,
             rootCause: `Voice intent router has no handler for ${action}`,
-            affectedFiles: ['src/hooks/useVoiceIntentRouter.ts', 'src/layouts/CockpitLayout.tsx'],
+            affectedFiles: [
+              appSourcePath('hooks/useVoiceIntentRouter.ts'),
+              appSourcePath('layouts/CockpitLayout.tsx'),
+            ],
             severity: SEVERITY.medium,
             blastRadius: 1,
             suggestedFix: `Add ${action} to VoiceIntentActions interface and wire in CockpitLayout`,
             status: 'pending',
           });
         } else if (f.includes('VIEW_ALIASES missing')) {
-          const view = f.match(/target:\s*(\S+)/)?.[1] || 'unknown';
+          const alias = f.match(/(?:alias|target):\s*(.+)$/)?.[1] || 'unknown';
           items.push({
             id: nextId(),
             probe: p.probe,
             symptom: f,
-            rootCause: `VIEW_ALIASES in useVoiceIntentRouter.ts doesn't map any alias to "${view}"`,
-            affectedFiles: ['src/hooks/useVoiceIntentRouter.ts'],
+            rootCause: `VIEW_ALIASES in useVoiceIntentRouter.ts doesn't map the spoken phrase "${alias}"`,
+            affectedFiles: [appSourcePath('hooks/useVoiceIntentRouter.ts')],
             severity: SEVERITY.low,
             blastRadius: 1,
-            suggestedFix: `Add alias entry for "${view}" in VIEW_ALIASES map`,
+            suggestedFix: `Add the spoken alias "${alias}" to the VIEW_ALIASES map`,
             status: 'pending',
           });
         }
@@ -240,10 +245,22 @@ const DIAGNOSTIC_PATTERNS = [
             probe: p.probe,
             symptom: 'WCAG 2.5.8: Interactive element below 44px touch target',
             rootCause: 'Button/clickable element uses w-8/h-8 or smaller instead of min-w-11/min-h-11',
-            affectedFiles: fileMatch ? [fileMatch[1]] : ['src/'],
+            affectedFiles: fileMatch ? [fileMatch[1]] : [appSourcePath()],
             severity: SEVERITY.medium,
             blastRadius: 1,
             suggestedFix: 'Add min-w-11 min-h-11 (44px) to interactive element',
+            status: 'pending',
+          });
+        } else if (f.includes('A11y source inspection failed')) {
+          items.push({
+            id: nextId(),
+            probe: p.probe,
+            symptom: f,
+            rootCause: 'Sentinel could not inspect the canonical web source tree, so accessibility coverage is unknown',
+            affectedFiles: [appSourcePath()],
+            severity: SEVERITY.high,
+            blastRadius: 5,
+            suggestedFix: `Restore or correct ${appSourcePath()} before trusting the accessibility probe`,
             status: 'pending',
           });
         }
@@ -260,7 +277,7 @@ const DIAGNOSTIC_PATTERNS = [
       probe: p.probe,
       symptom: f,
       rootCause: 'UI visual quality below threshold — check recent design changes',
-      affectedFiles: ['src/'],
+      affectedFiles: [appSourcePath()],
       severity: SEVERITY.medium,
       blastRadius: 5,
       suggestedFix: 'Run dogfood:loop:auto to iteratively fix visual issues',
@@ -368,19 +385,32 @@ function classifyE2EError(err) {
   return `E2E error: ${err.slice(0, 80)}`;
 }
 
-function guessFilesFromTestTitle(title) {
+export function guessFilesFromTestTitle(title) {
   const clean = title.trim().toLowerCase();
   // Map test names to likely source files
-  if (clean.includes('voice')) return ['src/hooks/useVoiceIntentRouter.ts', 'src/components/hud/JarvisHUDLayout.tsx'];
-  if (clean.includes('agent')) return ['src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx'];
-  if (clean.includes('calendar')) return ['src/features/calendar/views/CalendarView.tsx'];
-  if (clean.includes('document')) return ['src/features/documents/views/'];
-  if (clean.includes('research')) return ['src/features/research/views/ResearchHub.tsx'];
-  if (clean.includes('sidebar')) return ['src/features/redesign/components/Rail.tsx', 'src/layouts/WorkspaceRail.tsx'];
-  if (clean.includes('setting')) return ['src/layouts/settings/SettingsModal.tsx'];
-  if (clean.includes('funding')) return ['src/features/research/views/FundingBriefView.tsx'];
-  if (clean.includes('benchmark')) return ['src/features/benchmarks/views/WorkbenchView.tsx'];
-  return ['src/'];
+  if (clean.includes('voice')) {
+    return [appSourcePath('hooks/useVoiceIntentRouter.ts'), appSourcePath('components/hud/JarvisHUDLayout.tsx')];
+  }
+  if (clean.includes('agent')) return [appSourcePath('features/agents/components/FastAgentPanel/FastAgentPanel.tsx')];
+  if (clean.includes('calendar')) return [appSourcePath('features/calendar/views/CalendarView.tsx')];
+  if (clean.includes('document')) return [appSourcePath('features/documents/views/')];
+  if (clean.includes('research')) return [appSourcePath('features/research/views/ResearchHub.tsx')];
+  if (clean.includes('sidebar')) {
+    return [appSourcePath('features/redesign/components/Rail.tsx'), appSourcePath('layouts/WorkspaceRail.tsx')];
+  }
+  if (clean.includes('setting')) return [appSourcePath('layouts/settings/SettingsModal.tsx')];
+  if (clean.includes('funding')) return [appSourcePath('features/research/views/FundingBriefView.tsx')];
+  if (clean.includes('benchmark')) return [appSourcePath('features/benchmarks/views/WorkbenchView.tsx')];
+  return [appSourcePath()];
+}
+
+export function diagnoseProbe(probe) {
+  if (probe.status === 'pass' || probe.status === 'skip') return [];
+  const diagnoses = [];
+  for (const pattern of DIAGNOSTIC_PATTERNS) {
+    if (pattern.match(probe)) diagnoses.push(...pattern.diagnose(probe));
+  }
+  return diagnoses;
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
@@ -403,15 +433,10 @@ function main() {
   for (const probe of report.probes) {
     if (probe.status === 'pass' || probe.status === 'skip') continue;
 
-    for (const pattern of DIAGNOSTIC_PATTERNS) {
-      if (pattern.match(probe)) {
-        try {
-          const items = pattern.diagnose(probe);
-          diagnoses.push(...items);
-        } catch (err) {
-          log(`  Warning: pattern failed on ${probe.probe}: ${err.message}`);
-        }
-      }
+    try {
+      diagnoses.push(...diagnoseProbe(probe));
+    } catch (err) {
+      log(`  Warning: pattern failed on ${probe.probe}: ${err.message}`);
     }
   }
 
@@ -460,4 +485,6 @@ function main() {
   process.exit(triaged.filter(d => d.severity <= SEVERITY.high).length > 0 ? 1 : 0);
 }
 
-main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
+}

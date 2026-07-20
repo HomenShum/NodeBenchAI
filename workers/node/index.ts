@@ -11,7 +11,7 @@
  * and serves them over WebSocket using JSON-RPC 2.0 (MCP wire protocol).
  *
  * Usage:
- *   npx tsx server/index.ts [--port 3100] [--preset full]
+ *   npx tsx workers/node/index.ts [--port 3100] [--preset full]
  */
 
 import { config as dotenvConfig } from "dotenv";

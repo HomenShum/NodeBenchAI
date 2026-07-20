@@ -13,7 +13,7 @@ const force = args.has("--force");
 const dryRun = args.has("--dry-run");
 const targetDir = path.resolve(repoRoot, outArg || ".tmp/scratchnode-live-public-export");
 
-const copyEntries = [
+export const copyEntries = Object.freeze([
   ["public/proto/home-v5.html", "public/proto/home-v5.html", transformHomeV5],
   ["public/proto/docs.html", "public/proto/docs.html", transformDocsHtml],
   ["public/og-scratchnode.png", "public/og-scratchnode.png"],
@@ -22,22 +22,23 @@ const copyEntries = [
   ["docs/architecture/SCRATCHNODE_NODEBENCH_BOUNDARY.md", "docs/architecture/SCRATCHNODE_NODEBENCH_BOUNDARY.md"],
   ["docs/architecture/PRODUCT_SURFACE_RUNTIME_OWNERSHIP.md", "docs/architecture/PRODUCT_SURFACE_RUNTIME_OWNERSHIP.md"],
   ["docs/architecture/PROTO_SURFACE_REAL_BACKEND_DOGFOOD.md", "docs/architecture/PROTO_SURFACE_REAL_BACKEND_DOGFOOD.md"],
-  ["src/shared/agentOutputContract.ts", "contracts/agentOutputContract.ts"],
-  ["src/shared/riskAttackEvaluator.ts", "contracts/riskAttackEvaluator.ts"],
+  ["apps/web/src/shared/agentOutputContract.ts", "contracts/agentOutputContract.ts"],
+  ["apps/web/src/shared/riskAttackEvaluator.ts", "contracts/riskAttackEvaluator.ts"],
   ["evals/e2e/scratchnode-demo-route-gate.spec.ts", "evals/e2e/scratchnode-demo-route-gate.spec.ts"],
   ["evals/e2e/scratchnode-live-route-honesty.spec.ts", "evals/e2e/scratchnode-live-route-honesty.spec.ts"],
   ["evals/e2e/home-v5-output-contract.spec.ts", "evals/e2e/home-v5-output-contract.spec.ts"],
   ["evals/e2e/proto-live-backend-dogfood.spec.ts", "evals/e2e/proto-live-backend-dogfood.spec.ts"],
   ["LICENSE", "LICENSE"],
-];
+]);
 
-const forbiddenRelativePaths = [
+export const forbiddenRelativePaths = Object.freeze([
   ".mcp.json",
   "packages/mcp-local/.mcpregistry_registry_token",
   "packages/mcp-local/.mcpregistry_github_token",
   "public/dogfood",
   "public/benchmarks",
   "public/proto/home-v4.html",
+  "backend",
   "convex",
   "server",
   "apps",
@@ -50,7 +51,7 @@ const forbiddenRelativePaths = [
   ".worktrees",
   ".claude",
   ".serena",
-];
+]);
 
 const forbiddenContentPatterns = [
   { label: "hard-coded development service secret", pattern: /nodebench_dev_secret/i },
@@ -440,6 +441,7 @@ const forbidden = [
   "packages/mcp-local/.mcpregistry_registry_token",
   "public/dogfood",
   "public/benchmarks",
+  "backend",
   "convex",
   "server",
   "apps",
@@ -543,4 +545,6 @@ function main() {
   console.log(`Created ScratchNode public export at ${targetDir}`);
 }
 
-main();
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main();
+}

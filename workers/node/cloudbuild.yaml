@@ -1,6 +1,6 @@
 steps:
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/nodebench-server', '-f', 'server/Dockerfile', '.']
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/nodebench-server', '-f', 'workers/node/Dockerfile', '.']
 
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'gcr.io/$PROJECT_ID/nodebench-server']
