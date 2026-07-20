@@ -4,11 +4,11 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const primitives = readFileSync(
-  resolve(process.cwd(), "src/features/redesign/primitives.css"),
+  resolve(process.cwd(), "apps/web/src/features/redesign/primitives.css"),
   "utf8",
 );
 const workspaceCss = readFileSync(
-  resolve(process.cwd(), "src/features/redesign/agent-workspace.css"),
+  resolve(process.cwd(), "apps/web/src/features/redesign/agent-workspace.css"),
   "utf8",
 );
 

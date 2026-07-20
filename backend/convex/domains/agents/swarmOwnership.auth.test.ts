@@ -193,19 +193,19 @@ describe.skipIf(!convexTestAvailable)("swarm owner isolation", () => {
 describe("swarm ownership source guards", () => {
   it("keeps all raw swarm writes internal and orchestrators on owner-checked reads", () => {
     const mutations = readFileSync(
-      resolve(process.cwd(), "convex/domains/agents/swarmMutations.ts"),
+      resolve(process.cwd(), "backend/convex/domains/agents/swarmMutations.ts"),
       "utf8",
     );
     const orchestrator = readFileSync(
-      resolve(process.cwd(), "convex/domains/agents/swarmOrchestrator.ts"),
+      resolve(process.cwd(), "backend/convex/domains/agents/swarmOrchestrator.ts"),
       "utf8",
     );
     const enhanced = readFileSync(
-      resolve(process.cwd(), "convex/domains/agents/swarmOrchestratorEnhanced.ts"),
+      resolve(process.cwd(), "backend/convex/domains/agents/swarmOrchestratorEnhanced.ts"),
       "utf8",
     );
     const liveSmoke = readFileSync(
-      resolve(process.cwd(), "convex/domains/evaluation/liveApiSmoke.ts"),
+      resolve(process.cwd(), "backend/convex/domains/evaluation/liveApiSmoke.ts"),
       "utf8",
     );
     const cancelSwarm = orchestrator.slice(
@@ -236,7 +236,7 @@ describe("swarm ownership source guards", () => {
 
   it("does not expose arbitrary email lookup or caller-selected list ownership", () => {
     const queries = readFileSync(
-      resolve(process.cwd(), "convex/domains/agents/swarmQueries.ts"),
+      resolve(process.cwd(), "backend/convex/domains/agents/swarmQueries.ts"),
       "utf8",
     );
     const listActive = queries.slice(

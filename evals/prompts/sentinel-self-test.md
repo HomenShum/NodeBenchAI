@@ -170,7 +170,7 @@ Remaining issues:
 | HUD system | `src/components/hud/` |
 | Views (29) | `src/features/research/`, `src/features/documents/`, `src/features/calendar/`, etc. |
 | Design tokens | `src/index.css`, `tailwind.config.ts` |
-| E2E tests | `tests/e2e/` |
+| E2E tests | `evals/e2e/` |
 | Sentinel | `scripts/sentinel/` (runner, diagnose, schema) |
 | Dogfood | `public/dogfood/`, `scripts/ui/`, `scripts/overstory/` |
 

@@ -12,10 +12,10 @@ const read = (path: string) => readFileSync(path, "utf8");
  * two renderers structurally cannot drift.
  */
 describe("compact chat response rendering (one chat interface)", () => {
-  const chatMsg = read("src/features/redesign/components/ChatAssistantMessage.tsx");
-  const chat = read("src/features/redesign/surfaces/ChatSurface.tsx");
-  const replay = read("src/features/redesign/pages/ReproducibleChatPage.tsx");
-  const workspaceCss = read("src/features/redesign/agent-workspace.css");
+  const chatMsg = read("apps/web/src/features/redesign/components/ChatAssistantMessage.tsx");
+  const chat = read("apps/web/src/features/redesign/surfaces/ChatSurface.tsx");
+  const replay = read("apps/web/src/features/redesign/pages/ReproducibleChatPage.tsx");
+  const workspaceCss = read("apps/web/src/features/redesign/agent-workspace.css");
 
   it("gates every optional section on non-empty content — compact answers stay compact", () => {
     // Row 2 secondary prose renders only when whyItMatters is present.

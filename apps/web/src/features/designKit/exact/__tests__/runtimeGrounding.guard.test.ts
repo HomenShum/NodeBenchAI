@@ -4,15 +4,15 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const exactKitSource = readFileSync(
-  resolve(process.cwd(), "src/features/designKit/exact/ExactKit.tsx"),
+  resolve(process.cwd(), "apps/web/src/features/designKit/exact/ExactKit.tsx"),
   "utf8",
 );
 const exactKitCss = readFileSync(
-  resolve(process.cwd(), "src/features/designKit/exact/exactKit.css"),
+  resolve(process.cwd(), "apps/web/src/features/designKit/exact/exactKit.css"),
   "utf8",
 );
 const topNavSource = readFileSync(
-  resolve(process.cwd(), "src/layouts/ProductTopNav.tsx"),
+  resolve(process.cwd(), "apps/web/src/layouts/ProductTopNav.tsx"),
   "utf8",
 );
 

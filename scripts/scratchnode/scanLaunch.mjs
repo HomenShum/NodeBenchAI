@@ -26,7 +26,7 @@ const files = {
   goalRunbook: "docs/runbooks/GOAL_MODE_RELEASE_AUTOPILOT.md",
   launchRunbook: "docs/runbooks/SCRATCHNODE_LAUNCH_DAY.md",
   housekeepingRunbook: "docs/runbooks/WORKSPACE_HOUSEKEEPING.md",
-  routeHonestySpec: "tests/e2e/scratchnode-live-route-honesty.spec.ts",
+  routeHonestySpec: "evals/e2e/scratchnode-live-route-honesty.spec.ts",
   wikiBridgeSpec: "src/features/events/views/ScratchnodeWikiBridge.test.tsx",
   eventHandoffGoal: "goals/nodebench/001-event-handoff.md",
   boundaryGoal: "goals/scratchnode/003-privacy-boundary-honesty-gates.md",

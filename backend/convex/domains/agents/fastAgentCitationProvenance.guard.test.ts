@@ -15,7 +15,7 @@ describe("FastAgent citation provenance guard", () => {
     const source = readFileSync(
       resolve(
         process.cwd(),
-        "convex/domains/agents/fastAgentPanelStreaming.ts",
+        "backend/convex/domains/agents/fastAgentPanelStreaming.ts",
       ),
       "utf8",
     );

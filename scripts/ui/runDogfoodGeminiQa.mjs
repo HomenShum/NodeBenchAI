@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 /**
  * Ground truth for the vision judge: every clause in the executable surface
- * contracts (docs/design/ui-contract/surfaces/*.contract.json) is verified
+ * contracts (proof/ui-contract/surfaces/*.contract.json) is verified
  * deterministically in CI by ui-contract-runner.spec.ts. A vision finding that
  * contradicts a verified clause is a misread, not a bug — feeding the clause
  * list to the judge stops paid vision passes from re-litigating what CI

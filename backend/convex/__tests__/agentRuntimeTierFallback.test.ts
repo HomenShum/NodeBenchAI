@@ -45,7 +45,7 @@ const denied = (
 });
 
 const streamingSource = readFileSync(
-  resolve(process.cwd(), "convex/domains/agents/fastAgentPanelStreaming.ts"),
+  resolve(process.cwd(), "backend/convex/domains/agents/fastAgentPanelStreaming.ts"),
   "utf8",
 );
 

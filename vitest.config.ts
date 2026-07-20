@@ -8,6 +8,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: [
+      { find: "@convex", replacement: toPosix(path.resolve(__dirname, "./backend/convex")) },
       { find: "@features", replacement: toPosix(path.resolve(__dirname, "./apps/web/src/features")) },
       { find: "@shared", replacement: toPosix(path.resolve(__dirname, "./apps/web/src/shared")) },
       { find: /^@\//, replacement: `${toPosix(path.resolve(__dirname, "./apps/web/src"))}/` },

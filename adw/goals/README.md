@@ -65,7 +65,7 @@ Goal → Spec → Subagents → Critic → Patch → Demo → Evals → Docs →
 | **Founder-initiated goal** | any time | you pick a Goal Card → agent fans out → critic → patch → verify → ship | CI-gated PR |
 
 Substantive work is **never** auto-shipped — it becomes a Goal Card the founder approves.
-The deterministic substrate is `scripts/improvement-loop/`; the agent manual is
+The deterministic substrate is `adw/improvement-loop/`; the agent manual is
 [`.claude/rules/self_improvement_loop.md`](../.claude/rules/self_improvement_loop.md).
 
 ## Subagent roles (one narrow job each — never generic)

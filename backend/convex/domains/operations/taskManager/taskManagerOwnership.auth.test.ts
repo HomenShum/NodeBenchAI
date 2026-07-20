@@ -168,15 +168,15 @@ describe.skipIf(!convexTestAvailable)("task-manager owner isolation", () => {
 describe("task-manager source guards", () => {
   it("does not ship fixture seeds or heuristic proof confidence", () => {
     const mutations = readFileSync(
-      resolve(process.cwd(), "convex/domains/operations/taskManager/mutations.ts"),
+      resolve(process.cwd(), "backend/convex/domains/operations/taskManager/mutations.ts"),
       "utf8",
     );
     const proofPack = readFileSync(
-      resolve(process.cwd(), "convex/domains/operations/taskManager/proofPack.ts"),
+      resolve(process.cwd(), "backend/convex/domains/operations/taskManager/proofPack.ts"),
       "utf8",
     );
     const detail = readFileSync(
-      resolve(process.cwd(), "src/features/agents/components/TaskManager/TaskSessionDetail.tsx"),
+      resolve(process.cwd(), "apps/web/src/features/agents/components/TaskManager/TaskSessionDetail.tsx"),
       "utf8",
     );
 
@@ -189,7 +189,7 @@ describe("task-manager source guards", () => {
 
   it("keeps MCP trace writes on injected internal service contracts", () => {
     const dispatcher = readFileSync(
-      resolve(process.cwd(), "convex/domains/mcp/mcpGatewayDispatcher.ts"),
+      resolve(process.cwd(), "backend/convex/domains/mcp/mcpGatewayDispatcher.ts"),
       "utf8",
     );
 

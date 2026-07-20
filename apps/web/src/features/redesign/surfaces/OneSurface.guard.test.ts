@@ -6,15 +6,15 @@ import { describe, expect, it } from "vitest";
 const read = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8");
 
 describe("NodeBench one-surface product contract", () => {
-  const app = read("src/App.tsx");
-  const shell = read("src/features/redesign/RedesignShell.tsx");
-  const header = read("src/features/redesign/components/TopNav.tsx");
-  const chat = read("src/features/redesign/surfaces/ChatSurface.tsx");
-  const workspaceCss = read("src/features/redesign/agent-workspace.css");
+  const app = read("apps/web/src/App.tsx");
+  const shell = read("apps/web/src/features/redesign/RedesignShell.tsx");
+  const header = read("apps/web/src/features/redesign/components/TopNav.tsx");
+  const chat = read("apps/web/src/features/redesign/surfaces/ChatSurface.tsx");
+  const workspaceCss = read("apps/web/src/features/redesign/agent-workspace.css");
   // Phase A of docs/design/ONE_CHAT_INTERFACE.md — the answer's trace disclosure
   // and source-URL parsing live in the one ChatAssistantMessage both renderers
   // mount; the "same surface" intent is preserved, just at its new home.
-  const chatMsg = read("src/features/redesign/components/ChatAssistantMessage.tsx");
+  const chatMsg = read("apps/web/src/features/redesign/components/ChatAssistantMessage.tsx");
 
   it("mounts only the canonical decision workspace in the primary shell", () => {
     expect(shell).toContain('data-product-surface="decision-workspace"');

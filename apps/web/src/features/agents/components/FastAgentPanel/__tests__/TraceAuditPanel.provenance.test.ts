@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 const source = readFileSync(
   resolve(
     process.cwd(),
-    "src/features/agents/components/FastAgentPanel/FastAgentPanel.TraceAuditPanel.tsx",
+    "apps/web/src/features/agents/components/FastAgentPanel/FastAgentPanel.TraceAuditPanel.tsx",
   ),
   "utf8",
 );

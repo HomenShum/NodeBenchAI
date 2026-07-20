@@ -303,7 +303,7 @@ jobs:
           fi
           # exact-kit-parity-prod: visual selector parity (per-PR canonical-component check)
           # one-flow-regression: full surface tour + A9 fallback + interactive chip behavior
-          # ui-contract-runner: executes docs/design/ui-contract/surfaces/*.contract.json
+          # ui-contract-runner: executes proof/ui-contract/surfaces/*.contract.json
           #   (anchors, computed geometry, theme wiring, state copy) against the preview
           npx playwright test evals/e2e/vercel-preview-security.spec.ts evals/e2e/exact-kit-parity-prod.spec.ts evals/e2e/one-flow-regression.spec.ts evals/e2e/ui-contract-runner.spec.ts --project=chromium --reporter=line
 

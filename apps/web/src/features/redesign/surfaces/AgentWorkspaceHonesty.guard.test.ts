@@ -6,17 +6,17 @@ import { describe, expect, it } from "vitest";
 const read = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8");
 
 describe("first-class agent workspace honesty contract", () => {
-  const chat = read("src/features/redesign/surfaces/ChatSurface.tsx");
-  const shell = read("src/features/redesign/RedesignShell.tsx");
-  const prototype = read("src/features/redesign/surfaces/HomeV2PrototypeSurface.tsx");
-  const workspaceCss = read("src/features/redesign/agent-workspace.css");
-  const composer = read("src/features/redesign/components/UniversalComposer.tsx");
-  const conversation = read("src/components/ai-elements/conversation.tsx");
+  const chat = read("apps/web/src/features/redesign/surfaces/ChatSurface.tsx");
+  const shell = read("apps/web/src/features/redesign/RedesignShell.tsx");
+  const prototype = read("apps/web/src/features/redesign/surfaces/HomeV2PrototypeSurface.tsx");
+  const workspaceCss = read("apps/web/src/features/redesign/agent-workspace.css");
+  const composer = read("apps/web/src/features/redesign/components/UniversalComposer.tsx");
+  const conversation = read("apps/web/src/components/ai-elements/conversation.tsx");
   // Phase A of docs/design/ONE_CHAT_INTERFACE.md: the answer anatomy (receipt
   // telemetry, evidence source parsing, "how we got this answer" trace, the
   // honest probe banner) moved out of ChatSurface into the ONE component both
   // renderers mount. The honesty assertions follow the code to its new home.
-  const chatMsg = read("src/features/redesign/components/ChatAssistantMessage.tsx");
+  const chatMsg = read("apps/web/src/features/redesign/components/ChatAssistantMessage.tsx");
 
   it("exposes one runtime-grounded read, write, and verification contract", () => {
     expect(chat).toContain("RunScopeDisclosure");

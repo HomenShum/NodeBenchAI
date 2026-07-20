@@ -50,7 +50,7 @@ describe("FastAgent document thread ownership", () => {
 
   it("checks ownership before invoking the Agent or reading thread messages", () => {
     const source = readFileSync(
-      resolve(process.cwd(), "convex/domains/agents/fastAgentDocumentCreation.ts"),
+      resolve(process.cwd(), "backend/convex/domains/agents/fastAgentDocumentCreation.ts"),
       "utf8",
     );
     const actionStart = source.indexOf("export const generateAndCreateDocument");

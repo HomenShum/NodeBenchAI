@@ -6,14 +6,14 @@ import { describe, expect, it } from "vitest";
 const read = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8");
 
 describe("durable chat run lifecycle contract", () => {
-  const backend = read("convex/domains/redesign/chatRuns.ts");
-  const schema = read("convex/schema.ts");
-  const hook = read("src/features/redesign/hooks/useRedesignChatRun.ts");
-  const chat = read("src/features/redesign/surfaces/ChatSurface.tsx");
-  const composer = read("src/features/redesign/components/UniversalComposer.tsx");
+  const backend = read("backend/convex/domains/redesign/chatRuns.ts");
+  const schema = read("backend/convex/schema.ts");
+  const hook = read("apps/web/src/features/redesign/hooks/useRedesignChatRun.ts");
+  const chat = read("apps/web/src/features/redesign/surfaces/ChatSurface.tsx");
+  const composer = read("apps/web/src/features/redesign/components/UniversalComposer.tsx");
   // Phase A of docs/design/ONE_CHAT_INTERFACE.md — the RuntimeBoard metric strip
   // (provider/model/tokens/cost/receipt) lives in the one ChatAssistantMessage.
-  const chatMsg = read("src/features/redesign/components/ChatAssistantMessage.tsx");
+  const chatMsg = read("apps/web/src/features/redesign/components/ChatAssistantMessage.tsx");
 
   it("deduplicates paid submissions by owner and client request id", () => {
     expect(schema).toContain('.index("by_user_client_request", ["userId", "clientRequestId"])');

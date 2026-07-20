@@ -10,7 +10,7 @@
  *   .claude/rules/live_dom_verification.md (Tier B mobile coverage)
  *
  * Why this spec exists:
- *   The desktop spec at tests/e2e/edition-home.spec.ts asserts a single
+ *   The desktop spec at evals/e2e/edition-home.spec.ts asserts a single
  *   line of mobile coverage by calling page.setViewportSize(375, ...)
  *   inside Scenario A — but the test runs under chromium with a desktop
  *   user agent, no DPR shift, and no touch. That hides real mobile
@@ -425,5 +425,5 @@ test.describe("Editorial home — mobile (375x812)", () => {
  * configs), Mobile-D's tap() falls back to click(). To run with full
  * touch dispatch use a dedicated mobile project; this spec is
  * intentionally project-agnostic so it runs in any chromium project that
- * tests/e2e is configured for.
+ * evals/e2e is configured for.
  */

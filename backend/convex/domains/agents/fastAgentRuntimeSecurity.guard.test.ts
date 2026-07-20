@@ -7,18 +7,18 @@ const read = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8"
 
 describe("runtime trust boundary guards", () => {
   it("does not expose a caller-selected thread model action", () => {
-    const source = read("convex/domains/agents/fastAgentPanelStreaming.ts");
+    const source = read("backend/convex/domains/agents/fastAgentPanelStreaming.ts");
 
     expect(source).not.toContain("export const generateDocumentContent");
     expect(source).not.toContain("[generateDocumentContent]");
   });
 
   it("has no legacy bearer-stream renderer, query, or HTTP driver", () => {
-    const streaming = read("convex/domains/agents/fastAgentPanelStreaming.ts");
-    const router = read("convex/router.ts");
+    const streaming = read("backend/convex/domains/agents/fastAgentPanelStreaming.ts");
+    const router = read("backend/convex/router.ts");
     const legacyRenderer = resolve(
       process.cwd(),
-      "src/features/agents/components/FastAgentPanel/FastAgentPanel.StreamingMessage.tsx",
+      "apps/web/src/features/agents/components/FastAgentPanel/FastAgentPanel.StreamingMessage.tsx",
     );
 
     expect(existsSync(legacyRenderer)).toBe(false);
@@ -29,7 +29,7 @@ describe("runtime trust boundary guards", () => {
   });
 
   it("checks exact document-link ownership before inserting the document", () => {
-    const source = read("convex/domains/agents/fastAgentPanelStreaming.ts");
+    const source = read("backend/convex/domains/agents/fastAgentPanelStreaming.ts");
     const start = source.indexOf("export const createDocumentFromAgentContent");
     const end = source.indexOf("export const getThreadByStreamIdInternal", start);
     const body = source.slice(start, end);
@@ -44,8 +44,8 @@ describe("runtime trust boundary guards", () => {
   });
 
   it("does not write user prompt or message previews to runtime logs", () => {
-    const streaming = read("convex/domains/agents/fastAgentPanelStreaming.ts");
-    const documentCreation = read("convex/domains/agents/fastAgentDocumentCreation.ts");
+    const streaming = read("backend/convex/domains/agents/fastAgentPanelStreaming.ts");
+    const documentCreation = read("backend/convex/domains/agents/fastAgentDocumentCreation.ts");
 
     expect(streaming).not.toContain("args.prompt.substring");
     expect(streaming).not.toContain("sanitizedPrompt.substring");
@@ -56,8 +56,8 @@ describe("runtime trust boundary guards", () => {
   });
 
   it("requires TRACE receipts and binds them to the exact output payload", () => {
-    const helper = read("convex/domains/agents/receipts/emitWithReceipt.ts");
-    const trace = read("convex/domains/agents/traceOrchestrator.ts");
+    const helper = read("backend/convex/domains/agents/receipts/emitWithReceipt.ts");
+    const trace = read("backend/convex/domains/agents/traceOrchestrator.ts");
 
     expect(helper).toContain("resultOutputHash");
     expect(helper).toContain("hashTraceResultOutput(resultOutput)");
@@ -67,11 +67,11 @@ describe("runtime trust boundary guards", () => {
   });
 
   it("does not expose response-shape heuristics as confidence", () => {
-    const trace = read("convex/domains/agents/traceOrchestrator.ts");
-    const swarm = read("src/features/agents/components/FastAgentPanel/SwarmLanesView.tsx");
+    const trace = read("backend/convex/domains/agents/traceOrchestrator.ts");
+    const swarm = read("apps/web/src/features/agents/components/FastAgentPanel/SwarmLanesView.tsx");
     const removedTimeline = resolve(
       process.cwd(),
-      "src/features/agents/components/FastAgentPanel/FastAgentPanel.ParallelTaskTimeline.tsx",
+      "apps/web/src/features/agents/components/FastAgentPanel/FastAgentPanel.ParallelTaskTimeline.tsx",
     );
 
     expect(trace).not.toContain("traceOutput.confidence");
@@ -81,16 +81,16 @@ describe("runtime trust boundary guards", () => {
   });
 
   it("removes the unused parallel UI/API and keeps only bounded owner-bound storage", () => {
-    const tree = read("convex/domains/agents/parallelTaskTree.ts");
-    const panel = read("src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx");
-    const designSystem = read("src/design/designSystem.ts");
-    const generatedApi = read("convex/_generated/api.d.ts");
+    const tree = read("backend/convex/domains/agents/parallelTaskTree.ts");
+    const panel = read("apps/web/src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx");
+    const designSystem = read("apps/web/src/design/designSystem.ts");
+    const generatedApi = read("backend/convex/_generated/api.d.ts");
 
     for (const removedPath of [
-      "convex/domains/agents/parallelTaskOrchestrator.ts",
-      "src/features/agents/hooks/useParallelTaskExecution.ts",
-      "src/features/agents/components/FastAgentPanel/FastAgentPanel.ParallelTaskTimeline.tsx",
-      "src/features/agents/components/FastAgentPanel/FastAgentPanel.DecisionTreeKanban.tsx",
+      "backend/convex/domains/agents/parallelTaskOrchestrator.ts",
+      "apps/web/src/features/agents/hooks/useParallelTaskExecution.ts",
+      "apps/web/src/features/agents/components/FastAgentPanel/FastAgentPanel.ParallelTaskTimeline.tsx",
+      "apps/web/src/features/agents/components/FastAgentPanel/FastAgentPanel.DecisionTreeKanban.tsx",
     ]) {
       expect(existsSync(resolve(process.cwd(), removedPath))).toBe(false);
     }
@@ -107,14 +107,14 @@ describe("runtime trust boundary guards", () => {
   });
 
   it("keeps core due-diligence storage and orchestration behind owner-bound internal APIs", () => {
-    const mutations = read("convex/domains/agents/dueDiligence/ddMutations.ts");
-    const orchestrator = read("convex/domains/agents/dueDiligence/ddOrchestrator.ts");
-    const enhanced = read("convex/domains/agents/dueDiligence/ddEnhancedOrchestrator.ts");
-    const triggerQueries = read("convex/domains/agents/dueDiligence/ddTriggerQueries.ts");
-    const triggers = read("convex/domains/agents/dueDiligence/ddTriggers.ts");
-    const encounter = read("convex/domains/operations/encounters/encounterCapture.ts");
-    const slack = read("convex/domains/integrations/slack/slackAgent.ts");
-    const evaluation = read("convex/domains/evaluation/ddEvaluation.ts");
+    const mutations = read("backend/convex/domains/agents/dueDiligence/ddMutations.ts");
+    const orchestrator = read("backend/convex/domains/agents/dueDiligence/ddOrchestrator.ts");
+    const enhanced = read("backend/convex/domains/agents/dueDiligence/ddEnhancedOrchestrator.ts");
+    const triggerQueries = read("backend/convex/domains/agents/dueDiligence/ddTriggerQueries.ts");
+    const triggers = read("backend/convex/domains/agents/dueDiligence/ddTriggers.ts");
+    const encounter = read("backend/convex/domains/operations/encounters/encounterCapture.ts");
+    const slack = read("backend/convex/domains/integrations/slack/slackAgent.ts");
+    const evaluation = read("backend/convex/domains/evaluation/ddEvaluation.ts");
     const vite = read("vite.config.ts");
 
     expect(mutations).not.toMatch(/export const \w+ = (?:query|mutation|action)\(/);

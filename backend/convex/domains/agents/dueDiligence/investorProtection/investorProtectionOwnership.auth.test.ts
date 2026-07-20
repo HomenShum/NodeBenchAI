@@ -42,13 +42,13 @@ const read = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8"
 describe("due-diligence adjacent public-surface guard", () => {
   it("keeps demo, eval, and private-result surfaces off the public Convex API", () => {
     for (const path of [
-      "convex/domains/agents/dueDiligence/deepResearch/deepResearchOrchestrator.ts",
-      "convex/domains/agents/dueDiligence/investorPlaybook/agenticPlaybook.ts",
-      "convex/domains/agents/dueDiligence/investorPlaybook/evalPlaybook.ts",
-      "convex/domains/agents/dueDiligence/investorPlaybook/playbookActions.ts",
-      "convex/domains/agents/dueDiligence/investorPlaybook/playbookMutations.ts",
-      "convex/domains/agents/dueDiligence/investorProtection/investorProtectionMutations.ts",
-      "convex/domains/agents/dueDiligence/investorProtection/investorProtectionOrchestrator.ts",
+      "backend/convex/domains/agents/dueDiligence/deepResearch/deepResearchOrchestrator.ts",
+      "backend/convex/domains/agents/dueDiligence/investorPlaybook/agenticPlaybook.ts",
+      "backend/convex/domains/agents/dueDiligence/investorPlaybook/evalPlaybook.ts",
+      "backend/convex/domains/agents/dueDiligence/investorPlaybook/playbookActions.ts",
+      "backend/convex/domains/agents/dueDiligence/investorPlaybook/playbookMutations.ts",
+      "backend/convex/domains/agents/dueDiligence/investorProtection/investorProtectionMutations.ts",
+      "backend/convex/domains/agents/dueDiligence/investorProtection/investorProtectionOrchestrator.ts",
     ]) {
       expect(read(path)).not.toMatch(
         /export const \w+\s*=\s*(?:action|query|mutation)\(/,
@@ -56,15 +56,15 @@ describe("due-diligence adjacent public-surface guard", () => {
     }
 
     for (const removedPath of [
-      "convex/domains/agents/dueDiligence/investorPlaybook/agenticTest.ts",
+      "backend/convex/domains/agents/dueDiligence/investorPlaybook/agenticTest.ts",
       "scripts/eval-investor-playbook.ts",
       "scripts/test-deep-research-live.ts",
     ]) {
       expect(existsSync(resolve(process.cwd(), removedPath))).toBe(false);
     }
 
-    const generatedApi = read("convex/_generated/api.d.ts");
-    const barrel = read("convex/domains/agents/dueDiligence/index.ts");
+    const generatedApi = read("backend/convex/_generated/api.d.ts");
+    const barrel = read("backend/convex/domains/agents/dueDiligence/index.ts");
     expect(generatedApi).not.toContain("investorPlaybook/agenticTest");
     expect(barrel).not.toMatch(
       /\b(?:startVerificationJob|startDeepResearch|getInvestorProtectionJob|getPlaybookResultByEntity|runAgenticDueDiligence)\b/,
@@ -73,10 +73,10 @@ describe("due-diligence adjacent public-surface guard", () => {
 
   it("requires owner binding before retained investor-protection writes", () => {
     const mutations = read(
-      "convex/domains/agents/dueDiligence/investorProtection/investorProtectionMutations.ts",
+      "backend/convex/domains/agents/dueDiligence/investorProtection/investorProtectionMutations.ts",
     );
     const orchestrator = read(
-      "convex/domains/agents/dueDiligence/investorProtection/investorProtectionOrchestrator.ts",
+      "backend/convex/domains/agents/dueDiligence/investorProtection/investorProtectionOrchestrator.ts",
     );
     const saveResultStart = mutations.indexOf("export const internalSaveResult");
     const saveResultEnd = mutations.indexOf("// CACHE OPERATIONS", saveResultStart);

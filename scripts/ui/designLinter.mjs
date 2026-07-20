@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
-const SRC_DIR = path.join(ROOT, "src");
+const SRC_DIR = path.join(ROOT, "apps", "web", "src");
 
 // ── Design Governance Spec (inlined from src/design-governance/defaultSpec.ts)
 // We inline the patterns here because this is an .mjs script that runs outside

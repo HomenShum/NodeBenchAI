@@ -4,7 +4,7 @@ import { describe, expect, test } from 'vitest';
 
 const panelDirectory = join(
   process.cwd(),
-  'src/features/agents/components/FastAgentPanel',
+  'apps/web/src/features/agents/components/FastAgentPanel',
 );
 const legacyBubblePath = join(panelDirectory, 'FastAgentPanel.MessageBubble.tsx');
 const legacyStreamPath = join(panelDirectory, 'FastAgentPanel.MessageStream.tsx');

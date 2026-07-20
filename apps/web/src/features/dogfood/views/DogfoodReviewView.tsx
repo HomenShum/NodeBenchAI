@@ -770,7 +770,7 @@ export function DogfoodReviewView() {
   }, []);
 
   const commands = useMemo(() => {
-    const runE2e = "npx playwright test tests/e2e/full-ui-dogfood.spec.ts --project=chromium --workers=1";
+    const runE2e = "npx playwright test evals/e2e/full-ui-dogfood.spec.ts --project=chromium --workers=1";
     const publish = "npm run dogfood:publish";
     const record = "npm run dogfood:record";
     const recordStatic = "npm run dogfood:record:static";

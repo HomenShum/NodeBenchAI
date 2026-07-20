@@ -263,7 +263,7 @@ Key files:
 - `src/layouts/CockpitLayout.tsx`
 - `src/layouts/cockpitModes.ts`
 - `src/contexts/ThemeContext.tsx`
-- `tests/e2e/voice-input.spec.ts`
+- `evals/e2e/voice-input.spec.ts`
 
 Expected wiring targets from the current codebase:
 
@@ -467,7 +467,7 @@ Before stopping, re-run:
 
 - typecheck
 - relevant unit tests if added
-- `tests/e2e/voice-input.spec.ts`
+- `evals/e2e/voice-input.spec.ts`
 
 Existing voice tests must keep passing. Add new tests; do not remove coverage to make failures disappear.
 
@@ -475,7 +475,7 @@ Existing voice tests must keep passing. Add new tests; do not remove coverage to
 
 Add E2E coverage in:
 
-- `tests/e2e/voice-input.spec.ts`
+- `evals/e2e/voice-input.spec.ts`
 
 Minimum expectations:
 

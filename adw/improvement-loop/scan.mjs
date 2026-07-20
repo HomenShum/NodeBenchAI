@@ -16,7 +16,7 @@
  * Scoring:  score = impact(1..5) * confidence(0..1) / effort(1..5)
  *           safety='human' opportunities are QUEUED (score forced to 0) — never auto-shipped.
  *
- * Usage:    node scripts/improvement-loop/scan.mjs [--json]
+ * Usage:    node adw/improvement-loop/scan.mjs [--json]
  */
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';

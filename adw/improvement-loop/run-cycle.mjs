@@ -13,7 +13,7 @@
  * (table `improvementLoopCycles`) when `--push-convex` is passed and the deployment is reachable.
  * Convex failures degrade gracefully and are recorded honestly (HONEST_STATUS) — never faked.
  *
- * Usage:  node scripts/improvement-loop/run-cycle.mjs [--effort-budget 3] [--push-convex] [--note "..."]
+ * Usage:  node adw/improvement-loop/run-cycle.mjs [--effort-budget 3] [--push-convex] [--note "..."]
  */
 import { spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';

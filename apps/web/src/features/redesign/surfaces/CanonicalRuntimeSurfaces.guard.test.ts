@@ -7,8 +7,8 @@ const read = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8"
 
 describe("canonical runtime surface deduplication", () => {
   it("reuses the owner-scoped Inbox and Me trees in the redesign shell", () => {
-    const inbox = read("src/features/redesign/surfaces/InboxSurface.tsx");
-    const me = read("src/features/redesign/surfaces/MeSurface.tsx");
+    const inbox = read("apps/web/src/features/redesign/surfaces/InboxSurface.tsx");
+    const me = read("apps/web/src/features/redesign/surfaces/MeSurface.tsx");
 
     expect(inbox).toContain("<ExactInboxSurface />");
     expect(me).toContain("<ExactMeSurface />");

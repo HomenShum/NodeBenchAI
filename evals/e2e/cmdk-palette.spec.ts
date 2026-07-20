@@ -9,8 +9,8 @@
  *   2. Empty query — Commands group renders, status bar absent (no fetch fired).
  *   3. Escape closes the palette.
  *
- * Run locally:    npx playwright test tests/e2e/cmdk-palette.spec.ts --project=chromium
- * Run on prod:    BASE_URL=https://www.nodebenchai.com npm run live-smoke -- tests/e2e/cmdk-palette.spec.ts
+ * Run locally:    npx playwright test evals/e2e/cmdk-palette.spec.ts --project=chromium
+ * Run on prod:    BASE_URL=https://www.nodebenchai.com npm run live-smoke -- evals/e2e/cmdk-palette.spec.ts
  *
  * The test deliberately does NOT assert on specific result counts or text
  * (those depend on what's in the user's account). It asserts on the

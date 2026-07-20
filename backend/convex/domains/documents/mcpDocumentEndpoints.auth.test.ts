@@ -340,7 +340,7 @@ describe.skipIf(!convexTestAvailable)("MCP document read ownership", () => {
 describe("MCP document dispatcher ownership guards", () => {
   it("injects the service owner into both direct read routes", () => {
     const source = readFileSync(
-      resolve(process.cwd(), "convex/domains/mcp/mcpGatewayDispatcher.ts"),
+      resolve(process.cwd(), "backend/convex/domains/mcp/mcpGatewayDispatcher.ts"),
       "utf8",
     );
 

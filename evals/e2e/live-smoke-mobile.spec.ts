@@ -9,7 +9,7 @@
  * living outside CI: exactly the "test the pipeline cannot see" failure mode
  * issue #567 documented. This spec now asserts the one-surface reality;
  * richer per-clause coverage lives in the surface contract
- * (docs/design/ui-contract/surfaces/decision-workspace.contract.json) executed
+ * (proof/ui-contract/surfaces/decision-workspace.contract.json) executed
  * by ui-contract-runner.spec.ts.
  */
 

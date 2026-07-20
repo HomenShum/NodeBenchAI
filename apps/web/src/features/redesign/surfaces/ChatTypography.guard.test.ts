@@ -3,10 +3,10 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-const chatMsg = readFileSync(resolve(process.cwd(), "src/features/redesign/components/ChatAssistantMessage.tsx"), "utf8");
-const replay = readFileSync(resolve(process.cwd(), "src/features/redesign/pages/ReproducibleChatPage.tsx"), "utf8");
-const workspaceCss = readFileSync(resolve(process.cwd(), "src/features/redesign/agent-workspace.css"), "utf8");
-const tokens = readFileSync(resolve(process.cwd(), "src/features/redesign/tokens.css"), "utf8");
+const chatMsg = readFileSync(resolve(process.cwd(), "apps/web/src/features/redesign/components/ChatAssistantMessage.tsx"), "utf8");
+const replay = readFileSync(resolve(process.cwd(), "apps/web/src/features/redesign/pages/ReproducibleChatPage.tsx"), "utf8");
+const workspaceCss = readFileSync(resolve(process.cwd(), "apps/web/src/features/redesign/agent-workspace.css"), "utf8");
+const tokens = readFileSync(resolve(process.cwd(), "apps/web/src/features/redesign/tokens.css"), "utf8");
 
 describe("chat typography contract", () => {
   it("keeps structured answers in the compact product type scale", () => {

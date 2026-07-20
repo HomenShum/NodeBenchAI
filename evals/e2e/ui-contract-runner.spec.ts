@@ -1,6 +1,6 @@
 /**
  * UI contract runner — executes every surface contract in
- * docs/design/ui-contract/surfaces/*.contract.json against the live DOM.
+ * proof/ui-contract/surfaces/*.contract.json against the live DOM.
  *
  * Agent-native QA: the surface DECLARES its invariants (anchors, computed
  * geometry, theme wiring, deep-link-forced state copy) as data; this one

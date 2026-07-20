@@ -21,7 +21,7 @@ User speaks/types → JarvisHUDLayout.handlePromptSubmit / FastAgentInputBar.han
 | `src/components/hud/JarvisHUDLayout.tsx` | Intercepts in `handlePromptSubmit`, shows voice confirmation |
 | `src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx` | Passes `onVoiceIntent` to InputBar |
 | `src/features/agents/components/FastAgentPanel/FastAgentPanel.InputBar.tsx` | Intercepts in `handleSend` before `/spawn` |
-| `tests/e2e/voice-input.spec.ts` | Scenarios 7-13: navigation, modes, create, theme, utilities, fallthrough, a11y |
+| `evals/e2e/voice-input.spec.ts` | Scenarios 7-13: navigation, modes, create, theme, utilities, fallthrough, a11y |
 
 ### Prop Threading
 
@@ -48,7 +48,7 @@ CockpitLayout (owns all callbacks: navigate, setMode, openSettings, etc.)
    ```
 4. **Wire callback** in `useVoiceIntentRouter` hook's switch/if block
 5. **Wire implementation** in `CockpitLayout.tsx` → `voiceIntentActions` useMemo
-6. **Add E2E test** in `tests/e2e/voice-input.spec.ts` under the appropriate scenario
+6. **Add E2E test** in `evals/e2e/voice-input.spec.ts` under the appropriate scenario
 
 ## Key Design Decisions
 
@@ -99,10 +99,10 @@ The `VIEW_ALIASES` map in `useVoiceIntentRouter.ts` maps spoken phrases to `Main
 ```bash
 # Unit test the pure parser (no React needed)
 # parseVoiceIntent is exported — can be tested standalone
-npx vitest run tests/e2e/voice-input.spec.ts
+npx vitest run evals/e2e/voice-input.spec.ts
 
 # Full E2E with running app
-npx playwright test tests/e2e/voice-input.spec.ts
+npx playwright test evals/e2e/voice-input.spec.ts
 ```
 
 Scenarios 7-13 in `voice-input.spec.ts` cover:

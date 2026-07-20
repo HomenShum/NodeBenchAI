@@ -43,8 +43,8 @@ describe("reproducible answer continuation", () => {
   });
 
   it("keeps private continuation history out of public hash reads", () => {
-    const backend = readFileSync("convex/domains/redesign/chatRuns.ts", "utf8");
-    const receipt = readFileSync("src/features/redesign/pages/ReproducibleChatPage.tsx", "utf8");
+    const backend = readFileSync("backend/convex/domains/redesign/chatRuns.ts", "utf8");
+    const receipt = readFileSync("apps/web/src/features/redesign/pages/ReproducibleChatPage.tsx", "utf8");
     expect(backend).toContain("conversationContext: _conversationContext");
     expect(backend).toContain("parentRunHash: _parentRunHash");
     expect(receipt).toContain("data-testid=\"continue-reproducible-chat\"");

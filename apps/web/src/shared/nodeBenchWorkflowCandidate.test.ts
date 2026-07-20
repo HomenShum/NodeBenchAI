@@ -70,7 +70,7 @@ function frozenStudyCandidate(): NodeBenchWorkflowCandidate {
     readFileSync(
       resolve(
         process.cwd(),
-        "src/shared/fixtures/rocketride-nodebenchai-frozen-sources.json",
+        "apps/web/src/shared/fixtures/rocketride-nodebenchai-frozen-sources.json",
       ),
       "utf8",
     ),

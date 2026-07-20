@@ -18,7 +18,7 @@
  *
  * Usage:
  *   BASE_URL=http://127.0.0.1:4173 npm run live-smoke:demo   # or:
- *   BASE_URL=http://127.0.0.1:4173 npx playwright test tests/e2e/demo-walkthrough.spec.ts --project=chromium
+ *   BASE_URL=http://127.0.0.1:4173 npx playwright test evals/e2e/demo-walkthrough.spec.ts --project=chromium
  *
  * Outputs:
  *   screenshots → .tmp/demo-walkthrough/{tf}/*.png

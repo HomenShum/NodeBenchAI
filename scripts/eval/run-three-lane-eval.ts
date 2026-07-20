@@ -66,7 +66,7 @@ async function runLaneA(): Promise<LaneAReport> {
     [
       "playwright",
       "test",
-      "tests/e2e/demo-walkthrough.spec.ts",
+      "evals/e2e/demo-walkthrough.spec.ts",
       "--project=chromium",
       "--reporter=list",
     ],

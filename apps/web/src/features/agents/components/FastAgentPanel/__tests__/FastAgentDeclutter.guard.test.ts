@@ -9,8 +9,8 @@ function source(file: string) {
 
 describe("FastAgent declutter guards", () => {
   it("keeps the unreachable nested command palette and its dead controls removed", () => {
-    const panel = source("src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx");
-    const overlays = source("src/features/agents/components/FastAgentPanel/FastAgentPanel.PanelOverlays.tsx");
+    const panel = source("apps/web/src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx");
+    const overlays = source("apps/web/src/features/agents/components/FastAgentPanel/FastAgentPanel.PanelOverlays.tsx");
 
     for (const deadState of [
       "showCommandPalette",
@@ -39,7 +39,7 @@ describe("FastAgent declutter guards", () => {
   });
 
   it("keeps missing selection capabilities absent instead of exposing no-op controls", () => {
-    const context = source("src/features/agents/components/FastAgentPanel/MessageHandlersContext.tsx");
+    const context = source("apps/web/src/features/agents/components/FastAgentPanel/MessageHandlersContext.tsx");
 
     expect(context).toContain("const defaultHandlers: MessageHandlers = {};");
     expect(context).not.toMatch(/onCompanySelect:\s*\(\)\s*=>\s*\{\}/);
@@ -49,9 +49,9 @@ describe("FastAgent declutter guards", () => {
   });
 
   it("keeps removed telemetry navigation and private guest task history unreachable", () => {
-    const panel = source("src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx");
-    const context = source("src/features/agents/context/FastAgentContext.tsx");
-    const hub = source("src/features/agents/views/AgentsHub.tsx");
+    const panel = source("apps/web/src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx");
+    const context = source("apps/web/src/features/agents/context/FastAgentContext.tsx");
+    const hub = source("apps/web/src/features/agents/views/AgentsHub.tsx");
 
     expect(panel).not.toContain('["chat", "sources", "telemetry", "trace"]');
     expect(context).not.toContain('"sources" | "telemetry" | "trace"');
@@ -59,7 +59,7 @@ describe("FastAgent declutter guards", () => {
   });
 
   it("does not invent default object-first chat actions", () => {
-    const chatLane = source("src/features/chat/components/ChatLane.tsx");
+    const chatLane = source("apps/web/src/features/chat/components/ChatLane.tsx");
 
     expect(chatLane).not.toContain("DEFAULT_SUGGESTIONS");
     expect(chatLane).not.toContain("onClick: () => {}");
@@ -68,7 +68,7 @@ describe("FastAgent declutter guards", () => {
   });
 
   it("does not read rendered messages before their memo is initialized", () => {
-    const panel = source("src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx");
+    const panel = source("apps/web/src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx");
 
     expect(panel).toContain("const renderedMessagesRef = useRef<any[]>([]);");
     expect(panel).toContain("renderedMessagesRef.current = messagesToRender;");
@@ -76,7 +76,7 @@ describe("FastAgent declutter guards", () => {
   });
 
   it("follows the reachable rendered stream without overriding a reader who scrolled away", () => {
-    const panel = source("src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx");
+    const panel = source("apps/web/src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx");
 
     expect(panel).toContain("autoScrollEnabledRef.current = distanceFromBottom < 30;");
     expect(panel).toMatch(/if \(autoScrollEnabledRef\.current\) \{[\s\S]*?messagesEndRef\.current\?\.scrollIntoView/);
@@ -87,7 +87,7 @@ describe("FastAgent declutter guards", () => {
   });
 
   it("keeps every composer-focus path and the skip link correct in both panel modes", () => {
-    const panel = source("src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx");
+    const panel = source("apps/web/src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx");
 
     expect(panel).toMatch(/function focusFastAgentComposer\(\)[\s\S]*?'\.fast-agent-panel #product-intake-query, \.fast-agent-panel #fa-chat-input'/);
     expect(panel.match(/focusFastAgentComposer\(\);/g)).toHaveLength(4);
@@ -96,7 +96,7 @@ describe("FastAgent declutter guards", () => {
   });
 
   it("processes contextual opens once on every viewport and waits for a runtime owner", () => {
-    const panel = source("src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx");
+    const panel = source("apps/web/src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx");
     const contextualOpen = panel.slice(
       panel.indexOf("// Apply openOptions once per requestId"),
       panel.indexOf("// Persist dossier context"),
@@ -140,15 +140,15 @@ describe("FastAgent declutter guards", () => {
   });
 
   it("migrates removed legacy chat mode instead of restoring dead actions", () => {
-    const panel = source("src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx");
+    const panel = source("apps/web/src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx");
 
     expect(panel).toContain("useState<'agent' | 'agent-streaming'>('agent-streaming')");
     expect(panel).not.toContain("localStorage.getItem('fastAgentPanel.chatMode')");
   });
 
   it("requires runtime backing before citations or entities become controls", () => {
-    const bubble = source("src/features/agents/components/FastAgentPanel/FastAgentPanel.UIMessageBubble.tsx");
-    const spans = source("src/features/research/components/InteractiveSpanParser.tsx");
+    const bubble = source("apps/web/src/features/agents/components/FastAgentPanel/FastAgentPanel.UIMessageBubble.tsx");
+    const spans = source("apps/web/src/features/research/components/InteractiveSpanParser.tsx");
 
     expect(bubble).not.toContain("parseCitationUrlsFromText");
     expect(bubble).toContain("if (!base) continue;");
@@ -160,9 +160,9 @@ describe("FastAgent declutter guards", () => {
   });
 
   it("keeps executable and document controls behind successful runtime output", () => {
-    const bubble = source("src/features/agents/components/FastAgentPanel/FastAgentPanel.UIMessageBubble.tsx");
-    const documents = source("src/features/agents/components/FastAgentPanel/DocumentActionCard.tsx");
-    const provenance = source("src/features/agents/components/FastAgentPanel/FastAgentPanel.provenance.ts");
+    const bubble = source("apps/web/src/features/agents/components/FastAgentPanel/FastAgentPanel.UIMessageBubble.tsx");
+    const documents = source("apps/web/src/features/agents/components/FastAgentPanel/DocumentActionCard.tsx");
+    const provenance = source("apps/web/src/features/agents/components/FastAgentPanel/FastAgentPanel.provenance.ts");
 
     expect(bubble).not.toContain("new Function");
     expect(bubble).not.toContain("RunCodeButton");
@@ -181,9 +181,9 @@ describe("FastAgent declutter guards", () => {
   });
 
   it("keeps global navigation controls wired to real destinations", () => {
-    const palette = source("src/layouts/chrome/CommandPalette.tsx");
-    const cockpit = source("src/layouts/CockpitLayout.tsx");
-    const rail = source("src/layouts/WorkspaceRail.tsx");
+    const palette = source("apps/web/src/layouts/chrome/CommandPalette.tsx");
+    const cockpit = source("apps/web/src/layouts/CockpitLayout.tsx");
+    const rail = source("apps/web/src/layouts/WorkspaceRail.tsx");
 
     expect(palette).not.toContain("Create New Document");
     expect(palette).not.toContain("Create New Task");
@@ -197,8 +197,8 @@ describe("FastAgent declutter guards", () => {
   });
 
   it("lets unsupported create phrases fall through to the real agent", () => {
-    const cockpit = source("src/layouts/CockpitLayout.tsx");
-    const voiceRouter = source("src/hooks/useVoiceIntentRouter.ts");
+    const cockpit = source("apps/web/src/layouts/CockpitLayout.tsx");
+    const voiceRouter = source("apps/web/src/hooks/useVoiceIntentRouter.ts");
 
     for (const deadEmitter of ["document:create", "voice:create-task", "voice:create-event"]) {
       expect(cockpit).not.toContain(deadEmitter);
@@ -210,9 +210,9 @@ describe("FastAgent declutter guards", () => {
   });
 
   it("keeps advertised focus and connection labels truthful", () => {
-    const panel = source("src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx");
-    const inputBar = source("src/features/agents/components/FastAgentPanel/FastAgentPanel.InputBar.tsx");
-    const status = source("src/layouts/StatusStrip.tsx");
+    const panel = source("apps/web/src/features/agents/components/FastAgentPanel/FastAgentPanel.tsx");
+    const inputBar = source("apps/web/src/features/agents/components/FastAgentPanel/FastAgentPanel.InputBar.tsx");
+    const status = source("apps/web/src/layouts/StatusStrip.tsx");
 
     expect(panel).not.toContain('[placeholder="Message..."]');
     expect(inputBar).toContain('data-testid="fast-agent-prompt-input"');
@@ -230,7 +230,7 @@ describe("FastAgent declutter guards", () => {
   });
 
   it("does not mutate the runtime thread array and exposes rows to keyboards", () => {
-    const threads = source("src/features/agents/components/FastAgentPanel/FastAgentPanel.ThreadList.tsx");
+    const threads = source("apps/web/src/features/agents/components/FastAgentPanel/FastAgentPanel.ThreadList.tsx");
 
     expect(threads.match(/let filtered = \[\.\.\.threads\];/g)).toHaveLength(2);
     expect(threads).toContain('role="button"');

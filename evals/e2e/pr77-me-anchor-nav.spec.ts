@@ -3,7 +3,7 @@
  *
  * Defaults to production www.nodebenchai.com.  Override with BASE_URL env to
  * point at a preview deployment or localhost dev server.  Mirrors the
- * BASE_URL convention from tests/e2e/live-smoke.spec.ts so this spec can be
+ * BASE_URL convention from evals/e2e/live-smoke.spec.ts so this spec can be
  * folded into the live-smoke run when desired.
  *
  * What this guards against:

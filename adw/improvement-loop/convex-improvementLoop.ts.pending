@@ -2,7 +2,7 @@
 // Live-backend ledger for the continuous Self-Improvement Loop.
 //
 // Pattern: append-only telemetry. The deterministic substrate
-// (scripts/improvement-loop/run-cycle.mjs) writes one row per cycle; the
+// (adw/improvement-loop/run-cycle.mjs) writes one row per cycle; the
 // product can read recent cycles for in-app observability.
 //
 // Reliability (.claude/rules/agentic_reliability.md):

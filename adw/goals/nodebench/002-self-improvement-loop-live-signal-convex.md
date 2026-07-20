@@ -10,7 +10,7 @@ in `convex-improvementLoop.ts.pending` (never deployed) → `--push-convex` degr
 - **severity:** P1 (HONEST_STATUS / live_dom_verification — the ledger must not claim "shipped" without proof)
 
 ## Scope
-- **Allowed:** `scripts/improvement-loop/run-cycle.mjs` (capture `liveSignal`; require it before `outcome:'shipped'`; make `pushConvex` honest when the endpoint is absent); `scripts/improvement-loop/ledger.json` (add `liveSignal` field; backfill C001-C004 honestly — `null` where not actually verified, never fabricated); `convex/improvementLoop.ts` + `convex/schema.ts` **only if** graduating the `.pending` Convex table; `convex-improvementLoop.ts.pending`
+- **Allowed:** `adw/improvement-loop/run-cycle.mjs` (capture `liveSignal`; require it before `outcome:'shipped'`; make `pushConvex` honest when the endpoint is absent); `adw/improvement-loop/ledger.json` (add `liveSignal` field; backfill C001-C004 honestly — `null` where not actually verified, never fabricated); `convex/improvementLoop.ts` + `convex/schema.ts` **only if** graduating the `.pending` Convex table; `convex-improvementLoop.ts.pending`
 - **Forbidden:** `public/proto/home-v5.html`; any ScratchNode honesty-contract test or live send/render path; any new surface
 - **Core-loop flow:** the meta-loop that ships fixes TO the core loop — honest ledger + working observability keep it trustworthy
 - **Invariant that must NOT break:** never claim `shipped` without a recorded `liveSignal` (or explicit honest `liveVerified:false` + reason); `pushConvex` must never fake success — if Convex absent, record `{ok:false, reason:'endpoint-not-deployed'}`; run-cycle.mjs stays observe/score/record only (never edits product code)

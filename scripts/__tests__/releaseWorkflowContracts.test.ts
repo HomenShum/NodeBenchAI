@@ -72,7 +72,7 @@ describe("release workflow contracts", () => {
   it("authenticates every preview verifier without a cookie redirect loop", () => {
     const postDeploy = readRepoFile("scripts/post-deploy-verify.mjs");
     const rawVerifier = readRepoFile("scripts/verify-live.ts");
-    const liveSmoke = readRepoFile("tests/e2e/live-smoke.spec.ts");
+    const liveSmoke = readRepoFile("evals/e2e/live-smoke.spec.ts");
 
     expect(postDeploy).toContain("buildVercelBypassHeaders");
     expect(postDeploy).not.toContain("x-vercel-set-bypass-cookie");
@@ -101,9 +101,9 @@ describe("release workflow contracts", () => {
     const workflow = readRepoFile(".github/workflows/tier-b-preview.yml");
     const ci = readRepoFile(".github/workflows/ci.yml");
     const playwright = readRepoFile("playwright.config.ts");
-    const previewHelper = readRepoFile("tests/e2e/helpers/vercelPreview.ts");
+    const previewHelper = readRepoFile("evals/e2e/helpers/vercelPreview.ts");
     const securitySpec = readRepoFile(
-      "tests/e2e/vercel-preview-security.spec.ts",
+      "evals/e2e/vercel-preview-security.spec.ts",
     );
 
     expect(workflow).toContain(
@@ -112,9 +112,9 @@ describe("release workflow contracts", () => {
     expect(workflow).toContain(
       "VERCEL_AUTOMATION_BYPASS_SECRET is required to test the protected READY preview",
     );
-    expect(workflow).toContain("tests/e2e/vercel-preview-security.spec.ts");
+    expect(workflow).toContain("evals/e2e/vercel-preview-security.spec.ts");
     expect(ci).toContain("scripts/__tests__/releaseWorkflowContracts.test.ts");
-    expect(ci).toContain("tests/e2e/vercel-preview-security.spec.ts");
+    expect(ci).toContain("evals/e2e/vercel-preview-security.spec.ts");
     expect(playwright).not.toContain("extraHTTPHeaders");
     expect(playwright).not.toContain('baseURL.endsWith(".vercel.app")');
     expect(playwright).toContain(

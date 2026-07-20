@@ -531,7 +531,7 @@ async function main() {
       // eslint-disable-next-line no-console
       console.log(`Running dogfood e2e screenshots (BASE_URL=${baseURL}, routeShards=${routeShards})...`);
       await removePathRobustly(screenshotDir);
-      const playwrightCommand = `${npxCmd} playwright test tests/e2e/full-ui-dogfood.spec.ts --project=chromium --workers=1`;
+      const playwrightCommand = `${npxCmd} playwright test evals/e2e/full-ui-dogfood.spec.ts --project=chromium --workers=1`;
       const routeLaneRuns = [];
       for (let shardIndex = 1; shardIndex <= routeShards; shardIndex += 1) {
         routeLaneRuns.push(async () => {
@@ -650,7 +650,7 @@ async function main() {
       // eslint-disable-next-line no-console
       console.log(`Running scenario regression suite (BASE_URL=${baseURL})...`);
       const scen = spawn(
-        `${npxCmd} playwright test tests/e2e/scenario-regression.spec.ts --project=chromium --workers=1`,
+        `${npxCmd} playwright test evals/e2e/scenario-regression.spec.ts --project=chromium --workers=1`,
         {
           cwd: repoRoot,
           stdio: "inherit",

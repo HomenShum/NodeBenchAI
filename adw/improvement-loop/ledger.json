@@ -46,7 +46,7 @@
       "shipped": {
         "files": [
           "public/proto/home-v5.html",
-          "scripts/improvement-loop/scan.mjs"
+          "adw/improvement-loop/scan.mjs"
         ]
       },
       "liveSignal": null,
