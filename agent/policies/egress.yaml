@@ -1,0 +1,21 @@
+# Network egress policy. Source: SSRF guards per .claude/rules/agentic_reliability.md
+# (checklist item 5), enforced in server fetch paths (URL validation before fetch)
+# and bounded reads (item 6).
+apiVersion: nodeagent.dev/v1
+kind: Policy
+metadata: { name: egress }
+spec:
+  protocols: [https, http]
+  deny_hosts: # RFC1918 + link-local + metadata — hard blocklist
+    - localhost
+    - "127.0.0.0/8"
+    - "10.0.0.0/8"
+    - "172.16.0.0/12"
+    - "192.168.0.0/16"
+    - "169.254.0.0/16"
+    - "0.0.0.0"
+    - "[::1]"
+    - metadata.google.internal
+  response_limits:
+    max_bytes_external_body: 5242880 # BOUND_READ — cancel stream on overflow
+  credentials_in_url: forbidden

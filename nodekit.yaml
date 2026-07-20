@@ -1,0 +1,47 @@
+# NodeKit repository contract — phase 0 (declarative adoption, no file moves).
+# Standard: NodeKit Agent Application Standard (node-platform).
+# Honest posture: this repo predates the standard; several concerns live at
+# legacy paths. Each is declared where it IS, not where the standard wants it.
+apiVersion: nodekit.dev/v1
+kind: Repository
+
+metadata:
+  name: nodebench-ai
+  github: HomenShum/NodeBenchAI
+  role: domain-application # registry currently says legacy-product; this manifest is the correction proposal
+  status: production # live at https://www.nodebenchai.com, actively shipped
+
+spec:
+  ownership:
+    runtime: NodeAgent # target owner; today the harness is repo-local (see conformance notes)
+    trace: NodeTrace
+    memory: NodeMem
+    proof: NodeProof
+
+  lifecycle:
+    bootstrap: npm install
+    demo: npm run dev
+    check: npm run test:run
+    proof: npm run verify-live
+
+  # Where standard-tree concerns actually live today (migration map).
+  layout:
+    agentAuthoring: ./agent # phase-0 authored surface; compiled truth remains in code
+    packs:
+      - ./packs/entity-intelligence/pack.yaml
+    backend: ./convex # Convex CLI expects repo-root convex/; move deferred (phase 2)
+    web: ./src # Vite root; apps/web split deferred (phase 2)
+    evals:
+      benchmark: packages/mcp-local/src/benchmarks
+      conformance: tests/e2e # ui-contract-runner + surface contracts
+      production: scripts/verify-live.ts
+    proof: docs/design/ui-contract # evidence folders + manifest.schema.json
+    adw: scripts/improvement-loop # + goals/ (goal cards, HARD_GATES.md)
+    mcpDistribution: packages/mcp-local # 304-tool MCP server (npx nodebench-mcp)
+
+  conformance:
+    forbidVendoredRuntime: false # repo-local harness is the MIGRATION SOURCE, not a vendored copy;
+    # flips to true after @nodeagent/runtime extraction (phase 2 of
+    # the ecosystem migration) and this repo consumes the package.
+    requireCompiledManifest: false # no .nodeagent/ compiler exists yet; do not fake generated output
+    requireProductionProof: true # scripts/verify-live.ts (Tier A) + npm run live-smoke (Tier B)

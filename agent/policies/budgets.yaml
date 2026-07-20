@@ -1,0 +1,20 @@
+# Budget envelopes. Source: server/mcpAuth.ts (gateway limits), server/pipeline
+# (judge latency budget), .claude/rules/orchestrator_workers.md (per-subagent caps).
+apiVersion: nodeagent.dev/v1
+kind: Policy
+metadata: { name: budgets }
+spec:
+  gateway:
+    rate_limit_per_minute: 100
+    idle_timeout_minutes: 30
+    close_codes: { auth: 4001, rate_limit: 4002, timeout: 4003 }
+  run:
+    judge_latency_budget_ms: 30000 # latencyWithinBudget gate default
+    timeout_pattern: AbortController + checkpoint gates between async stages
+  subagent: # every spawn caps all three (orchestrator_workers rule)
+    wall_clock: bounded
+    output_tokens: bounded
+    tool_calls: bounded
+  retries:
+    max_per_subagent: 3
+    backoff: exponential_with_jitter # 2s / 6s / 18s (+jitter), async_reliability rule

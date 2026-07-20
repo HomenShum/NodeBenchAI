@@ -1,0 +1,47 @@
+# NodeAgent application composition — phase 0 (declares the LIVE system).
+# The runtime engine is repo-local today; "engine: nodeagent-native" becomes
+# accurate only after the NodeRoom->NodeAgent runtime extraction lands and this
+# repo consumes @nodeagent/runtime. Until then this manifest documents reality.
+apiVersion: nodeagent.dev/v1
+kind: AgentApplication
+
+metadata:
+  name: nodebench-entity-intelligence
+  version: 1.0.0
+
+spec:
+  authoring:
+    directory: ./agent
+    # Source of truth remains code until a manifest compiler exists:
+    #   convex/domains/redesign/chatRuns.ts  (orchestrator prompts + response shapes)
+    #   convex/domains/agents/**             (orchestrator-workers, trace types)
+    #   server/pipeline/**                   (judge gates, projection writer)
+
+  runtime:
+    engine: repo-local # target: nodeagent-native
+    profile: production
+
+  backend:
+    adapter: convex
+    path: ./convex
+
+  packs:
+    - ./packs/entity-intelligence/pack.yaml
+
+  orchestration:
+    planner: orchestrator-workers # .claude/rules/orchestrator_workers.md
+    maxConcurrentSubagents: 10 # harness lane cap
+
+  policies:
+    ref: ./agent/policies
+
+  evaluations:
+    required:
+      - id: conformance
+        command: npm run test:e2e:check # ui-contract runner (Tier B per PR)
+      - id: smoke
+        command: npm run dogfood:verify:smoke
+      - id: benchmark
+        command: npx tsx packages/mcp-local/src/benchmarks/searchQualityEval.ts
+      - id: production
+        command: npm run verify-live

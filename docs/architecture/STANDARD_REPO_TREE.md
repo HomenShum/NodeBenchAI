@@ -1,0 +1,75 @@
+# NodeBench × NodeKit Standard Repo Tree
+
+Status: **Phase 0 adopted** (declarative — manifests + authored surface, zero
+file moves). This doc is the mapping between the NodeKit Agent Application
+Standard tree and where each concern lives in this repo, plus the staged plan
+for physical conformance.
+
+Prior art: NodeKit Agent Application Standard (node-platform); Eve
+filesystem-first authoring (`apps/eve-agent/agent/`); 2026-07-19 harness audit
+of eve / NodeAgent / NodeRoom.
+
+## Phase 0 (this PR) — declarative adoption
+
+Added, all additive and runtime-inert:
+
+```
+nodekit.yaml                      repo identity, ownership, lifecycle, layout map, honest conformance flags
+nodeagent.yaml                    app composition: authoring dir, runtime, backend, pack, required evals
+agent/                            authored surface (md/yaml only; code stays source of truth)
+├── README.md                     phase-0 rules — no fake compiled output, Source: pointers mandatory
+├── instructions.md               orchestrator instructions (mirrors chatRuns.ts)
+├── policies/{approvals,egress,budgets}.yaml
+├── subagents/README.md           index → convex/domains/agents orchestrator-workers
+└── tools/README.md               index → packages/mcp-local (304 tools) + verb-taxonomy map
+packs/entity-intelligence/pack.yaml   capability declared at current locations
+```
+
+Explicit non-goals of phase 0: no `.nodeagent/` (no compiler exists — we do not
+fake generated output), no `.ts` under `agent/` (tsconfig excludes it; nothing
+may import it), no file moves.
+
+## Full mapping (standard slot → today)
+
+Legend: `✓` conformant · `◐` exists at non-standard location · `✗` missing
+
+| Standard | State | Today |
+|---|---|---|
+| `nodekit.yaml` / `nodeagent.yaml` | ✓ (phase 0) | repo root |
+| `AGENTS.md`, `README.md`, `components.json` | ✓ | repo root |
+| `.claude/` agents·skills·rules | ✓ | richest in the family |
+| `agent/` authored surface | ◐ | phase-0 mirror; truth in `convex/domains/redesign/chatRuns.ts`, `convex/domains/agents/**`, `server/pipeline/**` |
+| `packs/` | ◐ | `packs/entity-intelligence/pack.yaml` declares content spread across convex/, packages/, server/ |
+| `integrations/pi-ai` | ✗ | provider seam = `shared/llm/modelCatalog.ts` direct |
+| `apps/web/src` | ◐ | `src/` at root (Vite root) |
+| `backend/convex` | ◐ | `convex/` at root (Convex CLI default) |
+| `evals/{benchmark,conformance,production,smoke}` | ◐ | `packages/mcp-local/src/benchmarks`, `tests/e2e`, `scripts/verify-live.ts`, dogfood scripts |
+| `proof/` | ◐ | `docs/design/ui-contract/` (evidence folders + `manifest.schema.json`) |
+| `adw/` | ◐ | `scripts/improvement-loop/` + `goals/` (+ `HARD_GATES.md`) |
+| `fixtures/` | ◐ | spread through test dirs; deterministic fixtures exist |
+| `workers/` | ◐ | `server/` (voice, gateway) |
+| `.nodeagent/` generated | ✗ | blocked on the manifest compiler (deliberate) |
+| `packages/mcp-local` etc. | ★ keep | NodeBench-specific distribution artifact; standard-compatible |
+
+## Known conformance violations (declared, not hidden)
+
+1. **Repo-local runtime** — this repo's harness predates NodeAgent and is a
+   *migration source*, not a vendored copy (`forbidVendoredRuntime: false`).
+   Flips after the ecosystem phase-2 extraction (NodeRoom runtime → NodeAgent)
+   and this repo consumes `@nodeagent/runtime`.
+2. **Hand-maintained global tool registry** (`toolRegistry.ts`) — standard
+   rule 4; resolved by the generated-registry compiler, not by hand.
+3. **modelCatalog duplication** — copies exist in NodeRoom and NodeAgent;
+   resolved by `@nodeagent/providers` extraction.
+
+## Physical phases (each gated, none started)
+
+| Phase | Move | Constraint to respect |
+|---|---|---|
+| 1 | `evals/`, `proof/`, `fixtures/`, `adw/` consolidation | script/CI path updates only — low risk, do first |
+| 2 | `src/` → `apps/web/src`; `convex/` → `backend/convex` | Vite root + Vercel config + tsconfig paths + `convex.json` functions path; import churn across hundreds of files; MUST follow expand-contract discipline and land between deploys |
+| 3 | `agent/` becomes compiled truth; `.nodeagent/` generated | blocked on `@nodeagent` manifest compiler |
+| 4 | pack extraction (`packs/entity-intelligence` gains real content) | mirrors NodeSlide layering: core/pack/adapter/react split |
+
+Rule for all phases: **build every new capability against the standard
+locations from now on**; never move files and change behavior in the same PR.
