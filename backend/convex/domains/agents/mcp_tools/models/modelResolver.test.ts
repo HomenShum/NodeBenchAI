@@ -14,7 +14,7 @@ describe("pipeline model route resolution", () => {
       isFreeRoute: false,
     });
     expect(resolvePipelineModelSelection("nodebench:auto-free")).toMatchObject({
-      resolvedModelId: "qwen3-coder-free",
+      resolvedModelId: "laguna-s-2.1-free",
       routeTier: "free",
       isFreeRoute: true,
     });
@@ -22,7 +22,7 @@ describe("pipeline model route resolution", () => {
 
   it("accepts Kilo-style route aliases and old provider-prefixed values", () => {
     expect(resolvePipelineModelSelection("kilo-auto/free").resolvedModelId).toBe(
-      "qwen3-coder-free",
+      "laguna-s-2.1-free",
     );
     expect(resolvePipelineModelSelection("kilo-auto/public-research")).toMatchObject({
       resolvedModelId: "glm-4.7-flash",
@@ -39,5 +39,6 @@ describe("pipeline model route resolution", () => {
 
   it("keeps the base approved model alias resolver intact", () => {
     expect(resolveModelAlias("gpt-4o-mini")).toBe("gpt-5.4-mini");
+    expect(resolveModelAlias("poolside/laguna-s-2.1:free")).toBe("laguna-s-2.1-free");
   });
 });

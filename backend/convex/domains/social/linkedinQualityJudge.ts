@@ -7,17 +7,25 @@
  * 1. Engagement gate (existing boolean checks from linkedinPosting.ts)
  * 2. LLM judge (3 boolean criteria: hookQuality, opinionDepth, questionAuthenticity)
  *
- * Model strategy: FREE-FIRST via existing model resolver
- * - qwen3-coder-free ($0.00/M via OpenRouter)
- * - Fallback chain handled by getLanguageModelSafe()
+ * Model strategy: reviewed FREE-FIRST route via the existing model resolver
+ * - poolside/laguna-s-2.1:free
+ * - poolside/laguna-xs-2.1:free as an explicit fallback
  */
 
 import { v } from "convex/values";
 import { internalAction } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { generateText } from "ai";
-import { getLanguageModelSafe } from "../agents/mcp_tools/models/modelResolver";
+import {
+  getLanguageModelSafe,
+  getModelSpec,
+} from "../agents/mcp_tools/models/modelResolver";
 import { validatePostEngagement } from "./linkedinPosting";
+import {
+  parseLinkedInQualityJudgeResponse,
+  runLinkedInQualityJudgeWithFallback,
+  shouldContinueLinkedInJudgeBatch,
+} from "./linkedinQualityJudgePolicy";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // LLM JUDGE
@@ -93,56 +101,43 @@ export const judgePostQuality = internalAction({
     }
 
     // Step 2: LLM judge (3 boolean criteria)
-    const modelId = "qwen3-coder-free";
-
     try {
-      const model = getLanguageModelSafe(modelId);
-
       const prompt = JUDGE_PROMPT_TEMPLATE
         .replace("{postType}", args.postType)
         .replace("{persona}", args.persona)
         .replace("{content}", args.content);
 
-      const result = await generateText({
-        model,
-        prompt,
-        temperature: 0.1,
+      const judged = await runLinkedInQualityJudgeWithFallback(async (modelAlias) => {
+        const model = getLanguageModelSafe(modelAlias);
+        const result = await generateText({
+          model,
+          prompt,
+          temperature: 0.1,
+        });
+        return parseLinkedInQualityJudgeResponse(result.text);
       });
 
-      const responseText = result.text.trim();
-
-      // Extract JSON from response
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        console.error(`[judge] Failed to parse JSON from LLM response: ${responseText.substring(0, 200)}`);
-        // Revert to pending on parse failure
-        await ctx.runMutation(internal.domains.social.linkedinContentQueue.updateQueueStatus, {
-          queueId: args.queueId,
-          status: "pending",
-        });
-        return { success: false, error: "Invalid judge response format" };
-      }
-
-      const judgeResult = JSON.parse(jsonMatch[0]);
-
-      // Validate required fields
-      const verdict = judgeResult.verdict === "approve" ? "approve" as const :
-                      judgeResult.verdict === "reject" ? "reject" as const :
-                      "needs_rewrite" as const;
+      const judgeResult = judged.value;
+      const resolvedModelId = getModelSpec(judged.modelAlias).sdkId;
 
       await ctx.runMutation(internal.domains.social.linkedinContentQueue.storeLLMJudgeResult, {
         queueId: args.queueId,
-        model: modelId,
-        verdict,
-        hookQuality: !!judgeResult.hookQuality,
-        opinionDepth: !!judgeResult.opinionDepth,
-        questionAuthenticity: !!judgeResult.questionAuthenticity,
-        reasoning: String(judgeResult.reasoning || "No reasoning provided"),
+        model: resolvedModelId,
+        verdict: judgeResult.verdict,
+        hookQuality: judgeResult.hookQuality,
+        opinionDepth: judgeResult.opinionDepth,
+        questionAuthenticity: judgeResult.questionAuthenticity,
+        reasoning: judgeResult.reasoning,
       });
 
-      console.log(`[judge] ${args.queueId}: ${verdict} (hook=${!!judgeResult.hookQuality}, opinion=${!!judgeResult.opinionDepth}, question=${!!judgeResult.questionAuthenticity}) [${modelId}]`);
+      if (judged.failures.length > 0) {
+        console.warn(
+          `[judge] ${args.queueId}: used ${resolvedModelId} after ${judged.failures.length} failed free-model attempt(s)`,
+        );
+      }
+      console.log(`[judge] ${args.queueId}: ${judgeResult.verdict} (hook=${judgeResult.hookQuality}, opinion=${judgeResult.opinionDepth}, question=${judgeResult.questionAuthenticity}) [${resolvedModelId}]`);
 
-      return { success: true, verdict };
+      return { success: true, verdict: judgeResult.verdict, model: resolvedModelId };
     } catch (error) {
       console.error(`[judge] Error judging ${args.queueId}:`, error);
 
@@ -197,6 +192,14 @@ export const batchJudgePending = internalAction({
         verdict: result.verdict ?? "error",
         success: result.success,
       });
+
+      // The query is oldest-first and a failed item is reverted to pending. Stop
+      // here so a transient provider outage cannot judge the same draft `limit`
+      // times in one batch.
+      if (!shouldContinueLinkedInJudgeBatch(result)) {
+        console.warn(`[batchJudge] Stopping after failed item ${item._id}`);
+        break;
+      }
 
       // Rate limit: 2-second delay between judge calls
       if (i < limit - 1) {
