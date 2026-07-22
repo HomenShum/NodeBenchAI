@@ -526,7 +526,7 @@ crons.weekly(
 // LINKEDIN CONTENT QUEUE - Judge, schedule, and post from backlog
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Judge pending queue items every 30 minutes (uses FREE models: qwen3-coder-free)
+// Judge pending queue items every 30 minutes (reviewed free Laguna S/XS 2.1 route)
 crons.interval(
   "judge pending LinkedIn queue",
   { minutes: 30 },

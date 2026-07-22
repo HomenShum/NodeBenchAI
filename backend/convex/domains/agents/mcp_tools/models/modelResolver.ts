@@ -108,7 +108,9 @@ export const APPROVED_MODELS = [
   "qwen3-235b",        // Qwen3 235B - latest Qwen $0.18/M
   "minimax-m2.7",      // MiniMax M2.7 - agentic executor lane $0.30/$1.20
   "mistral-large",     // Mistral Large 2411 - function calling $2/M
-  // OpenRouter free-tier models (verified Feb 5, 2026 via API)
+  // OpenRouter free-tier models (availability is re-verified before routing changes)
+  "laguna-s-2.1-free", // Poolside Laguna S 2.1 - 262K, current free judge lane
+  "laguna-xs-2.1-free", // Poolside Laguna XS 2.1 - 262K, free fallback judge lane
   "qwen3-coder-free",  // Qwen3 Coder 480B MoE (A3.5B) - 262K, agentic coding
   "step-3.5-flash-free", // StepFun Step 3.5 Flash 196B MoE (11B) - 256K, reasoning
   "gpt-oss-120b-free", // OpenAI open-source 120B - 131K, tools
@@ -152,7 +154,9 @@ export const MODEL_PRIORITY_ORDER: ApprovedModel[] = [
   "claude-haiku-4.5",
   "gpt-5.4-nano",
   // EXPERIMENTAL / FREE LANES
-  "qwen3-coder-free",       // 480B MoE, agentic coding
+  "laguna-s-2.1-free",      // Current primary free route
+  "laguna-xs-2.1-free",     // Current explicit free fallback
+  "qwen3-coder-free",       // Legacy free alias retained for compatibility
   "step-3.5-flash-free",    // 196B MoE, reasoning + tools
   "gpt-oss-120b-free",      // OpenAI open-source 120B
   "trinity-large-free",     // Arcee 400B MoE, agentic
@@ -552,9 +556,25 @@ export const MODEL_SPECS: Record<ApprovedModel, ModelSpec> = {
     pricing: { inputPerMillion: 0.75, outputPerMillion: 3.50 },
   },
   // ═══════════════════════════════════════════════════════════════════════════
-  // OPENROUTER FREE-TIER MODELS - Verified Feb 5, 2026 via API
-  // All models below confirmed available with pricing prompt=0, completion=0
+  // OPENROUTER FREE-TIER MODELS
+  // Laguna S/XS 2.1 verified July 22, 2026 via OpenRouter's models API.
+  // Free availability is temporal; callers that require continuity must use an
+  // explicit, provenance-preserving fallback rather than assuming this list is live.
   // ═══════════════════════════════════════════════════════════════════════════
+  "laguna-s-2.1-free": {
+    alias: "laguna-s-2.1-free",
+    provider: "openrouter",
+    sdkId: "poolside/laguna-s-2.1:free",
+    capabilities: { vision: false, toolUse: true, streaming: true, structuredOutputs: false, maxContext: 262_144 },
+    pricing: { inputPerMillion: 0.00, outputPerMillion: 0.00 },
+  },
+  "laguna-xs-2.1-free": {
+    alias: "laguna-xs-2.1-free",
+    provider: "openrouter",
+    sdkId: "poolside/laguna-xs-2.1:free",
+    capabilities: { vision: false, toolUse: true, streaming: true, structuredOutputs: false, maxContext: 262_144 },
+    pricing: { inputPerMillion: 0.00, outputPerMillion: 0.00 },
+  },
   "qwen3-coder-free": {
     alias: "qwen3-coder-free",
     provider: "openrouter",
@@ -742,7 +762,14 @@ export const LEGACY_ALIASES: Record<string, ApprovedModel> = {
   "nvidia/llama-3.1-nemotron-70b-instruct:free": "nemotron-3-nano-free",
   "nemotron": "nemotron-3-nano-free",
   "nemotron-70b": "nemotron-3-nano-free",
-  // New free model aliases (Feb 2026)
+  // Current free model aliases (verified July 22, 2026)
+  "poolside/laguna-s-2.1:free": "laguna-s-2.1-free",
+  "poolside/laguna-s-2.1": "laguna-s-2.1-free",
+  "laguna-s-2.1": "laguna-s-2.1-free",
+  "poolside/laguna-xs-2.1:free": "laguna-xs-2.1-free",
+  "poolside/laguna-xs-2.1": "laguna-xs-2.1-free",
+  "laguna-xs-2.1": "laguna-xs-2.1-free",
+  // Older free model aliases
   "qwen/qwen3-coder:free": "qwen3-coder-free",
   "qwen3-coder": "qwen3-coder-free",
   "stepfun/step-3.5-flash:free": "step-3.5-flash-free",
@@ -1200,11 +1227,11 @@ export async function executeWithModelFallback<T>(
 }
 
 /**
- * Get the best available free model based on verified availability (Feb 2026)
- * Returns qwen3-coder-free as primary (480B MoE, agentic coding)
+ * Get the best available free model based on the last reviewed availability check.
+ * Free availability is temporal; production callers should retain an explicit fallback.
  */
 export function getBestFreeModel(): ApprovedModel {
-  return "qwen3-coder-free";
+  return "laguna-s-2.1-free";
 }
 
 /**

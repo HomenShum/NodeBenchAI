@@ -25,10 +25,10 @@ describe("pipeline model routes", () => {
     expect(option).toMatchObject({
       label: "Auto free",
       provider: "openrouter",
-      resolvedModelId: "qwen3-coder-free",
+      resolvedModelId: "laguna-s-2.1-free",
       isFree: true,
     });
-    expect(getPipelineModelRuntimeId(PIPELINE_MODEL_AUTO_FREE)).toBe("qwen3-coder-free");
+    expect(getPipelineModelRuntimeId(PIPELINE_MODEL_AUTO_FREE)).toBe("laguna-s-2.1-free");
   });
 
   it("keeps direct models and route models in one selector bank", () => {

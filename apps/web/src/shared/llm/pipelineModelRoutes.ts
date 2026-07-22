@@ -47,7 +47,7 @@ const AUTO_ROUTE_OPTIONS: PipelineModelOption[] = [
     shortLabel: "Auto free",
     detail: "Free-capable OpenRouter route for budget-sensitive runs.",
     provider: "openrouter",
-    resolvedModelId: "qwen3-coder-free",
+    resolvedModelId: "laguna-s-2.1-free",
     isRoute: true,
     isFree: true,
   },
@@ -81,7 +81,8 @@ export const PIPELINE_DIRECT_MODEL_IDS: ApprovedModel[] = [
   "gpt-5.4",
   "claude-sonnet-4.6",
   "claude-haiku-4.5",
-  "qwen3-coder-free",
+  "laguna-s-2.1-free",
+  "laguna-xs-2.1-free",
   "step-3.5-flash-free",
   "gpt-oss-120b-free",
 ];
