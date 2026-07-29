@@ -1,0 +1,81 @@
+{
+  "schemaVersion": "nodekit.score-receipt/v1",
+  "receiptId": "score-nodebench-entity-notebook-after-capture-always-armed",
+  "ruleId": "rule-capture-always-armed",
+  "subject": {
+    "id": "nodebench-entity-notebook-after",
+    "name": "NodeBench AI entity notebook surface — after note-surface DNA application",
+    "kind": "platform-surface",
+    "surface": "the capture path into the entity notebook after the feat/note-surface-dna diff: EntityNotebookView.tsx empty/read state, EntityNotebookSurface.tsx mode selection, EntityNoteEditor.tsx first-keystroke readiness, ViewModeToggle.tsx (Cmd/Ctrl+E)",
+    "evidenceBasis": "recorded-observation",
+    "evidenceRef": "source in worktree feat/note-surface-dna (branched from 24a09f36) after the diff, 2026-07-29; git diff confirms no edit touched the capture path — the diff was boundary treatment and accent demotion only",
+    "observedAt": "2026-07-29"
+  },
+  "derivedFrom": {
+    "collectionId": "note-surface",
+    "observationIds": ["obs-mew-stream", "obs-evernote-contrast"],
+    "factIds": [
+      "obs-mew-stream/f4",
+      "obs-evernote-contrast/f4"
+    ]
+  },
+  "ruleApplicability": {
+    "applies": true,
+    "appliesWhenSatisfied": [
+      "the surface's value depends on catching transient input — unchanged by the diff"
+    ],
+    "doesNotApplyWhenChecked": [
+      {
+        "clause": "compliance-bound intake where classification is legally prior (the trust-surfaces contract governs those forms)",
+        "fires": false,
+        "note": "Unchanged: no compliance intake on this surface."
+      }
+    ]
+  },
+  "scale": {
+    "min": 0,
+    "max": 4,
+    "anchors": {
+      "0": "capture gated behind a destination-type choice before text is accepted — obs-evernote-contrast/f4's Note/Task/Event buttons",
+      "1": "capture requires navigating structure and creating a container before a first keystroke, though no type question is asked",
+      "2": "capture is one mode change away from the reading state, with no classification question once inside; a global keystroke exists but toggles a mode rather than arming an input",
+      "3": "one global keystroke lands the user in a focused, armed editor from any state; a residual mode concept remains visible",
+      "4": "capture is armed in every state — one keystroke on desktop, persistent floating control on mobile, zero classification — obs-mew-stream/f4"
+    }
+  },
+  "criteria": [
+    {
+      "id": "c1-capture-without-mode-change",
+      "question": "Is the capture affordance reachable from every state without a mode change, and does it accept text without asking a classification question first?",
+      "score": 2,
+      "citations": [
+        {
+          "observationId": "obs-evernote-contrast",
+          "factIds": ["f4"],
+          "relation": "exceeds",
+          "withinRuleDerivation": true,
+          "note": "Unchanged from baseline: no classification question exists on the path, so the subject still clears the Evernote counterexample."
+        },
+        {
+          "observationId": "obs-mew-stream",
+          "factIds": ["f4"],
+          "relation": "falls-short-of",
+          "withinRuleDerivation": true,
+          "note": "Unchanged from baseline: one mode change (Open Live / Cmd+E) still sits between reading and the first keystroke, and Cmd+E still toggles a view mode rather than arming an input. The diff did not touch this mechanism, so the score does not move. An always-armed capture keystroke that lands focus in an editable block would be the fix, and it was refused in this pass as beyond the smallest-change budget for the five named files."
+        }
+      ],
+      "finding": "Score held at 2 — deltas must be earned by the diff, and no line of this diff touched the capture path. Boundary chrome getting quieter does not make capture more armed."
+    }
+  ],
+  "score": 2,
+  "scoreBasis": "Single criterion, so the receipt score is the criterion score. Identical to the baseline receipt because the diff contains no capture-path change; recording the non-movement is the point of re-scoring.",
+  "notScored": [
+    "Zero-to-first-keystroke timing — still a runtime property; no live instance was launched in this environment.",
+    "Whether focus arrives in an editable block after 'Open Live' or Cmd+E — still unobserved; EntityNotebookLive's conditional autoFocus was not exercised.",
+    "Mobile capture — still not swept beyond the five target files.",
+    "The design of an always-armed capture keystroke — named as the next fix, not scored as if it existed."
+  ],
+  "boundary": "Scored from the post-diff component source, method identical to the baseline receipt. This receipt exists to state a non-delta honestly: the lowest-scoring criteria were the other two rules, this one was not touched, and its number therefore stays where the baseline put it.",
+  "scoredBy": "note-surface DNA application pass, feat/note-surface-dna, scored against rule-capture-always-armed unmodified",
+  "scoredAt": "2026-07-29"
+}

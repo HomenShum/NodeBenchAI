@@ -1,0 +1,109 @@
+{
+  "schemaVersion": "nodekit.score-receipt/v1",
+  "receiptId": "score-nodebench-entity-notebook-baseline-stream-not-chrome",
+  "ruleId": "rule-stream-not-chrome",
+  "subject": {
+    "id": "nodebench-entity-notebook-baseline",
+    "name": "NodeBench AI entity notebook surface — baseline before note-surface DNA application",
+    "kind": "platform-surface",
+    "surface": "apps/web/src/features/entities/components/EntityNotebookView.tsx (735 lines) plus EntityNotebookSurface.tsx, EntityNoteEditor.tsx, EntityNoteMarkdownEditor.tsx, EntityNotebookMeta.tsx — the read-only derivation notebook and its note editor",
+    "evidenceBasis": "recorded-observation",
+    "evidenceRef": "source at commit 24a09f36 (origin/main of HomenShum/NodeBenchAI), read in worktree feat/note-surface-dna on 2026-07-29; measured 84 border/rounded-card/shadow class hits in EntityNotebookView.tsx alone",
+    "observedAt": "2026-07-29"
+  },
+  "derivedFrom": {
+    "collectionId": "note-surface",
+    "observationIds": ["obs-mew-stream", "obs-evernote-contrast"],
+    "factIds": [
+      "obs-mew-stream/f1",
+      "obs-mew-stream/f5",
+      "obs-evernote-contrast/f1",
+      "obs-evernote-contrast/f2"
+    ]
+  },
+  "ruleApplicability": {
+    "applies": true,
+    "appliesWhenSatisfied": [
+      "the surface's primary job is capture or review-in-time-order — the notebook renders agent- and user-authored blocks in derivation order, and the empty state routes straight to writing ('Open Live to start writing')",
+      "entries are short and heterogeneous — block kinds are heading/text/bullet/todo/callout/evidence, most a sentence or two",
+      "organization is emergent (tags, links) rather than upfront — entity links ([[Entity Name]]), source refs and backlinks emerge from note content; there is no folder choice anywhere on the surface"
+    ],
+    "doesNotApplyWhenChecked": [
+      {
+        "clause": "long-form documents with internal heading hierarchy (obs-fabric-contrast/f1)",
+        "fires": false,
+        "note": "Headings exist but as stream entries among short blocks; the surface is not a centered document modal and has no dimmed-workspace reading mode."
+      },
+      {
+        "clause": "workflows where retrieval at 10k+ items dominates capture (obs-evernote-contrast/f1)",
+        "fires": false,
+        "note": "One entity's notebook renders at a time; the test fixture and the empty state both frame this as a per-entity brief, not a 10k-item retrieval queue."
+      },
+      {
+        "clause": "multi-user triage queues where list-vs-detail is load-bearing",
+        "fires": false,
+        "note": "There is no list pane and no detail pane to split; the surface is already a single column, so list-vs-detail cannot be load-bearing."
+      }
+    ]
+  },
+  "scale": {
+    "min": 0,
+    "max": 4,
+    "anchors": {
+      "0": "notes themselves are bordered cards in a dedicated list pane, editing opens another pane — obs-evernote-contrast/f2",
+      "1": "note bodies render stream-like, but the page leads with bordered chrome panels before the first entry, and entry-like content (evidence, backlinks, related items) is bordered cards",
+      "2": "the stream leads the page; auxiliary entry-like content still renders as bordered cards",
+      "3": "one column, divider separation for all entry-like content; a single residual bordered container remains",
+      "4": "divider-only single column end-to-end, with onboarding/meta content living as ordinary stream entries — obs-mew-stream/f1 and f5"
+    }
+  },
+  "criteria": [
+    {
+      "id": "c1-divider-stream-not-cards",
+      "question": "Does the notebook render one column of entries separated by dividers — no cards, no list-pane/editor-pane split, no bordered chrome ahead of the entries?",
+      "score": 1,
+      "citations": [
+        {
+          "observationId": "obs-mew-stream",
+          "factIds": ["f1"],
+          "relation": "falls-short-of",
+          "withinRuleDerivation": true,
+          "note": "The note blocks themselves are borderless rows (BlockRow: grid with hover background only, EntityNotebookView.tsx:552-555), which is the stream shape — but the reader reaches them only after a rounded-2xl bordered workspace card (line 200) and three rounded-xl bordered collapsible panels (lines 242, 272, 334), two of which default open (routingOpen/planOpen useState(true), lines 127-128). Mew ends a note with a 1px rule and nothing else."
+        },
+        {
+          "observationId": "obs-evernote-contrast",
+          "factIds": ["f2"],
+          "relation": "matches-counterexample",
+          "withinRuleDerivation": true,
+          "note": "Entry-like content is bordered cards: evidence blocks render as rounded-md bordered chips (line 626), backlinks as rounded-lg bordered cards (lines 427, 437), related entities as rounded-lg bordered cards (lines 495, 508), linked entities as rounded-full bordered pills (line 462). This is Evernote's bordered-card treatment applied inside a stream surface."
+        },
+        {
+          "observationId": "obs-evernote-contrast",
+          "factIds": ["f1"],
+          "relation": "matches-counterexample",
+          "withinRuleDerivation": true,
+          "note": "The stacked header card plus three provenance panels above the notebook reproduce the chrome-before-content ordering of the three-pane workspace: the friction budget is spent on structure the reader crosses before the first note."
+        },
+        {
+          "observationId": "obs-mew-stream",
+          "factIds": ["f5"],
+          "relation": "falls-short-of",
+          "withinRuleDerivation": true,
+          "note": "Mew delivers meta content (onboarding) as ordinary notes inside the stream. Here provenance meta lives in dedicated bordered panels above the stream instead of being stream-resident or quiet."
+        }
+      ],
+      "finding": "The block stream is already card-free — the mechanism survives at the center. Everything around it is bordered card chrome: 84 border/rounded/shadow class hits in this one file, a header card, three bordered panels ahead of the notes, and every auxiliary entry (evidence, backlink, related entity) boxed. Anchor 1: stream-like bodies wrapped in card chrome."
+    }
+  ],
+  "score": 1,
+  "scoreBasis": "Single criterion, so the receipt score is the criterion score. The subject sits at anchor 1: the note bodies stream (which clears anchor 0 — they are not bordered cards in a list pane), but bordered chrome panels precede the first entry and all auxiliary entry-like content is bordered cards, which blocks anchor 2.",
+  "notScored": [
+    "EntityNotebookLive.tsx (the editable live notebook, 3k+ lines) — outside the five named target files; its boundary treatment is not graded here.",
+    "EntityNotebookMeta.tsx's nb-panel-inset sections — they render on a meta surface beside the editor, not inside the note stream, and were left ungraded rather than stretched under a stream rule.",
+    "Density at scale — the corpus itself records that all Mew evidence is an 8-note sample notebook, and no NodeBench notebook with 1,000+ blocks was observed.",
+    "Runtime rendering — no running instance was inspected; scores are derived from the component source, which fully determines the class output but not computed styles."
+  ],
+  "boundary": "Scored from component source at a pinned commit, not from a running page: the isolated worktree has no Convex deployment or .env.local, so the app was not launched and no screenshot exists. Class strings in JSX determine the DOM the browser would build, so boundary treatment (borders, cards, dividers) is assessable; rendered geometry and computed styles are not.",
+  "scoredBy": "note-surface DNA application pass, feat/note-surface-dna, scored against rule-stream-not-chrome unmodified",
+  "scoredAt": "2026-07-29"
+}

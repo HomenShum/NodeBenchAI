@@ -508,12 +508,16 @@ export const EntityNoteEditor = forwardRef<EntityNoteEditorHandle, EntityNoteEdi
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="inline-flex rounded-full border border-[rgba(15,23,42,0.08)] bg-white/80 p-1 dark:border-white/10 dark:bg-white/[0.04]">
+          {/* rule-single-accent-inline obs-mew-tokens/f1 + obs-mew-stream/f2: the mode
+              toggle is chrome, so its selected state is achromatic — the accent stays
+              reserved for inline meaning carriers (citations, links, tags). This also
+              removes the hardcoded #d97757 literals that bypassed --accent-primary. */}
           <button
             type="button"
             onClick={() => setMode("rich")}
             className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
               mode === "rich"
-                ? "bg-[#d97757] text-white"
+                ? "bg-[rgba(15,23,42,0.85)] text-white dark:bg-white/[0.14] dark:text-white"
                 : "text-content-muted hover:text-content"
             }`}
           >
@@ -524,7 +528,7 @@ export const EntityNoteEditor = forwardRef<EntityNoteEditorHandle, EntityNoteEdi
             onClick={() => setMode("markdown")}
             className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
               mode === "markdown"
-                ? "bg-[#d97757] text-white"
+                ? "bg-[rgba(15,23,42,0.85)] text-white dark:bg-white/[0.14] dark:text-white"
                 : "text-content-muted hover:text-content"
             }`}
           >
