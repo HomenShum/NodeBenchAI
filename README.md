@@ -6,6 +6,8 @@ Entity intelligence for any company, market, or question.
 **npm:** `npx nodebench-mcp` / `npx nodebench-mcp-power` / `npx nodebench-mcp-admin`  
 **GitHub:** [HomenShum/nodebench-ai](https://github.com/HomenShum/nodebench-ai)
 
+![NodeBench AI Home surface: research prompt with Quick answer / Deep research modes, and reusable public research cards below](.qa/evidence/2026-07-15-runtime-grounded-control-focus/baseline/exact-surfaces/home-desktop-light.png)
+
 ## Product
 
 NodeBench is a research and reporting product built around five user-facing
@@ -323,8 +325,8 @@ request justifies it.
 The detailed implementation, verification, and evaluation plan for this mode
 lives in:
 
-- [HARNESS_V2_PROPOSAL.md](./docs/architecture/HARNESS_V2_PROPOSAL.md)
-- [HARNESS_V2_BUILD_PLAN.md](./docs/architecture/HARNESS_V2_BUILD_PLAN.md)
+- [HARNESS_V2_PROPOSAL.md](./docs/archive/2026-q1/architecture-superseded/HARNESS_V2_PROPOSAL.md) (archived)
+- [HARNESS_V2_BUILD_PLAN.md](./docs/archive/2026-q1/architecture-superseded/HARNESS_V2_BUILD_PLAN.md) (archived)
 
 ## How The Five Pages Compound
 
@@ -430,7 +432,7 @@ Main tasks still to finish:
 - [ ] make `Home -> Reports -> Chat -> Inbox -> Me` behave like one continuous
       workflow instead of five adjacent surfaces
 - [ ] turn harness v1 into the clearer v2 shape described in
-      [HARNESS_V2_PROPOSAL](docs/architecture/HARNESS_V2_PROPOSAL.md)
+      [HARNESS_V2_PROPOSAL](docs/archive/2026-q1/architecture-superseded/HARNESS_V2_PROPOSAL.md)
 - [ ] ship `Layer 0` operator context so the system can learn useful workflow
       patterns without forcing a heavy onboarding flow
 - [ ] support permissioned transcript ingestion from NodeBench chats first, then
@@ -605,36 +607,36 @@ environments.
 
 ## Codebase map
 
-Top-3 levels, annotated. See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the
+Top-3 levels, annotated. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the
 pipeline diagram and [`docs/architecture/README.md`](docs/architecture/README.md)
 for the 13 canonical architecture docs.
 
 ```text
 nodebench-ai/
 ├── README.md                   ← you are here
-├── ARCHITECTURE.md             ← top-level pipeline diagram
 ├── CONTRIBUTING.md             ← contribution bar
 ├── CLAUDE.md                   ← Claude Code conventions for this repo
 ├── AGENTS.md                   ← agent methodology + eval bench
 ├── LICENSE                     ← MIT
 │
-├── src/                        ← React frontend (Vite)
-│   ├── features/               ← feature-first, 30 folders (Home · Reports · Chat · Inbox · Me · Workspace · entities · agents · …)
-│   │   └── <feature>/          ← views · components · hooks · lib · __tests__ (colocated)
-│   ├── shared/                 ← shared UI primitives, hooks, utils
-│   ├── lib/                    ← registry, analytics, error reporting
-│   └── layouts/                ← shell + cockpit + public
+├── apps/
+│   └── web/src/                ← React frontend (Vite)
+│       ├── features/           ← feature-first (Home · Reports · Chat · Inbox · Me · Workspace · entities · agents · …)
+│       │   └── <feature>/      ← views · components · hooks · lib · __tests__ (colocated)
+│       ├── shared/             ← shared UI primitives, hooks, utils
+│       ├── lib/                ← registry, analytics, error reporting
+│       └── layouts/            ← shell + cockpit + public
 │
-├── server/                     ← Node runtime (Express + MCP gateway)
+├── workers/node/               ← Node runtime (Express + MCP gateway)
 │   ├── pipeline/               ← agent harness runtime + diligence blocks
 │   ├── routes/                 ← HTTP routes (search, harness, founder episodes)
 │   ├── mcpGateway.ts           ← WebSocket MCP gateway
 │   └── services/               ← shared services
 │
-├── convex/                     ← Convex backend
-│   ├── domains/                ← 19 domain folders (agents · product · research · founder · search · …)
+├── backend/convex/             ← Convex backend
+│   ├── domains/                ← domain folders (agents · product · research · founder · search · …)
 │   ├── schema.ts               ← database schema (includes agentScratchpads)
-│   └── crons.ts                ← scheduled jobs
+│   └── crons/                  ← scheduled jobs
 │
 ├── packages/
 │   ├── mcp-local/              ← the published nodebench-mcp npm package (MIT)
@@ -650,6 +652,7 @@ nodebench-ai/
 │
 ├── docs/
 │   ├── README.md               ← docs tree map
+│   ├── ARCHITECTURE.md         ← top-level pipeline diagram
 │   ├── ONBOARDING.md           ← 30-minute new-contributor path
 │   ├── architecture/           ← 13 canonical specs + plans/ + README index
 │   ├── agents/                 ← agent docs + bootstrap configs
@@ -660,18 +663,16 @@ nodebench-ai/
 │   ├── qa/                     ← QA protocols
 │   └── archive/                ← superseded content, provenance-only
 │
-├── tests/
-│   ├── e2e/                    ← Playwright end-to-end
-│   └── fixtures/               ← shared fixtures
+├── evals/
+│   └── e2e/                    ← end-to-end eval suites
 │
 ├── scripts/                    ← dogfood, eval harness, one-offs
-├── public/                     ← static assets served by Vite + Vercel
-└── vendor/                     ← third-party references
+└── public/                     ← static assets served by Vite + Vercel
 ```
 
 ## Related Docs
 
-**Start here:** [`docs/ONBOARDING.md`](docs/ONBOARDING.md) · [`ARCHITECTURE.md`](ARCHITECTURE.md) · [`docs/architecture/README.md`](docs/architecture/README.md)
+**Start here:** [`docs/ONBOARDING.md`](docs/ONBOARDING.md) · [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/architecture/README.md`](docs/architecture/README.md)
 
 The 13 canonical architecture docs are organized in 4 tiers. See [`docs/architecture/README.md`](docs/architecture/README.md) for the indexed map:
 
@@ -743,11 +744,11 @@ query / capture
 | Minimum P0 suite | 30 cases |
 | Coverage categories | 11 |
 | Score dimensions | 12 |
-| Validator | `src/features/evaluation/data/nodebenchWorkflowEvalBank.test.ts` |
-| Latest local check | `npx vitest run src/features/evaluation/data/nodebenchWorkflowEvalBank.test.ts` -> 4/4 passed |
+| Validator | `apps/web/src/features/evaluation/data/nodebenchWorkflowEvalBank.test.ts` |
+| Latest local check | `npx vitest run apps/web/src/features/evaluation/data/nodebenchWorkflowEvalBank.test.ts` -> 4/4 passed |
 
 The eval bank lives in
-[`src/features/evaluation/data/nodebenchWorkflowEvalBank.ts`](src/features/evaluation/data/nodebenchWorkflowEvalBank.ts).
+[`apps/web/src/features/evaluation/data/nodebenchWorkflowEvalBank.ts`](apps/web/src/features/evaluation/data/nodebenchWorkflowEvalBank.ts).
 
 ### Two-Layer Judge Architecture
 
