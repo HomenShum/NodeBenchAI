@@ -105,7 +105,7 @@
     "pdf-parse": "^2.4.5",
     "playwright": "^1.57.0",
     "read-excel-file": "^9.0.6",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.0",
     "tesseract.js": "^7.0.0",
     "yauzl": "^3.3.0"
   },
@@ -117,7 +117,7 @@
     "exceljs": "^4.4.0",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.6"
   },
   "overrides": {
     "@hono/node-server": "^1.19.13",
