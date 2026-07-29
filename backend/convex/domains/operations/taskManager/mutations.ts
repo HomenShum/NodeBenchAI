@@ -9,6 +9,7 @@ import { v } from "convex/values";
 import { mutation, internalMutation } from "../../../_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import type { Id, Doc } from "../../../_generated/dataModel";
+import { appendNodeKitRunEvent } from "./nodeKitRunEvents";
 
 const oracleSourceRefValidator = v.object({
   label: v.string(),
@@ -686,7 +687,7 @@ export const createTrace = mutation({
   returns: v.id("agentTaskTraces"),
   handler: async (ctx, args) => {
     const userId = await requireAuthenticatedUserId(ctx);
-    await requireOwnedSession(ctx, args.sessionId, userId);
+    const session = await requireOwnedSession(ctx, args.sessionId, userId);
     const traceId = generateTraceId();
     const now = Date.now();
 
@@ -706,6 +707,24 @@ export const createTrace = mutation({
       metadata: args.metadata,
     });
 
+    await appendNodeKitRunEvent(ctx, {
+      sessionId: args.sessionId,
+      traceId: id,
+      userId,
+      runId: traceId,
+      eventType: "run.started",
+      recordedAt: now,
+      payload: {
+        workflowName: args.workflowName,
+        sessionType: session.type,
+        sessionStartedAt: session.startedAt,
+        ...(args.groupId === undefined ? {} : { groupId: args.groupId }),
+        ...(args.model === undefined ? {} : { model: args.model }),
+        ...(args.goalId === undefined ? {} : { goalId: args.goalId }),
+      },
+      allowLegacySkip: false,
+    });
+
     return id;
   },
 });
@@ -718,9 +737,40 @@ async function completeTraceForOwner(
   args: any,
   userId: Id<"users">,
 ) {
-  const { trace } = await requireOwnedTrace(ctx, args.traceId, userId);
+  const { trace, session } = await requireOwnedTrace(
+    ctx,
+    args.traceId,
+    userId,
+  );
   await assertOwnedDogfoodRun(ctx, args.dogfoodRunId, userId);
+  if (trace.status !== "running") {
+    const expectedStatus = args.status === "completed" ? "completed" : "error";
+    if (trace.status === expectedStatus) return;
+    throw new Error(`Trace is already terminal with status ${trace.status}`);
+  }
   const now = Date.now();
+
+  await appendNodeKitRunEvent(ctx, {
+    sessionId: session._id,
+    traceId: args.traceId,
+    userId,
+    runId: trace.traceId,
+    eventType: args.status === "completed" ? "run.completed" : "run.failed",
+    recordedAt: now,
+    payload: {
+      status: args.status,
+      totalDurationMs: now - trace.startedAt,
+      ...(args.crossCheckStatus === undefined
+        ? {}
+        : { crossCheckStatus: args.crossCheckStatus }),
+      ...(args.deltaFromVision === undefined
+        ? {}
+        : { deltaFromVision: args.deltaFromVision }),
+      ...(args.dogfoodRunId === undefined
+        ? {}
+        : { dogfoodRunId: String(args.dogfoodRunId) }),
+    },
+  });
 
   await ctx.db.patch(args.traceId, {
     status: args.status,
@@ -786,10 +836,15 @@ export const createSpan = mutation({
   returns: v.id("agentTaskSpans"),
   handler: async (ctx, args) => {
     const userId = await requireAuthenticatedUserId(ctx);
-    await requireOwnedTrace(ctx, args.traceId, userId);
+    const { trace, session } = await requireOwnedTrace(
+      ctx,
+      args.traceId,
+      userId,
+    );
     await assertParentSpanInTrace(ctx, args.parentSpanId, args.traceId);
     const seq = await getNextSpanSequence(ctx, args.traceId);
     const depth = await getSpanDepth(ctx, args.parentSpanId);
+    const startedAt = Date.now();
 
     const id = await ctx.db.insert("agentTaskSpans", {
       traceId: args.traceId,
@@ -799,9 +854,30 @@ export const createSpan = mutation({
       spanType: args.spanType,
       name: args.name,
       status: "running",
-      startedAt: Date.now(),
+      startedAt,
       data: args.data,
       metadata: args.metadata,
+    });
+
+    await appendNodeKitRunEvent(ctx, {
+      sessionId: session._id,
+      traceId: args.traceId,
+      userId,
+      runId: trace.traceId,
+      eventType: "span.started",
+      recordedAt: startedAt,
+      payload: {
+        spanId: String(id),
+        spanSequence: seq,
+        depth,
+        spanType: args.spanType,
+        name: args.name,
+        ...(args.parentSpanId === undefined
+          ? {}
+          : { parentSpanId: String(args.parentSpanId) }),
+        ...(args.data === undefined ? {} : { data: args.data }),
+        ...(args.metadata === undefined ? {} : { metadata: args.metadata }),
+      },
     });
 
     return id;
@@ -866,6 +942,27 @@ async function recordStepForOwner(
     args.resultSummary,
   );
 
+  await appendNodeKitRunEvent(ctx, {
+    sessionId: session._id,
+    traceId: args.traceId,
+    userId,
+    runId: trace.traceId,
+    eventType: "step.recorded",
+    recordedAt: endedAt,
+    payload: {
+      spanId: String(spanId),
+      spanSequence: seq,
+      startedAt,
+      endedAt,
+      durationMs,
+      ...stepPayload,
+      ...(args.parentSpanId === undefined
+        ? {}
+        : { parentSpanId: String(args.parentSpanId) }),
+      ...(args.metadata === undefined ? {} : { metadata: args.metadata }),
+    },
+  });
+
   return spanId;
 }
 
@@ -900,7 +997,12 @@ async function recordDecisionForOwner(
   args: any,
   userId: Id<"users">,
 ) {
-  const { trace } = await requireOwnedTrace(ctx, args.traceId, userId);
+  const { trace, session } = await requireOwnedTrace(
+    ctx,
+    args.traceId,
+    userId,
+  );
+  const recordedAt = Date.now();
   const decision = {
     decisionType: args.decisionType,
     statement: args.statement,
@@ -909,12 +1011,21 @@ async function recordDecisionForOwner(
     alternativesConsidered: args.alternativesConsidered ?? [],
     confidence: args.confidence,
     limitations: args.limitations ?? [],
-    recordedAt: Date.now(),
+    recordedAt,
   };
 
   const metadata = appendMetadataList(trace.metadata, "executionTraceDecisions", decision);
   metadata.decisions = metadata.executionTraceDecisions;
   await ctx.db.patch(args.traceId, { metadata });
+  await appendNodeKitRunEvent(ctx, {
+    sessionId: session._id,
+    traceId: args.traceId,
+    userId,
+    runId: trace.traceId,
+    eventType: "decision.recorded",
+    recordedAt,
+    payload: decision,
+  });
   return args.traceId;
 }
 
@@ -999,6 +1110,16 @@ async function recordVerificationForOwner(
     );
   }
 
+  await appendNodeKitRunEvent(ctx, {
+    sessionId: session._id,
+    traceId: args.traceId,
+    userId,
+    runId: trace.traceId,
+    eventType: "verification.recorded",
+    recordedAt: verification.recordedAt,
+    payload: verification,
+  });
+
   return args.traceId;
 }
 
@@ -1023,14 +1144,19 @@ async function attachEvidenceForOwner(
   args: any,
   userId: Id<"users">,
 ) {
-  const { trace } = await requireOwnedTrace(ctx, args.traceId, userId);
+  const { trace, session } = await requireOwnedTrace(
+    ctx,
+    args.traceId,
+    userId,
+  );
+  const recordedAt = Date.now();
   const evidence = {
     title: args.title,
     summary: args.summary,
     sourceRefs: args.sourceRefs,
     supportedClaims: args.supportedClaims ?? [],
     unsupportedClaims: args.unsupportedClaims ?? [],
-    recordedAt: Date.now(),
+    recordedAt,
   };
 
   const metadata = appendMetadataList(trace.metadata, "executionTraceEvidence", evidence);
@@ -1038,6 +1164,15 @@ async function attachEvidenceForOwner(
   const mergedSourceRefs = uniqueSourceRefs([...(trace.sourceRefs ?? []), ...args.sourceRefs]);
 
   await ctx.db.patch(args.traceId, { metadata, sourceRefs: mergedSourceRefs });
+  await appendNodeKitRunEvent(ctx, {
+    sessionId: session._id,
+    traceId: args.traceId,
+    userId,
+    runId: trace.traceId,
+    eventType: "evidence.attached",
+    recordedAt,
+    payload: evidence,
+  });
   return args.traceId;
 }
 
@@ -1063,14 +1198,17 @@ async function requestTraceApprovalForOwner(
   userId: Id<"users">,
 ) {
   const session = await requireOwnedSession(ctx, args.sessionId, userId);
+  let ownedTrace: Doc<"agentTaskTraces"> | null = null;
   if (args.traceId) {
     const { trace } = await requireOwnedTrace(ctx, args.traceId, userId);
     if (trace.sessionId !== args.sessionId) {
       throw new Error("Trace does not belong to session");
     }
+    ownedTrace = trace;
   }
 
   const threadId = session.agentThreadId ?? `task-session:${String(args.sessionId)}`;
+  const recordedAt = Date.now();
   const approvalId = await ctx.db.insert("toolApprovals", {
     userId,
     threadId,
@@ -1084,20 +1222,34 @@ async function requestTraceApprovalForOwner(
     status: "pending",
     riskLevel: args.riskLevel,
     reason: args.justification,
-    createdAt: Date.now(),
+    createdAt: recordedAt,
   });
 
-  if (args.traceId) {
-    const trace = await ctx.db.get(args.traceId) as Doc<"agentTaskTraces">;
-    const metadata = appendMetadataList(trace.metadata, "executionTraceApprovals", {
+  if (args.traceId && ownedTrace) {
+    const metadata = appendMetadataList(ownedTrace.metadata, "executionTraceApprovals", {
       approvalId: String(approvalId),
       toolName: args.toolName,
       riskLevel: args.riskLevel,
       justification: args.justification,
       status: "pending",
-      recordedAt: Date.now(),
+      recordedAt,
     });
     await ctx.db.patch(args.traceId, { metadata });
+    await appendNodeKitRunEvent(ctx, {
+      sessionId: session._id,
+      traceId: args.traceId,
+      userId,
+      runId: ownedTrace.traceId,
+      eventType: "approval.requested",
+      recordedAt,
+      payload: {
+        approvalId: String(approvalId),
+        toolName: args.toolName,
+        riskLevel: args.riskLevel,
+        justification: args.justification,
+        toolArgs: args.toolArgs ?? null,
+      },
+    });
   }
 
   return approvalId;
@@ -1271,6 +1423,11 @@ export const completeSpan = mutation({
   handler: async (ctx, args) => {
     const userId = await requireAuthenticatedUserId(ctx);
     const span = await requireOwnedSpan(ctx, args.spanId, userId);
+    const { trace, session } = await requireOwnedTrace(
+      ctx,
+      span.traceId,
+      userId,
+    );
 
     const now = Date.now();
 
@@ -1280,6 +1437,22 @@ export const completeSpan = mutation({
       durationMs: now - span.startedAt,
       data: args.data ?? span.data,
       error: args.error,
+    });
+    await appendNodeKitRunEvent(ctx, {
+      sessionId: session._id,
+      traceId: span.traceId,
+      userId,
+      runId: trace.traceId,
+      eventType: "span.completed",
+      recordedAt: now,
+      payload: {
+        spanId: String(args.spanId),
+        spanSequence: span.seq,
+        status: args.status,
+        durationMs: now - span.startedAt,
+        ...(args.data === undefined ? {} : { data: args.data }),
+        ...(args.error === undefined ? {} : { error: args.error }),
+      },
     });
   },
 });

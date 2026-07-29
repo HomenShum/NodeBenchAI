@@ -12931,6 +12931,7 @@ export default defineSchema({
     metadata: v.optional(v.any()),
   })
     .index("by_session", ["sessionId", "startedAt"])
+    .index("by_status_started", ["status", "startedAt"])
     .index("by_trace_id", ["traceId"]),
 
   agentTaskSpans: defineTable({
@@ -12968,7 +12969,49 @@ export default defineSchema({
     ),
   })
     .index("by_trace", ["traceId", "seq"])
+    .index("by_trace_status", ["traceId", "status", "seq"])
     .index("by_parent", ["parentSpanId", "seq"]),
+
+  /**
+   * Canonical NodeKit run-event chain.
+   *
+   * Rows are immutable while retained: this repository exposes no patch path.
+   * Owner-scoped deletion and bounded expiry are implemented only by
+   * nodeKitRunRetention.ts. Each event commits to the preceding event hash,
+   * giving an owner-scoped export a deterministic chain and tamper check
+   * without reconstructing decisions or evidence from mutable trace metadata.
+   */
+  nodeKitRunEvents: defineTable({
+    sessionId: v.id("agentTaskSessions"),
+    traceId: v.id("agentTaskTraces"),
+    userId: v.id("users"),
+    contractVersion: v.literal("nodekit.run-event/v1"),
+    runId: v.string(),
+    sequence: v.number(),
+    eventType: v.union(
+      v.literal("run.started"),
+      v.literal("span.started"),
+      v.literal("span.completed"),
+      v.literal("step.recorded"),
+      v.literal("decision.recorded"),
+      v.literal("verification.recorded"),
+      v.literal("evidence.attached"),
+      v.literal("approval.requested"),
+      v.literal("run.completed"),
+      v.literal("run.failed"),
+    ),
+    recordedAt: v.number(),
+    payload: v.any(),
+    previousHash: v.string(),
+    contentHash: v.string(),
+    retentionExpiresAt: v.optional(v.number()),
+  })
+    .index("by_trace_sequence", ["traceId", "sequence"])
+    .index("by_owner_run_sequence", ["userId", "runId", "sequence"])
+    .index("by_type_retention_expiration", [
+      "eventType",
+      "retentionExpiresAt",
+    ]),
 
   /* ================================================================== */
   /* DATA COMPLETENESS & OBSERVABILITY - P0/P1 TABLES                   */

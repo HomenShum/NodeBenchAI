@@ -1,4 +1,4 @@
-# Budget envelopes. Source: server/mcpAuth.ts (gateway limits), server/pipeline
+# Budget envelopes. Source: workers/node/mcpAuth.ts (gateway limits), workers/node/pipeline
 # (judge latency budget), .claude/rules/orchestrator_workers.md (per-subagent caps).
 apiVersion: nodeagent.dev/v1
 kind: Policy

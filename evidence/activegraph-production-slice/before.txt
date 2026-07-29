@@ -1,0 +1,11 @@
+CHANGE   add canonical NodeKit run export and fail-closed ActiveGraph offline canary
+COMMAND  npx vitest run backend/convex/domains/operations/taskManager/nodeKitRunExport.test.ts scripts/__tests__/nodekitActiveGraphCanary.test.ts --reporter=dot
+EXIT     1
+
+RUN  v2.1.9 C:/Users/hshum/.codex/worktrees/7899/nodebench-ai
+
+filter:  backend/convex/domains/operations/taskManager/nodeKitRunExport.test.ts, scripts/__tests__/nodekitActiveGraphCanary.test.ts
+include: **/*.{test,spec}.?(c|m)[jt]s?(x)
+exclude: **/node_modules/**, **/dist/**, **/cypress/**, **/.{idea,git,cache,output,temp}/**, **/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build,eslint,prettier}.config.*, evals/**, .tmp/**, .nodebench-ref/**, .overstory/**, .claude/worktrees/**, .worktrees/**
+
+No test files found, exiting with code 1

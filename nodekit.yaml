@@ -1,47 +1,54 @@
-# NodeKit repository contract — phase 0 (declarative adoption, no file moves).
-# Standard: NodeKit Agent Application Standard (node-platform).
-# Honest posture: this repo predates the standard; several concerns live at
-# legacy paths. Each is declared where it IS, not where the standard wants it.
-apiVersion: nodekit.dev/v1
-kind: Repository
+# NodeBenchAI brownfield registration. The standard tree is physically present,
+# while the production agent runtime remains the repo-local migration source.
+schemaVersion: nodekit.repo/v1
+repository: HomenShum/NodeBenchAI
+lifecycle: production
+support: active
+role: domain-application
+commandProfile: untracked
 
-metadata:
-  name: nodebench-ai
-  github: HomenShum/NodeBenchAI
-  role: domain-application # registry currently says legacy-product; this manifest is the correction proposal
-  status: production # live at https://www.nodebenchai.com, actively shipped
+# NodeBenchAI is not a canonical platform-contract owner. Runtime, trace,
+# memory, and proof ownership remain external targets.
+canonicalFor: []
+consumes:
+  - nodeagent.policy-context
 
-spec:
-  ownership:
-    runtime: NodeAgent # target owner; today the harness is repo-local (see conformance notes)
-    trace: NodeTrace
-    memory: NodeMem
-    proof: NodeProof
+commands:
+  dev:
+    script: dev
+    mode: service
+  check:
+    script: test:run
+    mode: finite
+  proof:
+    script: verify-live
+    mode: finite
 
-  lifecycle:
-    bootstrap: npm install
-    demo: npm run dev
-    check: npm run test:run
-    proof: npm run verify-live
+noKey:
+  status: missing
+  command: null
+  externalAccountsRequired: 2
+  disclosure: >-
+    The production-backed NodeBench application currently requires a configured
+    Convex deployment and Google model credentials. Local fixtures and tests are
+    not presented as a deterministic no-key application demo.
 
-  # Where standard-tree concerns actually live today (migration map).
-  layout:
-    agentAuthoring: ./agent # phase-0 authored surface; compiled truth remains in code
-    packs:
-      - ./packs/entity-intelligence/pack.yaml
-    backend: ./backend/convex # convex.json "functions" points here (standard-tree phase 2, 2026-07-19)
-    web: ./apps/web # Vite root (index.html + src); public/, env, dist stay at repo root
-    evals:
-      benchmark: packages/mcp-local/src/benchmarks
-      conformance: evals/e2e # ui-contract-runner + surface contracts
-      production: scripts/verify-live.ts
-    proof: proof/ui-contract # evidence folders + manifest.schema.json
-    adw: adw/improvement-loop # + adw/goals/ (goal cards, HARD_GATES.md)
-    mcpDistribution: packages/mcp-local # 304-tool MCP server (npx nodebench-mcp)
+environment:
+  contractVersion: nodeplatform.env/v1
+  status: legacy
 
-  conformance:
-    forbidVendoredRuntime: false # repo-local harness is the MIGRATION SOURCE, not a vendored copy;
-    # flips to true after @nodeagent/runtime extraction (phase 2 of
-    # the ecosystem migration) and this repo consumes the package.
-    requireCompiledManifest: false # no .nodeagent/ compiler exists yet; do not fake generated output
-    requireProductionProof: true # scripts/verify-live.ts (Tier A) + npm run live-smoke (Tier B)
+proof:
+  command: npm run verify-live
+  receiptSchema: null
+
+# This DeepTrace type is a domain specialization that happens to share the
+# canonical PolicyContext signature; it is not a second runtime policy owner.
+contractDeclarations:
+  - concept: nodeagent.policy-context
+    signature: policy-context
+    path: backend/convex/domains/deepTrace/dimensionModel.ts
+    mode: domain-specialization
+    origin: nodeagent.policy-context
+    reason: DeepTrace scoring context, not the NodeAgent runtime policy contract.
+
+architectureExceptions: []

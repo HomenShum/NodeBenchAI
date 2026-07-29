@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nodebench.ai/schemas/nodekit-run-export.v1.schema.json",
+  "title": "Canonical NodeKit run export",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "runId",
+    "session",
+    "trace",
+    "events",
+    "completeness",
+    "hashes"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "nodekit.run-export/v1" },
+    "runId": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "session": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "typeAtRunStart", "startedAt"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "typeAtRunStart": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "startedAt": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "trace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "runId",
+        "workflowName",
+        "status",
+        "startedAt",
+        "endedAt"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "runId": { "type": "string", "minLength": 1 },
+        "workflowName": { "type": "string" },
+        "status": { "enum": ["completed", "error"] },
+        "startedAt": { "type": "integer", "minimum": 0 },
+        "endedAt": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "events": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 256,
+      "items": { "$ref": "#/$defs/event" }
+    },
+    "completeness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eventChainComplete",
+        "spanLifecycleComplete",
+        "contractVersion",
+        "eventCount",
+        "firstSequence",
+        "lastSequence",
+        "terminalEventType"
+      ],
+      "properties": {
+        "eventChainComplete": { "const": true },
+        "spanLifecycleComplete": { "const": true },
+        "contractVersion": { "const": "nodekit.run-event/v1" },
+        "eventCount": { "type": "integer", "minimum": 2 },
+        "firstSequence": { "const": 0 },
+        "lastSequence": { "type": "integer", "minimum": 1 },
+        "terminalEventType": {
+          "enum": ["run.completed", "run.failed"]
+        }
+      }
+    },
+    "hashes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "chainHead", "exportHash"],
+      "properties": {
+        "algorithm": { "const": "sha256" },
+        "chainHead": { "$ref": "#/$defs/hash" },
+        "exportHash": { "$ref": "#/$defs/hash" }
+      }
+    }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "runId",
+        "sequence",
+        "eventType",
+        "recordedAt",
+        "payload",
+        "previousHash",
+        "contentHash"
+      ],
+      "properties": {
+        "contractVersion": { "const": "nodekit.run-event/v1" },
+        "runId": { "type": "string", "minLength": 1 },
+        "sequence": { "type": "integer", "minimum": 0 },
+        "eventType": {
+          "enum": [
+            "run.started",
+            "span.started",
+            "span.completed",
+            "step.recorded",
+            "decision.recorded",
+            "verification.recorded",
+            "evidence.attached",
+            "approval.requested",
+            "run.completed",
+            "run.failed"
+          ]
+        },
+        "recordedAt": { "type": "integer", "minimum": 0 },
+        "payload": { "$ref": "#/$defs/safePayload" },
+        "previousHash": { "$ref": "#/$defs/hash" },
+        "contentHash": { "$ref": "#/$defs/hash" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "eventType": { "const": "run.completed" }
+            },
+            "required": ["eventType"]
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "properties": {
+                  "fields": {
+                    "properties": {
+                      "status": { "const": "completed" }
+                    },
+                    "required": ["status"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eventType": { "const": "run.failed" }
+            },
+            "required": ["eventType"]
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "properties": {
+                  "fields": {
+                    "properties": {
+                      "status": { "const": "error" }
+                    },
+                    "required": ["status"]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "safePayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "projectionVersion",
+        "sourceDigest",
+        "sourceBytes",
+        "fields"
+      ],
+      "properties": {
+        "projectionVersion": {
+          "const": "nodekit.safe-event-payload/v1"
+        },
+        "sourceDigest": { "$ref": "#/$defs/hash" },
+        "sourceBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 32768
+        },
+        "fields": {
+          "type": "object",
+          "maxProperties": 7,
+          "additionalProperties": {
+            "type": ["string", "number", "boolean", "null"]
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,63 @@
+SLICE
+  Canonical owner-scoped NodeKit run export plus fail-closed ActiveGraph
+  offline observer, with selective NodeKit v1 reconciliation from PR #592.
+
+BEFORE / AFTER
+  evidence/activegraph-production-slice/before.txt
+    exact focused command exited 1 because both contract suites were absent.
+  evidence/activegraph-production-slice/after.txt
+    the identical command exited 0 with 23/23 tests passing.
+
+VERIFICATION
+  PASS  npx vitest run backend/convex/domains/operations/taskManager/nodeKitRunExport.test.ts backend/convex/domains/operations/taskManager/taskManagerOwnership.auth.test.ts scripts/__tests__/nodekitActiveGraphCanary.test.ts scripts/__tests__/releaseWorkflowContracts.test.ts --reporter=dot
+        4 files passed; 39 tests passed; 3 tests skipped.
+  PASS  .tmp/venvs/activegraph-canary/Scripts/python.exe -m pytest evals/activegraph/tests -q
+        42 tests passed, including real ActiveGraph SQLite persist/reload parity.
+  PASS  npx tsc -p backend/convex --noEmit --pretty false
+  PASS  npx tsc --noEmit --pretty false
+  PASS  npm run build
+        Vite transformed 7,354 modules and generated the PWA. Existing
+        caniuse-lite age and PostCSS from-option warnings were non-blocking.
+  PASS  NodeKit inspect
+        application=nodebench-entity-intelligence
+        backend.functionsDirectory=./backend/convex
+        configHash=79befad12a6fbcc7af51987c337083eba7ff74a352d86255ea90eeac26108063
+        evals=126 packs=1 skills=1
+  PASS  NodeKit doctor
+        node version, nodekit.repo/v1 manifest, catalog, production lifecycle,
+        active support, contract declaration 1/1, and source rules 0/0.
+  PASS  git diff --check
+
+FAIL-CLOSED ENVIRONMENT NOTE
+  docker info --format '{{.ServerVersion}}'
+    exited 1 because the Docker Desktop Linux daemon was not running.
+  No container result is claimed. The production-derived wrapper now requires
+  an immutable Docker image ID/digest and constructs a network-none,
+  read-only-root, capability-dropped, resource-bounded invocation with only the
+  evidence directory writable. Missing Docker fails closed. Python refuses its
+  replay CLI outside Docker. Real ActiveGraph persistence/reload remains proven
+  by the explicit private host unit-test seam.
+
+PR-READY DOCKER FOLLOW-UP (2026-07-28)
+  Docker Desktop was started without installing or changing Docker
+  configuration. The exact committed build metadata for 309c71d8 produced image
+  sha256:56d547ad379e88ed71632ec34692cc79e8908a26f9bac10a58aefabd770f64b3
+  and attestation
+  sha256:c9f736fd412e14ecdf0b60fe3a8e00f27866aa1417e5f8928beaeb1024fb1982.
+  A real 9-event canonical NodeKit export replay passed inside that image with
+  network none, a read-only root, only /evidence writable, and exact SQLite
+  persist/reload parity. The original fail-closed result above remains the
+  truthful result of the earlier capture; it is not rewritten as a pass.
+
+KNOWN TEST-HARNESS LIMITATION
+  The three skipped task-manager integration cases pre-existed this slice's
+  proof path. This checkout has convex-test 0.0.53, whose peer contract requires
+  Convex ^1.32.0, while the repo currently resolves Convex 1.31.5. Import fails
+  because convex/values does not export getConvexSize. The two source guards in
+  that file pass, and the new owner/error/retention boundaries have focused
+  contract and source-guard coverage. Dependencies were not upgraded as part
+  of this isolated integration slice.
+
+SAFETY
+  No Convex deploy, production write, ActiveGraph dual-write, commit, push,
+  merge, or PR creation was performed.
