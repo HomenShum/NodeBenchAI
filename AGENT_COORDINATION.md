@@ -57,20 +57,6 @@ Server Error) for an unknown slug.
 
 ## Active claims (who is editing what RIGHT NOW)
 
-- **2026-07-28 · Codex `/root/activegraph_final_audit` →**
-  `backend/convex/schema.ts#agentTaskTraces+agentTaskSpans+nodeKitRunEvents`,
-  `backend/convex/domains/operations/taskManager/{mutations,nodeKitRunEvents,nodeKitRunExport,nodeKitRunRetention}*`,
-  `backend/convex/domains/mcp/mcpExecutionTraceEndpoints.ts#nodekit-events`,
-  `backend/convex/crons.ts#nodekit-retention`,
-  `scripts/nodekit/**`, `scripts/__tests__/{nodekitActiveGraphCanary,releaseWorkflowContracts}.test.ts`,
-  `evals/activegraph/**`, `evals/nodebench-*.json`,
-  `nodekit.yaml`, `nodeagent.yaml`, `agent/**`,
-  `packs/entity-intelligence/**`, `scripts/{preflight-deploy,lib/convexProject}.mjs`,
-  `docs/architecture/{NODEKIT_ACTIVEGRAPH_CANARY,STANDARD_REPO_TREE}.md`,
-  and `evidence/activegraph-*` · PR-ready release packaging, Docker replay,
-  scoped commit/push/PR · branch `codex/activegraph-canary`. No deploy or
-  production mutation.
-
 > **STANDARD-TREE MIGRATION (2026-07-19, feat/standard-tree-migration): repo paths moved.**
 > `convex/` → `backend/convex/` (convex.json `functions` added; function identifiers unchanged),
 > `src/` + `index.html` → `apps/web/` (`@convex` alias replaces relative `../convex` imports),
