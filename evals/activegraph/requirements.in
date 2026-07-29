@@ -1,0 +1,4 @@
+activegraph==1.10.0
+jsonschema==4.26.0
+pytest==9.1.1
+rfc8785==0.1.4

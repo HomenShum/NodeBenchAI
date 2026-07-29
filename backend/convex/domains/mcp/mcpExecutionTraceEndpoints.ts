@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation } from "../../_generated/server";
 import type { Id } from "../../_generated/dataModel";
+import { appendNodeKitRunEvent } from "../operations/taskManager/nodeKitRunEvents";
 
 const oracleSourceRefValidator = v.object({
   label: v.string(),
@@ -81,6 +82,23 @@ export const mcpStartExecutionRun = internalMutation({
         executionTraceOrigin: "mcp",
         ...(args.metadata && typeof args.metadata === "object" ? (args.metadata as Record<string, unknown>) : {}),
       },
+    });
+
+    await appendNodeKitRunEvent(ctx, {
+      sessionId,
+      traceId,
+      userId: args.userId as Id<"users">,
+      runId: publicTraceId,
+      eventType: "run.started",
+      recordedAt: now,
+      payload: {
+        workflowName: args.workflowName,
+        origin: "mcp",
+        sessionType: args.type ?? "agent",
+        sessionStartedAt: now,
+        ...(args.goalId === undefined ? {} : { goalId: args.goalId }),
+      },
+      allowLegacySkip: false,
     });
 
     return {

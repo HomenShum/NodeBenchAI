@@ -1,0 +1,11 @@
+CHANGE   add canonical NodeKit run export and fail-closed ActiveGraph offline canary
+COMMAND  npx vitest run backend/convex/domains/operations/taskManager/nodeKitRunExport.test.ts scripts/__tests__/nodekitActiveGraphCanary.test.ts --reporter=dot
+EXIT     0
+
+RUN  v2.1.9 C:/Users/hshum/.codex/worktrees/7899/nodebench-ai
+
+PASS  backend/convex/domains/operations/taskManager/nodeKitRunExport.test.ts (15 tests)
+PASS  scripts/__tests__/nodekitActiveGraphCanary.test.ts (8 tests)
+
+Test Files  2 passed (2)
+Tests       23 passed (23)

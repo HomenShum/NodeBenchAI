@@ -1,0 +1,50 @@
+CHANGE
+  Harden the NodeKit run-event/export retention and offline ActiveGraph boundary.
+
+SOURCE STATE
+  Git HEAD: 2d3217eed619c36851c793ca79f5904b41c96c2c
+  Existing ActiveGraph candidate files were already uncommitted in this worktree.
+
+OBSERVABLE 1 — contradictory terminal receipt accepted
+COMMAND
+  npx tsx -e "<build run.started; build run.completed with status:error; verify chain>"
+EXIT
+  0
+OUTPUT
+  {"terminalType":"run.completed","payloadStatus":"error"}
+
+OBSERVABLE 2 — non-monotonic event time accepted
+COMMAND
+  npx tsx -e "<build events at 100,1000,200; verify chain>"
+EXIT
+  0
+OUTPUT
+  {"accepted":"run.completed","times":[100,1000,200]}
+
+OBSERVABLE 3 — default concurrent Vitest worker instability
+COMMAND
+  npx vitest run backend/convex/domains/operations/taskManager/nodeKitRunExport.test.ts scripts/__tests__/nodekitActiveGraphCanary.test.ts scripts/__tests__/releaseWorkflowContracts.test.ts --reporter=dot
+EXIT
+  1
+OUTPUT
+  Error: Worker exited unexpectedly
+
+SERIALIZED BASELINE
+COMMAND
+  npx vitest run backend/convex/domains/operations/taskManager/nodeKitRunExport.test.ts scripts/__tests__/nodekitActiveGraphCanary.test.ts scripts/__tests__/releaseWorkflowContracts.test.ts --reporter=dot --pool=threads --maxWorkers=1 --minWorkers=1
+EXIT
+  0
+RESULT
+  3 files passed; 37 tests passed.
+
+STATIC BOUNDARY FACTS
+  - Every event received retentionExpiresAt.
+  - The daily sweep took only the first 128 expired rows and skipped running traces.
+  - The sweep deleted at most 256 rows per daily invocation.
+  - The Docker child had no process timeout.
+  - Source export, report, and SQLite reads had no byte caps.
+  - The focused Docker wrapper test synthesized its report and SQLite header.
+
+REAL DOCKER
+  NOT_RUN — the existing verification record says the Docker Desktop Linux
+  daemon was unavailable. No container success is inferred from unit tests.

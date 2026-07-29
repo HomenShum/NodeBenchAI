@@ -1,0 +1,448 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nodebench.ai/schemas/activegraph/graph-hop-output.v1.schema.json",
+  "title": "NodeBench ActiveGraph Graph Hop Canary Output v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "activegraph",
+    "case_id",
+    "input_sha256",
+    "fork_point",
+    "runs",
+    "diff",
+    "assertions",
+    "verdict",
+    "limitations"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "nodebench.activegraph.graph-hop-output.v1"
+    },
+    "activegraph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "inspected_ref"],
+      "properties": {
+        "version": {
+          "const": "1.10.0"
+        },
+        "inspected_ref": {
+          "const": "8aedb1866cf5dce056af97529152ffd6f468a1ed"
+        }
+      }
+    },
+    "case_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "input_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "fork_point": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event_id", "event_type", "object_id"],
+      "properties": {
+        "event_id": {
+          "$ref": "#/$defs/domainId"
+        },
+        "event_type": {
+          "$ref": "#/$defs/domainId"
+        },
+        "object_id": {
+          "$ref": "#/$defs/domainId"
+        }
+      }
+    },
+    "runs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseline", "variant"],
+      "properties": {
+        "baseline": {
+          "$ref": "#/$defs/run"
+        },
+        "variant": {
+          "$ref": "#/$defs/run"
+        }
+      }
+    },
+    "diff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "is_identical",
+        "shared_events",
+        "parent_only_events",
+        "fork_only_events",
+        "decision_delta",
+        "divergent_objects",
+        "divergent_relations"
+      ],
+      "properties": {
+        "is_identical": {
+          "type": "boolean"
+        },
+        "shared_events": {
+          "$ref": "#/$defs/eventSummaries"
+        },
+        "parent_only_events": {
+          "$ref": "#/$defs/eventSummaries"
+        },
+        "fork_only_events": {
+          "$ref": "#/$defs/eventSummaries"
+        },
+        "decision_delta": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["baseline", "variant"],
+          "properties": {
+            "baseline": {
+              "$ref": "#/$defs/decisionResult"
+            },
+            "variant": {
+              "$ref": "#/$defs/decisionResult"
+            }
+          }
+        },
+        "divergent_objects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/objectDivergence"
+          }
+        },
+        "divergent_relations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/relationDivergence"
+          }
+        }
+      }
+    },
+    "assertions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "passed", "expected", "actual"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "expected": {},
+          "actual": {}
+        }
+      }
+    },
+    "verdict": {
+      "enum": ["pass", "fail"]
+    },
+    "limitations": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "contains": {
+        "const": "This synthetic golden case characterizes fork/diff mechanics only; canonical NodeKit export replay is evaluated by the separate offline replay lane."
+      },
+      "minContains": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "$defs": {
+    "domainId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:#/-]*$"
+    },
+    "runId": {
+      "type": "string",
+      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "rankingEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_id", "score_bp"],
+      "properties": {
+        "candidate_id": {
+          "$ref": "#/$defs/domainId"
+        },
+        "score_bp": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        }
+      }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "policy_id",
+        "winner_candidate_id",
+        "ranking",
+        "weights_bp",
+        "event_count",
+        "event_log_sha256"
+      ],
+      "properties": {
+        "run_id": {
+          "$ref": "#/$defs/runId"
+        },
+        "policy_id": {
+          "$ref": "#/$defs/domainId"
+        },
+        "winner_candidate_id": {
+          "$ref": "#/$defs/domainId"
+        },
+        "ranking": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/rankingEntry"
+          }
+        },
+        "weights_bp": {
+          "$ref": "#/$defs/weightsBp"
+        },
+        "event_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "event_log_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "eventSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/domainId"
+        },
+        "type": {
+          "$ref": "#/$defs/domainId"
+        }
+      }
+    },
+    "eventSummaries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/eventSummary"
+      }
+    },
+    "weightsBp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["semantic_score_bp", "graph_score_bp", "source_quality_bp"],
+      "properties": {
+        "semantic_score_bp": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "graph_score_bp": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "source_quality_bp": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        }
+      }
+    },
+    "graphEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_id",
+        "graph_score_bp",
+        "node_ids",
+        "relation_ids",
+        "evidence_ids"
+      ],
+      "properties": {
+        "candidate_id": {
+          "$ref": "#/$defs/domainId"
+        },
+        "graph_score_bp": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "node_ids": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/domainId"
+          }
+        },
+        "relation_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/domainId"
+          }
+        },
+        "evidence_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/domainId"
+          }
+        }
+      }
+    },
+    "decisionResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy_id",
+        "winner_candidate_id",
+        "ranking",
+        "weights_bp",
+        "graph_evidence"
+      ],
+      "properties": {
+        "policy_id": {
+          "$ref": "#/$defs/domainId"
+        },
+        "winner_candidate_id": {
+          "$ref": "#/$defs/domainId"
+        },
+        "ranking": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/rankingEntry"
+          }
+        },
+        "weights_bp": {
+          "$ref": "#/$defs/weightsBp"
+        },
+        "graph_evidence": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/graphEvidence"
+          }
+        }
+      }
+    },
+    "objectSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "data", "version"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/domainId"
+        },
+        "type": {
+          "$ref": "#/$defs/domainId"
+        },
+        "data": {
+          "type": "object"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "relationSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "source", "target", "type", "data"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/domainId"
+        },
+        "source": {
+          "$ref": "#/$defs/domainId"
+        },
+        "target": {
+          "$ref": "#/$defs/domainId"
+        },
+        "type": {
+          "$ref": "#/$defs/domainId"
+        },
+        "data": {
+          "type": "object"
+        }
+      }
+    },
+    "nullableObjectSnapshot": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/objectSnapshot"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "nullableRelationSnapshot": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/relationSnapshot"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "objectDivergence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "in_parent", "in_fork"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/domainId"
+        },
+        "in_parent": {
+          "$ref": "#/$defs/nullableObjectSnapshot"
+        },
+        "in_fork": {
+          "$ref": "#/$defs/nullableObjectSnapshot"
+        }
+      }
+    },
+    "relationDivergence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "in_parent", "in_fork"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/domainId"
+        },
+        "in_parent": {
+          "$ref": "#/$defs/nullableRelationSnapshot"
+        },
+        "in_fork": {
+          "$ref": "#/$defs/nullableRelationSnapshot"
+        }
+      }
+    }
+  }
+}

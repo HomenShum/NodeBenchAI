@@ -57,6 +57,20 @@ Server Error) for an unknown slug.
 
 ## Active claims (who is editing what RIGHT NOW)
 
+- **2026-07-28 · Codex `/root/activegraph_final_audit` →**
+  `backend/convex/schema.ts#agentTaskTraces+agentTaskSpans+nodeKitRunEvents`,
+  `backend/convex/domains/operations/taskManager/{mutations,nodeKitRunEvents,nodeKitRunExport,nodeKitRunRetention}*`,
+  `backend/convex/domains/mcp/mcpExecutionTraceEndpoints.ts#nodekit-events`,
+  `backend/convex/crons.ts#nodekit-retention`,
+  `scripts/nodekit/**`, `scripts/__tests__/{nodekitActiveGraphCanary,releaseWorkflowContracts}.test.ts`,
+  `evals/activegraph/**`, `evals/nodebench-*.json`,
+  `nodekit.yaml`, `nodeagent.yaml`, `agent/**`,
+  `packs/entity-intelligence/**`, `scripts/{preflight-deploy,lib/convexProject}.mjs`,
+  `docs/architecture/{NODEKIT_ACTIVEGRAPH_CANARY,STANDARD_REPO_TREE}.md`,
+  and `evidence/activegraph-*` · PR-ready release packaging, Docker replay,
+  scoped commit/push/PR · branch `codex/activegraph-canary`. No deploy or
+  production mutation.
+
 > **STANDARD-TREE MIGRATION (2026-07-19, feat/standard-tree-migration): repo paths moved.**
 > `convex/` → `backend/convex/` (convex.json `functions` added; function identifiers unchanged),
 > `src/` + `index.html` → `apps/web/` (`@convex` alias replaces relative `../convex` imports),
@@ -76,6 +90,44 @@ Server Error) for an unknown slug.
   that re-deploys the #494 functions the incident note describes → heals prod.
 
 ## Hand-offs (built + ready for the other agent to call)
+
+- **2026-07-28 - Codex `/root/activegraph_final_audit` -> `/root`** -
+  Release-hardening audit complete on the uncommitted
+  `codex/activegraph-canary` candidate. Event chains now enforce terminal
+  semantics, nondecreasing timestamps, and lifecycle-capacity admission.
+  Retention uses terminal-only expiry, bounded whole-chain deletion, stale-run
+  closure/purge, and multi-continuation legacy-span draining. The offline replay
+  boundary enforces byte/time limits and binds evidence to an immutable image,
+  canonical build inputs, candidate commit, pinned upstream tag object, and
+  exact image labels. Final local gates: 61 TypeScript tests, 48 Python tests,
+  Convex/root typechecks, production build, targeted Prettier, pip check, and
+  diff check all pass. The real 9-event Docker replay now passes with network
+  none, a read-only root, one writable evidence mount, and exact SQLite
+  persist/reload parity. No merge, deploy, production mutation, or `.serena`
+  edit.
+  Before/after proof:
+  `evidence/activegraph-release-hardening/{before,after}.txt`.
+
+- **2026-07-28 - Codex `/root/activegraph_canary_docs` → backend/runtime
+  reviewers** - Candidate on `codex/activegraph-canary`, not deployed:
+  `domains/operations/taskManager/nodeKitRunExport:exportNodeKitRun({traceId})`
+  returns `nodekit.run-export/v1` only for the authenticated owner's terminal,
+  newly instrumented trace. The receipt is derived only from immutable IDs and
+  event snapshots; legacy/ownerless traces fail closed. Events are
+  sensitivity-redacted, capped at 2 KiB stored / 32 KiB redacted source / 256
+  events, span-balanced, content-hashed, and retained for 30 days.
+  `domains/operations/taskManager/nodeKitRunRetention:deleteOwnedNodeKitRunHistory({traceId})`
+  deletes only an owner's whole terminal history; the daily internal retention
+  sweep skips running traces and deletes only whole expired chains. Boundary
+  failures carry structured Convex error data.
+  `scripts/nodekit/runActiveGraphCanary.mjs` accepts the export only through a
+  disposable copy and immutable Docker image ID/digest; it enforces
+  network-none/read-only-root/capability-dropped/resource-bounded isolation and
+  exact artifacts. Docker Desktop was stopped during local verification, so no
+  container pass is claimed; missing Docker is a fail-closed result. All
+  TypeScript/Python/typecheck/build/NodeKit gates are recorded in
+  `evidence/activegraph-production-slice/verification.txt`. No Convex deploy,
+  merge, push, or production write occurred.
 
 - **2026-07-17 · Claude → any agent building UI contracts / `.well-known/agent-ui.json`** ·
   The runtime UI-contract substrate ALREADY EXISTS — do not create a parallel

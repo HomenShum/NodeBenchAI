@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { getDistributionSurfaces } from "../../packages/mcp-local/src/tools/deltaTools.js";
+import { resolveConvexTypecheckProject } from "../lib/convexProject.mjs";
 import {
   describeFetchError,
   fetchWithRetry,
@@ -32,6 +33,33 @@ const listProductionWorkerSources = (directory: string): string[] =>
   });
 
 describe("release workflow contracts", () => {
+  it("follows the configured Convex functions directory after a standard-tree migration", () => {
+    const migratedRepo = mkdtempSync(join(tmpdir(), "nodebench-convex-project-"));
+    expect(migratedRepo.startsWith(tmpdir())).toBe(true);
+
+    try {
+      mkdirSync(join(migratedRepo, "backend", "convex"), { recursive: true });
+      writeFileSync(
+        join(migratedRepo, "convex.json"),
+        JSON.stringify({ functions: "backend/convex/" }),
+      );
+
+      expect(resolveConvexTypecheckProject(migratedRepo)).toBe(
+        "backend/convex",
+      );
+
+      writeFileSync(
+        join(migratedRepo, "convex.json"),
+        JSON.stringify({ functions: "../shared-convex" }),
+      );
+      expect(() => resolveConvexTypecheckProject(migratedRepo)).toThrow(
+        "must stay inside the repository root",
+      );
+    } finally {
+      rmSync(migratedRepo, { recursive: true, force: true });
+    }
+  });
+
   it("keeps exact-head previews buildable across multi-commit PRs", () => {
     const ignoreBuild = readRepoFile("scripts/vercel-ignore-build.sh");
 

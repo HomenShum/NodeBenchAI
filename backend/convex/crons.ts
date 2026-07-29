@@ -1050,6 +1050,18 @@ crons.interval(
 );
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Privacy retention for bounded NodeKit observer history. Terminal-only
+// indexes bypass nonterminal rows, each mutation deletes at most 1,024 whole
+// chain rows, one continuation drains backlog, and stale running traces are
+// explicitly failed before their terminal retention clock starts.
+crons.interval(
+  "nodekit run-event retention",
+  { hours: 24 },
+  internal.domains.operations.taskManager.nodeKitRunRetention
+    .purgeExpiredNodeKitRunEvents,
+  {},
+);
+
 // scratchnode.live presence janitor (Phase 1 of live prod plan)
 // ═══════════════════════════════════════════════════════════════════════════
 //

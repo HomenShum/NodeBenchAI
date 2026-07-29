@@ -1,0 +1,8 @@
+*
+!requirements.in
+!UPSTREAM.json
+!src/
+!src/nodebench_activegraph_canary/
+!src/nodebench_activegraph_canary/**
+**/__pycache__/
+**/*.pyc

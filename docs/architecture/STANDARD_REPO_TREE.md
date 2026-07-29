@@ -1,75 +1,142 @@
-# NodeBench × NodeKit Standard Repo Tree
+# NodeBench × NodeKit standard repository tree
 
-Status: **Phase 0 adopted** (declarative — manifests + authored surface, zero
-file moves). This doc is the mapping between the NodeKit Agent Application
-Standard tree and where each concern lives in this repo, plus the staged plan
-for physical conformance.
+Status: **Phase 2 physically migrated; flat v1 contracts aligned.**
 
-Prior art: NodeKit Agent Application Standard (node-platform); Eve
-filesystem-first authoring (`apps/eve-agent/agent/`); 2026-07-19 harness audit
-of eve / NodeAgent / NodeRoom.
+PRs #589 and #590 established the authored surface and moved the application
+into the standard physical tree. The July 28 alignment selectively carries
+forward the still-valid contract changes from draft PR #592 without merging its
+stale generated `.nodeagent/` snapshot or its conflicting branch wholesale.
 
-## Phase 0 (this PR) — declarative adoption
+The alignment does not replace the production runtime. NodeBench remains a
+brownfield application whose live execution engine is
+`repo-local-nodebench`.
 
-Added, all additive and runtime-inert:
+## Current standard surface
 
+```text
+nodekit.yaml                         repository contract (`nodekit.repo/v1`)
+nodeagent.yaml                       application contract (`nodeagent.application/v1`)
+agent/                               filesystem-authored brownfield projection
+packs/entity-intelligence/
+├── pack.yaml                        logical capability ownership
+└── SKILL.md                         usage contract and live-source map
+apps/web/                            Vite application
+backend/convex/                      Convex functions and durable state
+workers/node/                        Node workers, routes, and pipeline
+evals/                               tests and NodeAgent evaluation bindings
+proof/ui-contract/                   UI contracts and captured evidence
+adw/                                 improvement workflows and goal governance
 ```
-nodekit.yaml                      repo identity, ownership, lifecycle, layout map, honest conformance flags
-nodeagent.yaml                    app composition: authoring dir, runtime, backend, pack, required evals
-agent/                            authored surface (md/yaml only; code stays source of truth)
-├── README.md                     phase-0 rules — no fake compiled output, Source: pointers mandatory
-├── instructions.md               orchestrator instructions (mirrors chatRuns.ts)
-├── policies/{approvals,egress,budgets}.yaml
-├── subagents/README.md           index → convex/domains/agents orchestrator-workers
-└── tools/README.md               index → packages/mcp-local (304 tools) + verb-taxonomy map
-packs/entity-intelligence/pack.yaml   capability declared at current locations
-```
 
-Explicit non-goals of phase 0: no `.nodeagent/` (no compiler exists — we do not
-fake generated output), no `.ts` under `agent/` (tsconfig excludes it; nothing
-may import it), no file moves.
+The root `public/`, `api/`, environment files, and build output intentionally
+remain at repository root. NodeBench-specific packages such as
+`packages/mcp-local` remain first-class distribution artifacts.
 
-## Full mapping (standard slot → today)
+`.nodeagent/` is compiler-owned output. This alignment deliberately does not
+copy the generated snapshot from PR #592 because its discovery graph was based
+on an older branch and conflicts with current `main`. Generate it from the
+current authored tree when a workflow explicitly requires it; never hand-edit
+or use a stale snapshot as runtime authority.
 
-Legend: `✓` conformant · `◐` exists at non-standard location · `✗` missing
+## Mapping and authority
 
-| Standard | State | Today |
-|---|---|---|
-| `nodekit.yaml` / `nodeagent.yaml` | ✓ (phase 0) | repo root |
-| `AGENTS.md`, `README.md`, `components.json` | ✓ | repo root |
-| `.claude/` agents·skills·rules | ✓ | richest in the family |
-| `agent/` authored surface | ◐ | phase-0 mirror; truth in `convex/domains/redesign/chatRuns.ts`, `convex/domains/agents/**`, `server/pipeline/**` |
-| `packs/` | ◐ | `packs/entity-intelligence/pack.yaml` declares content spread across convex/, packages/, server/ |
-| `integrations/pi-ai` | ✗ | provider seam = `shared/llm/modelCatalog.ts` direct |
-| `apps/web/src` | ◐ | `src/` at root (Vite root) |
-| `backend/convex` | ◐ | `convex/` at root (Convex CLI default) |
-| `evals/{benchmark,conformance,production,smoke}` | ◐ | `packages/mcp-local/src/benchmarks`, `tests/e2e`, `scripts/verify-live.ts`, dogfood scripts |
-| `proof/` | ◐ | `docs/design/ui-contract/` (evidence folders + `manifest.schema.json`) |
-| `adw/` | ◐ | `scripts/improvement-loop/` + `goals/` (+ `HARD_GATES.md`) |
-| `fixtures/` | ◐ | spread through test dirs; deterministic fixtures exist |
-| `workers/` | ◐ | `server/` (voice, gateway) |
-| `.nodeagent/` generated | ✗ | blocked on the manifest compiler (deliberate) |
-| `packages/mcp-local` etc. | ★ keep | NodeBench-specific distribution artifact; standard-compatible |
+Legend: `✓` standard location, `◐` mapped but not runtime-authoritative,
+`✗` missing.
 
-## Known conformance violations (declared, not hidden)
+| Standard concern                        | State | Current authority                                                                     |
+| --------------------------------------- | ----: | ------------------------------------------------------------------------------------- |
+| Repository and application manifests    |     ✓ | flat `nodekit.repo/v1` and `nodeagent.application/v1` files at root                   |
+| Web application                         |     ✓ | `apps/web/`                                                                           |
+| Production backend                      |     ✓ | `backend/convex/`; `convex.json` points to it                                         |
+| Node workers                            |     ✓ | `workers/node/`                                                                       |
+| Evaluation tree                         |     ✓ | `evals/`, including five top-level NodeAgent bindings                                 |
+| Proof tree                              |     ✓ | `proof/ui-contract/` plus other proof artifacts                                       |
+| ADW tree                                |     ✓ | `adw/improvement-loop/` and `adw/goals/`                                              |
+| Authored agent surface                  |     ◐ | `agent/` mirrors runtime truth in backend and worker code                             |
+| Entity-intelligence pack                |     ◐ | logical pack at `packs/entity-intelligence/`; implementations remain distributed      |
+| Canonical NodeKit run export            |     ◐ | append-only owner-scoped chain in `backend/convex/domains/operations/taskManager/`    |
+| ActiveGraph replay                      |     ◐ | isolated evaluator under `evals/activegraph/`; never application authority            |
+| Compiled application definition         |     ◐ | generated on demand from current source; no stale snapshot is committed by this slice |
+| Pi AI provider adapter                  |     ✗ | live product path uses direct Gemini REST                                             |
+| Canonical NodeAgent runtime consumption |     ✗ | production still runs `repo-local-nodebench`                                          |
 
-1. **Repo-local runtime** — this repo's harness predates NodeAgent and is a
-   *migration source*, not a vendored copy (`forbidVendoredRuntime: false`).
-   Flips after the ecosystem phase-2 extraction (NodeRoom runtime → NodeAgent)
-   and this repo consumes `@nodeagent/runtime`.
-2. **Hand-maintained global tool registry** (`toolRegistry.ts`) — standard
-   rule 4; resolved by the generated-registry compiler, not by hand.
-3. **modelCatalog duplication** — copies exist in NodeRoom and NodeAgent;
-   resolved by `@nodeagent/providers` extraction.
+## Brownfield conformance level
 
-## Physical phases (each gated, none started)
+Current level: **L2 — physically mapped with flat v1 authored contracts.**
 
-| Phase | Move | Constraint to respect |
-|---|---|---|
-| 1 | `evals/`, `proof/`, `fixtures/`, `adw/` consolidation | script/CI path updates only — low risk, do first |
-| 2 | `src/` → `apps/web/src`; `convex/` → `backend/convex` | Vite root + Vercel config + tsconfig paths + `convex.json` functions path; import churn across hundreds of files; MUST follow expand-contract discipline and land between deploys |
-| 3 | `agent/` becomes compiled truth; `.nodeagent/` generated | blocked on `@nodeagent` manifest compiler |
-| 4 | pack extraction (`packs/entity-intelligence` gains real content) | mirrors NodeSlide layering: core/pack/adapter/react split |
+- **L1 registered:** the repository contract uses the platform's canonical flat
+  schema dialect.
+- **L2 mapped:** application, provider, backend, pack, policies, and existing
+  evaluation commands resolve through current standard-tree paths.
+- **L3 wrapped is partial:** new execution traces emit a canonical,
+  append-only `nodekit.run-event/v1` chain and expose
+  `nodekit.run-export/v1`, but the production runtime is not otherwise replaced.
+- **L4 shadowing starts offline only:** ActiveGraph may read a validated,
+  disposable export copy. It cannot write NodeBench state, answer for
+  production, or approve an action.
+- **L5 hybrid through L7 enforced remain:** promote no runtime path without a
+  separate corpus, security, migration, and rollback decision.
 
-Rule for all phases: **build every new capability against the standard
-locations from now on**; never move files and change behavior in the same PR.
+The immutable export advances a proof boundary; it is not a claim that
+ActiveGraph or the canonical NodeAgent runtime now executes production work.
+
+## NodeKit run-export boundary
+
+For newly created execution traces, every meaningful step, decision,
+verification, evidence attachment, approval request, span lifecycle event, and
+terminal outcome is appended to `nodeKitRunEvents` in the same Convex
+transaction as the owning mutation. Events have:
+
+- a contiguous sequence;
+- a previous-event hash;
+- a canonical SHA-256 content hash;
+- a required `run.started` event; and
+- exactly one terminal `run.completed` or `run.failed` event.
+
+The owner-scoped query
+`domains/operations/taskManager/nodeKitRunExport:exportNodeKitRun` exports only
+terminal runs and verifies order, chain integrity, ownership, completeness, and
+the whole-export hash. Legacy traces without the append-only chain fail closed;
+the exporter never synthesizes missing history from mutable metadata.
+
+## NodeAgent evaluation bindings
+
+The manifest requires these repository-local bindings:
+
+| ID                              | Role                                                                |
+| ------------------------------- | ------------------------------------------------------------------- |
+| `nodebench-conformance`         | UI contract conformance                                             |
+| `nodebench-smoke`               | local dogfood smoke verification                                    |
+| `nodebench-entity-intelligence` | search-quality benchmark                                            |
+| `nodebench-production`          | live production verification                                        |
+| `nodebench-activegraph-canary`  | offline export validation and ActiveGraph persistence/reload parity |
+
+The ActiveGraph binding is an evaluator, not a runtime selection.
+
+## Known gaps, declared rather than hidden
+
+1. **Repo-local runtime:** the mature NodeBench harness remains the migration
+   source. `nodeagent-native` is the target, not a current fact.
+2. **Manual tool registry:** `packages/mcp-local/src/toolRegistry.ts` remains
+   hand-maintained; generated registry authority is future work.
+3. **Compiled/runtime split:** a compiler projection proves authored
+   consistency, not that production consumes the same path.
+4. **Provider portability:** the current product path uses direct Gemini REST;
+   provider adapters need an independent runtime migration.
+5. **ProofLoop receipt:** `nodekit.run-export/v1` is a NodeBench execution
+   export, not a claim to implement `proofloop.receipt/v1`.
+6. **Existing traces:** traces created before the append-only chain are not
+   backfilled. They intentionally return a typed `legacy_trace` export error.
+
+## Next migration gates
+
+| Gate                          | Change                                                                                | Proof required                                                        |
+| ----------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| 3 — complete wrapper coverage | Prove every production execution entrypoint starts and terminates the canonical chain | mutation/source audit plus end-to-end owner tests                     |
+| 4 — shadow corpus             | Replay about 20 representative immutable exports with all writes prohibited           | output, evidence, mutation, cost, and latency receipts                |
+| 5 — decide                    | Write a separate adoption or rejection ADR                                            | corpus result, issue #67 disposition, threat model, rollback          |
+| 6 — extract                   | Move stable pack implementations only when a second consumer needs them               | pack conformance in two hosts                                         |
+| 7 — enforce                   | Retire legacy paths and reject new forks in CI                                        | same current compiled definition in local, eval, and production paths |
+
+Rule for later work: preserve the physical tree, build through declared
+boundaries, and do not combine broad path moves with behavioral changes.
