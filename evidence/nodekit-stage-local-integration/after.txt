@@ -1,0 +1,25 @@
+NodeKit stage-local runtime integration — after
+Date: 2026-07-29
+
+Verified locally:
+
+- `npx tsc --noEmit --pretty false` — pass
+- focused NodeKit identity, database, graph-event, export, retention,
+  MCP-local, and ActiveGraph suites — 74/74 pass
+- MCP-local static catalog count — pass at 355 tools
+- `npm run build` — pass
+- `npm --prefix packages/mcp-local run build` — pass
+- `git diff --check` — pass
+
+The database suite covers first connection, reconnect, rotation, stale
+generation, same-generation collision, peer replacement, validation before
+persistence, an eight-request burst, 32 sustained reconnects, cross-tenant
+graph append rejection, and exact owner-bound graph event persistence.
+
+The ActiveGraph fixture now replays identity plus a representative stage-local
+node start, exact edge consumption, artifact production, node completion, and
+terminal run. It remains offline and non-authoritative.
+
+The broader repository-wide `tools.test.ts` invocation still contains unrelated
+standard-tree path assumptions (`convex/` versus `backend/convex/`) and slow
+spreadsheet/audit cases. Its direct catalog expectation was updated and passes.

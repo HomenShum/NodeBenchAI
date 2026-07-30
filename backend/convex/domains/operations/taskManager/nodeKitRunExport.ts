@@ -7,12 +7,17 @@ import {
   NODEKIT_RUN_EVENT_CONTRACT_VERSION,
   NODEKIT_RUN_MAX_EVENTS,
   NodeKitRunContractError,
+  canonicalNodeKitJson,
   deepFreezeNodeKitValue,
   sha256CanonicalNodeKitValue,
   verifyNodeKitRunEventChain,
   type NodeKitRunEvent,
   type NodeKitSafeEventPayload,
 } from "./nodeKitRunEvents";
+import {
+  buildNodeKitNativeSessionIdentity,
+  type NodeKitNativeSessionIdentity,
+} from "./nodeKitRuntimeIdentity";
 
 export const NODEKIT_RUN_EXPORT_SCHEMA_VERSION =
   "nodekit.run-export/v1" as const;
@@ -32,6 +37,7 @@ type SessionExport = Readonly<{
   id: string;
   typeAtRunStart: string;
   startedAt: number;
+  nativeIdentity?: NodeKitNativeSessionIdentity;
 }>;
 
 type TraceExport = Readonly<{
@@ -122,13 +128,25 @@ function assertTimestamp(
 function assertSessionExport(
   value: Record<string, unknown>,
 ): asserts value is Record<string, unknown> & SessionExport {
-  assertExactKeys(value, ["id", "typeAtRunStart", "startedAt"], "session");
+  assertExactKeys(
+    value,
+    [
+      "id",
+      "typeAtRunStart",
+      "startedAt",
+      ...("nativeIdentity" in value ? ["nativeIdentity"] : []),
+    ],
+    "session",
+  );
   assertString(value.id, "session.id", { nonEmpty: true });
   assertString(value.typeAtRunStart, "session.typeAtRunStart", {
     nonEmpty: true,
     maxLength: 256,
   });
   assertTimestamp(value.startedAt, "session.startedAt");
+  if ("nativeIdentity" in value) {
+    assertObject(value.nativeIdentity, "session.nativeIdentity");
+  }
 }
 
 function assertTraceExport(
@@ -209,10 +227,39 @@ export async function buildCanonicalNodeKitRunExport(input: {
       "run.started has an invalid event-bound session/trace snapshot.",
     );
   }
+  const identityRef = startEvent.payload.fields.identityRef;
+  const workspaceId = startEvent.payload.fields.workspaceId;
+  const agentId = startEvent.payload.fields.agentId;
+  const nativeSessionId = startEvent.payload.fields.nativeSessionId;
+  const nativeSessionGeneration =
+    startEvent.payload.fields.nativeSessionGeneration;
+  const peerId = startEvent.payload.fields.peerId;
+  const identitySnapshotHash = startEvent.payload.fields.identitySnapshotHash;
+  const nativeIdentity =
+    identityRef === undefined
+      ? undefined
+      : await buildNodeKitNativeSessionIdentity({
+          identityRef: String(identityRef),
+          workspaceId: String(workspaceId),
+          agentId: String(agentId),
+          nativeSessionId: String(nativeSessionId),
+          nativeSessionGeneration: Number(nativeSessionGeneration),
+          ...(peerId === undefined ? {} : { peerId: String(peerId) }),
+        });
+  if (
+    nativeIdentity !== undefined &&
+    nativeIdentity.snapshotHash !== identitySnapshotHash
+  ) {
+    fail(
+      "native_identity_hash_mismatch",
+      "run.started native identity fields do not match identitySnapshotHash.",
+    );
+  }
   const session: SessionExport = {
     id: input.sessionId,
     typeAtRunStart: sessionType,
     startedAt: sessionStartedAt as number,
+    ...(nativeIdentity === undefined ? {} : { nativeIdentity }),
   };
   const trace: TraceExport = {
     id: input.traceId,
@@ -346,6 +393,37 @@ export async function assertNodeKitRunExport(
       "event_snapshot_mismatch",
       "Session or trace metadata differs from the immutable event snapshots.",
     );
+  }
+  const startIdentityRef = startEvent.payload.fields.identityRef;
+  if (startIdentityRef === undefined && "nativeIdentity" in value.session) {
+    fail(
+      "native_identity_snapshot_mismatch",
+      "The export session cannot add identity absent from run.started.",
+    );
+  }
+  if (startIdentityRef !== undefined) {
+    const expectedIdentity = await buildNodeKitNativeSessionIdentity({
+      identityRef: String(startIdentityRef),
+      workspaceId: String(startEvent.payload.fields.workspaceId),
+      agentId: String(startEvent.payload.fields.agentId),
+      nativeSessionId: String(startEvent.payload.fields.nativeSessionId),
+      nativeSessionGeneration: Number(
+        startEvent.payload.fields.nativeSessionGeneration,
+      ),
+      ...(startEvent.payload.fields.peerId === undefined
+        ? {}
+        : { peerId: String(startEvent.payload.fields.peerId) }),
+    });
+    if (
+      !("nativeIdentity" in value.session) ||
+      canonicalNodeKitJson(value.session.nativeIdentity) !==
+        canonicalNodeKitJson(expectedIdentity)
+    ) {
+      fail(
+        "native_identity_snapshot_mismatch",
+        "The export session identity differs from run.started.",
+      );
+    }
   }
   if (
     value.completeness.eventChainComplete !== true ||

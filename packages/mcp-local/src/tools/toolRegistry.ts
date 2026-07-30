@@ -1882,6 +1882,33 @@ const REGISTRY_ENTRIES = [
     complexity: "low",
   },
   {
+    name: "record_execution_graph_event",
+    category: "platform",
+    tags: [
+      "execution-trace",
+      "nodekit",
+      "execution-graph",
+      "edge-binding",
+      "runnable-frontier",
+      "review-context",
+      "barrier",
+      "traceable",
+    ],
+    quickRef: {
+      nextAction:
+        "Graph event recorded. Continue only from the current NodeKit runnable frontier and bind every consumed edge to its exact artifact hash.",
+      nextTools: [
+        "record_execution_graph_event",
+        "attach_execution_evidence",
+        "record_execution_verification",
+      ],
+      methodology: "quality_gates",
+      tip: "Record NodeKit-issued identifiers and hashes. Do not convert a successful process exit into an edge binding or stage advance.",
+    },
+    phase: "verify",
+    complexity: "medium",
+  },
+  {
     name: "attach_execution_evidence",
     category: "platform",
     tags: ["execution-trace", "evidence", "sources", "truth-boundary", "urls", "files", "support", "claims"],
@@ -5586,8 +5613,13 @@ export const TOOL_REGISTRY = new Map<string, ToolRegistryEntry>(
   REGISTRY_ENTRIES.map((e) => [e.name, e])
 );
 
-/** All registry entries as array */
-export const ALL_REGISTRY_ENTRIES = REGISTRY_ENTRIES;
+/**
+ * Mutable runtime registry entries.
+ *
+ * Keep REGISTRY_ENTRIES as the readonly literal source for RegisteredToolName,
+ * while allowing lazy toolset loaders to append truthful synthetic entries.
+ */
+export const ALL_REGISTRY_ENTRIES: ToolRegistryEntry[] = [...REGISTRY_ENTRIES];
 
 /** Get quick ref for a tool, with fallback for unregistered tools */
 export function getQuickRef(toolName: string): ToolQuickRef | null {

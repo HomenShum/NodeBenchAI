@@ -19,12 +19,16 @@ function getTraceConfig(): { siteUrl: string; secret: string } | null {
   return { siteUrl: siteUrl.replace(/\/$/, ""), secret };
 }
 
-async function callGateway<T>(fn: string, args: Record<string, unknown>): Promise<GatewayResult<T>> {
+async function callGateway<T>(
+  fn: string,
+  args: Record<string, unknown>,
+): Promise<GatewayResult<T>> {
   const config = getTraceConfig();
   if (!config) {
     return {
       success: false,
-      error: "Missing CONVEX_SITE_URL (or VITE_CONVEX_URL) or MCP_SECRET. Cannot call execution trace backend.",
+      error:
+        "Missing CONVEX_SITE_URL (or VITE_CONVEX_URL) or MCP_SECRET. Cannot call execution trace backend.",
     };
   }
 
@@ -39,9 +43,10 @@ async function callGateway<T>(fn: string, args: Record<string, unknown>): Promis
 
   const payload = (await res.json()) as GatewayResult<T> & { message?: string };
   if (!res.ok) {
-    const errorMessage = ("error" in payload ? payload.error : undefined)
-      || payload.message
-      || `Execution trace backend returned HTTP ${res.status}`;
+    const errorMessage =
+      ("error" in payload ? payload.error : undefined) ||
+      payload.message ||
+      `Execution trace backend returned HTTP ${res.status}`;
     return {
       success: false,
       error: errorMessage,
@@ -64,7 +69,8 @@ export const executionTraceTools: McpTool[] = [
         },
         workflowName: {
           type: "string",
-          description: "Workflow label for the trace, e.g. 'Spreadsheet enrichment'. Defaults to title.",
+          description:
+            "Workflow label for the trace, e.g. 'Spreadsheet enrichment'. Defaults to title.",
         },
         description: {
           type: "string",
@@ -78,11 +84,13 @@ export const executionTraceTools: McpTool[] = [
         visibility: {
           type: "string",
           enum: ["public", "private"],
-          description: "Whether the run is publicly visible in shared UI surfaces (default: private).",
+          description:
+            "Whether the run is publicly visible in shared UI surfaces (default: private).",
         },
         goalId: {
           type: "string",
-          description: "Optional Oracle/mission goal ID for cross-check tracking.",
+          description:
+            "Optional Oracle/mission goal ID for cross-check tracking.",
         },
         visionSnapshot: {
           type: "string",
@@ -107,6 +115,25 @@ export const executionTraceTools: McpTool[] = [
             required: ["label"],
           },
         },
+        nativeIdentity: {
+          type: "object",
+          description:
+            "Optional persistent native-agent/workspace/session identity. Reuse the same session ID and generation on reconnect; increment the generation on restart or rotation.",
+          properties: {
+            agentId: { type: "string" },
+            workspaceId: { type: "string" },
+            nativeSessionId: { type: "string" },
+            nativeSessionGeneration: { type: "number" },
+            peerId: { type: "string" },
+          },
+          required: [
+            "agentId",
+            "workspaceId",
+            "nativeSessionId",
+            "nativeSessionGeneration",
+          ],
+          additionalProperties: false,
+        },
         metadata: {
           type: "object",
           description: "Opaque metadata stored on both the session and trace.",
@@ -124,7 +151,19 @@ export const executionTraceTools: McpTool[] = [
       goalId?: string;
       visionSnapshot?: string;
       successCriteria?: string[];
-      sourceRefs?: Array<{ label: string; href?: string; note?: string; kind?: string }>;
+      sourceRefs?: Array<{
+        label: string;
+        href?: string;
+        note?: string;
+        kind?: string;
+      }>;
+      nativeIdentity?: {
+        agentId: string;
+        workspaceId: string;
+        nativeSessionId: string;
+        nativeSessionGeneration: number;
+        peerId?: string;
+      };
       metadata?: Record<string, unknown>;
     }) => {
       const start = Date.now();
@@ -143,11 +182,16 @@ export const executionTraceTools: McpTool[] = [
         visionSnapshot: args.visionSnapshot,
         successCriteria: args.successCriteria,
         sourceRefs: args.sourceRefs,
+        nativeIdentity: args.nativeIdentity,
         metadata: args.metadata,
       });
 
       if (!result.success) {
-        return { error: true, message: result.error, latencyMs: Date.now() - start };
+        return {
+          error: true,
+          message: result.error,
+          latencyMs: Date.now() - start,
+        };
       }
 
       return {
@@ -198,8 +242,14 @@ export const executionTraceTools: McpTool[] = [
           type: "string",
           description: "Required when status is failed.",
         },
-        inputTokens: { type: "number", description: "Optional input token count." },
-        outputTokens: { type: "number", description: "Optional output token count." },
+        inputTokens: {
+          type: "number",
+          description: "Optional input token count.",
+        },
+        outputTokens: {
+          type: "number",
+          description: "Optional output token count.",
+        },
         toolsUsed: {
           type: "array",
           items: { type: "string" },
@@ -236,7 +286,8 @@ export const executionTraceTools: McpTool[] = [
       if (args.status === "failed" && !args.errorMessage) {
         return {
           error: true,
-          message: "errorMessage is required when completing an execution run with status='failed'.",
+          message:
+            "errorMessage is required when completing an execution run with status='failed'.",
           latencyMs: Date.now() - start,
         };
       }
@@ -259,7 +310,11 @@ export const executionTraceTools: McpTool[] = [
         });
 
         if (!metricsResult.success) {
-          return { error: true, message: metricsResult.error, latencyMs: Date.now() - start };
+          return {
+            error: true,
+            message: metricsResult.error,
+            latencyMs: Date.now() - start,
+          };
         }
       }
 
@@ -280,7 +335,11 @@ export const executionTraceTools: McpTool[] = [
       });
 
       if (!traceResult.success) {
-        return { error: true, message: traceResult.error, latencyMs: Date.now() - start };
+        return {
+          error: true,
+          message: traceResult.error,
+          latencyMs: Date.now() - start,
+        };
       }
 
       const sessionResult = await callGateway<null>("updateSessionStatus", {
@@ -292,7 +351,11 @@ export const executionTraceTools: McpTool[] = [
       });
 
       if (!sessionResult.success) {
-        return { error: true, message: sessionResult.error, latencyMs: Date.now() - start };
+        return {
+          error: true,
+          message: sessionResult.error,
+          latencyMs: Date.now() - start,
+        };
       }
 
       return {
@@ -312,10 +375,22 @@ export const executionTraceTools: McpTool[] = [
       type: "object",
       properties: {
         traceId: { type: "string", description: "Convex agentTaskTraces ID." },
-        parentSpanId: { type: "string", description: "Optional parent span ID." },
+        parentSpanId: {
+          type: "string",
+          description: "Optional parent span ID.",
+        },
         stage: {
           type: "string",
-          enum: ["ingest", "inspect", "research", "propose", "edit", "verify", "export", "summarize"],
+          enum: [
+            "ingest",
+            "inspect",
+            "research",
+            "propose",
+            "edit",
+            "verify",
+            "export",
+            "summarize",
+          ],
         },
         type: {
           type: "string",
@@ -351,13 +426,26 @@ export const executionTraceTools: McpTool[] = [
         endedAt: { type: "number" },
         metadata: { type: "object", additionalProperties: true },
       },
-      required: ["traceId", "stage", "type", "title", "tool", "action", "target", "resultSummary"],
+      required: [
+        "traceId",
+        "stage",
+        "type",
+        "title",
+        "tool",
+        "action",
+        "target",
+        "resultSummary",
+      ],
     },
     handler: async (args: Record<string, unknown>) => {
       const start = Date.now();
       const result = await callGateway<string>("recordStep", args);
       if (!result.success) {
-        return { error: true, message: result.error, latencyMs: Date.now() - start };
+        return {
+          error: true,
+          message: result.error,
+          latencyMs: Date.now() - start,
+        };
       }
       return {
         success: true,
@@ -375,9 +463,17 @@ export const executionTraceTools: McpTool[] = [
       type: "object",
       properties: {
         traceId: { type: "string", description: "Convex agentTaskTraces ID." },
-        decisionType: { type: "string", description: "Decision type, e.g. ranking, selection, rejection, escalation." },
+        decisionType: {
+          type: "string",
+          description:
+            "Decision type, e.g. ranking, selection, rejection, escalation.",
+        },
         statement: { type: "string", description: "Decision statement." },
-        basis: { type: "array", items: { type: "string" }, description: "Concise reasons supporting the choice." },
+        basis: {
+          type: "array",
+          items: { type: "string" },
+          description: "Concise reasons supporting the choice.",
+        },
         evidenceRefs: { type: "array", items: { type: "string" } },
         alternativesConsidered: { type: "array", items: { type: "string" } },
         confidence: { type: "number" },
@@ -389,7 +485,11 @@ export const executionTraceTools: McpTool[] = [
       const start = Date.now();
       const result = await callGateway<string>("recordDecision", args);
       if (!result.success) {
-        return { error: true, message: result.error, latencyMs: Date.now() - start };
+        return {
+          error: true,
+          message: result.error,
+          latencyMs: Date.now() - start,
+        };
       }
       return {
         success: true,
@@ -412,9 +512,16 @@ export const executionTraceTools: McpTool[] = [
           type: "string",
           enum: ["passed", "warning", "failed", "fixed"],
         },
-        details: { type: "string", description: "Human-readable verification details." },
+        details: {
+          type: "string",
+          description: "Human-readable verification details.",
+        },
         relatedArtifactIds: { type: "array", items: { type: "string" } },
-        createGuardrailSpan: { type: "boolean", description: "Whether to also create a guardrail span (default true)." },
+        createGuardrailSpan: {
+          type: "boolean",
+          description:
+            "Whether to also create a guardrail span (default true).",
+        },
       },
       required: ["traceId", "label", "status", "details"],
     },
@@ -422,7 +529,11 @@ export const executionTraceTools: McpTool[] = [
       const start = Date.now();
       const result = await callGateway<string>("recordVerification", args);
       if (!result.success) {
-        return { error: true, message: result.error, latencyMs: Date.now() - start };
+        return {
+          error: true,
+          message: result.error,
+          latencyMs: Date.now() - start,
+        };
       }
       return {
         success: true,
@@ -430,6 +541,100 @@ export const executionTraceTools: McpTool[] = [
         traceId: result.data,
         label: args.label,
         status: args.status,
+      };
+    },
+  },
+  {
+    name: "record_execution_graph_event",
+    description:
+      "Append one exact NodeKit stage-local graph event to a live execution trace. Use NodeKit-produced graph, frontier, edge-binding, artifact, and review-context identifiers; this tool records the evidence-bound handoff and never infers readiness from process exit status.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        traceId: { type: "string" },
+        eventType: {
+          type: "string",
+          enum: [
+            "node.started",
+            "edge.consumed",
+            "artifact.produced",
+            "node.completed",
+            "node.failed",
+            "barrier.opened",
+            "barrier.blocked",
+          ],
+        },
+        graphId: { type: "string" },
+        graphHash: { type: "string" },
+        caseId: { type: "string" },
+        stageId: { type: "string" },
+        caseContentHash: { type: "string" },
+        nodeId: { type: "string" },
+        nodeRunId: { type: "string" },
+        nodeKind: { type: "string", enum: ["task", "review", "barrier"] },
+        frontierHash: { type: "string" },
+        edgeId: { type: "string" },
+        bindingId: { type: "string" },
+        bindingHash: { type: "string" },
+        artifactId: { type: "string" },
+        artifactSchemaVersion: { type: "string" },
+        artifactContentHash: { type: "string" },
+        authorityKind: {
+          type: "string",
+          enum: [
+            "agent-produced",
+            "deterministic",
+            "human-attested",
+            "nodeproof-verified",
+          ],
+        },
+        status: { type: "string" },
+        reasonCode: { type: "string" },
+        blockingEdgeCount: { type: "number" },
+        reviewContextRef: { type: "string" },
+        reviewSeparation: {
+          type: "string",
+          enum: [
+            "same-context",
+            "fresh-context",
+            "independent-model",
+            "independent-human",
+          ],
+        },
+        protectedEvaluator: { type: "boolean" },
+      },
+      required: [
+        "traceId",
+        "eventType",
+        "graphId",
+        "graphHash",
+        "caseId",
+        "stageId",
+        "caseContentHash",
+        "nodeId",
+        "nodeRunId",
+      ],
+      additionalProperties: false,
+    },
+    handler: async (args: Record<string, unknown>) => {
+      const start = Date.now();
+      const result = await callGateway<string>(
+        "recordExecutionGraphEvent",
+        args,
+      );
+      if (!result.success) {
+        return {
+          error: true,
+          message: result.error,
+          latencyMs: Date.now() - start,
+        };
+      }
+      return {
+        success: true,
+        latencyMs: Date.now() - start,
+        eventHash: result.data,
+        traceId: args.traceId,
+        eventType: args.eventType,
       };
     },
   },
@@ -442,7 +647,10 @@ export const executionTraceTools: McpTool[] = [
       properties: {
         traceId: { type: "string", description: "Convex agentTaskTraces ID." },
         title: { type: "string", description: "Evidence title." },
-        summary: { type: "string", description: "What this evidence supports or qualifies." },
+        summary: {
+          type: "string",
+          description: "What this evidence supports or qualifies.",
+        },
         sourceRefs: {
           type: "array",
           items: {
@@ -465,7 +673,11 @@ export const executionTraceTools: McpTool[] = [
       const start = Date.now();
       const result = await callGateway<string>("attachEvidence", args);
       if (!result.success) {
-        return { error: true, message: result.error, latencyMs: Date.now() - start };
+        return {
+          error: true,
+          message: result.error,
+          latencyMs: Date.now() - start,
+        };
       }
       return {
         success: true,
@@ -482,12 +694,29 @@ export const executionTraceTools: McpTool[] = [
     inputSchema: {
       type: "object",
       properties: {
-        sessionId: { type: "string", description: "Convex agentTaskSessions ID." },
-        traceId: { type: "string", description: "Optional related agentTaskTraces ID." },
-        toolName: { type: "string", description: "Tool or action requiring approval." },
-        toolArgs: { type: "object", additionalProperties: true, description: "Arguments or change payload for the risky action." },
+        sessionId: {
+          type: "string",
+          description: "Convex agentTaskSessions ID.",
+        },
+        traceId: {
+          type: "string",
+          description: "Optional related agentTaskTraces ID.",
+        },
+        toolName: {
+          type: "string",
+          description: "Tool or action requiring approval.",
+        },
+        toolArgs: {
+          type: "object",
+          additionalProperties: true,
+          description: "Arguments or change payload for the risky action.",
+        },
         riskLevel: { type: "string", enum: ["low", "medium", "high"] },
-        justification: { type: "string", description: "Why approval is needed and what will happen if approved." },
+        justification: {
+          type: "string",
+          description:
+            "Why approval is needed and what will happen if approved.",
+        },
       },
       required: ["sessionId", "toolName", "riskLevel", "justification"],
     },
@@ -495,7 +724,11 @@ export const executionTraceTools: McpTool[] = [
       const start = Date.now();
       const result = await callGateway<string>("requestTraceApproval", args);
       if (!result.success) {
-        return { error: true, message: result.error, latencyMs: Date.now() - start };
+        return {
+          error: true,
+          message: result.error,
+          latencyMs: Date.now() - start,
+        };
       }
       return {
         success: true,

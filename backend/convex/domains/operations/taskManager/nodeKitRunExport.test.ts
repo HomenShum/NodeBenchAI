@@ -15,6 +15,7 @@ import {
   assertNodeKitRunExport,
   buildCanonicalNodeKitRunExport,
 } from "./nodeKitRunExport";
+import { buildNodeKitNativeSessionIdentity } from "./nodeKitRuntimeIdentity";
 
 const RUN_ID = "trace_nodekit_export_contract";
 
@@ -59,6 +60,53 @@ async function validEvents(): Promise<NodeKitRunEvent[]> {
 }
 
 describe("canonical NodeKit run export", () => {
+  it("exports the event-bound native identity snapshot without consulting mutable agent state", async () => {
+    const identity = await buildNodeKitNativeSessionIdentity({
+      identityRef: "nodebench:agent-identity:agent_doc_123",
+      agentId: "codex.desktop",
+      workspaceId: "workspace:nodebench",
+      nativeSessionId: "session:desktop:2026-07-29",
+      nativeSessionGeneration: 4,
+      peerId: "peer:runner:codex",
+    });
+    const started = await buildNodeKitRunEvent({
+      runId: RUN_ID,
+      sequence: 0,
+      eventType: "run.started",
+      recordedAt: 1_725_000_000_000,
+      payload: {
+        workflowName: "Identity-bound workflow",
+        sessionType: "agent",
+        sessionStartedAt: 1_724_999_999_000,
+        identityRef: identity.identityRef,
+        agentId: identity.agentId,
+        workspaceId: identity.workspaceId,
+        nativeSessionId: identity.nativeSessionId,
+        nativeSessionGeneration: identity.nativeSessionGeneration,
+        peerId: identity.peerId,
+        identitySnapshotHash: identity.snapshotHash,
+      },
+      previousHash: NODEKIT_RUN_GENESIS_HASH,
+    });
+    const completed = await buildNodeKitRunEvent({
+      runId: RUN_ID,
+      sequence: 1,
+      eventType: "run.completed",
+      recordedAt: 1_725_000_000_010,
+      payload: { status: "completed" },
+      previousHash: started.contentHash,
+    });
+
+    const exportDoc = await buildCanonicalNodeKitRunExport({
+      sessionId: "session_123",
+      traceId: "trace_record_123",
+      events: [started, completed],
+    });
+
+    expect(exportDoc.session.nativeIdentity).toEqual(identity);
+    await expect(assertNodeKitRunExport(exportDoc)).resolves.toBe(exportDoc);
+  });
+
   it("emits an immutable ordered export with per-event and whole-export hashes", async () => {
     const events = await validEvents();
     const exportDoc = await buildCanonicalNodeKitRunExport({

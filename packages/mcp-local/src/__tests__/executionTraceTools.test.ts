@@ -30,6 +30,7 @@ describe("executionTraceTools", () => {
       "record_execution_step",
       "record_execution_decision",
       "record_execution_verification",
+      "record_execution_graph_event",
       "attach_execution_evidence",
       "request_execution_approval",
     ]);
@@ -39,10 +40,12 @@ describe("executionTraceTools", () => {
     delete process.env.CONVEX_SITE_URL;
     delete process.env.MCP_SECRET;
 
-    const tool = executionTraceTools.find((entry) => entry.name === "start_execution_run");
+    const tool = executionTraceTools.find(
+      (entry) => entry.name === "start_execution_run",
+    );
     expect(tool).toBeDefined();
 
-    const result = await tool!.handler({ title: "Spreadsheet trace" }) as any;
+    const result = (await tool!.handler({ title: "Spreadsheet trace" })) as any;
     expect(result.error).toBe(true);
     expect(result.message).toContain("MCP_SECRET");
   });
@@ -67,13 +70,22 @@ describe("executionTraceTools", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const tool = executionTraceTools.find((entry) => entry.name === "start_execution_run");
-    const result = await tool!.handler({
+    const tool = executionTraceTools.find(
+      (entry) => entry.name === "start_execution_run",
+    );
+    const result = (await tool!.handler({
       title: "Spreadsheet trace",
       workflowName: "Spreadsheet enrichment",
       type: "agent",
       visibility: "private",
-    }) as any;
+      nativeIdentity: {
+        agentId: "codex.desktop",
+        workspaceId: "workspace:nodebench",
+        nativeSessionId: "session:desktop:2026-07-29",
+        nativeSessionGeneration: 4,
+        peerId: "peer:runner:codex",
+      },
+    })) as any;
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0]!;
@@ -92,6 +104,13 @@ describe("executionTraceTools", () => {
         visionSnapshot: undefined,
         successCriteria: undefined,
         sourceRefs: undefined,
+        nativeIdentity: {
+          agentId: "codex.desktop",
+          workspaceId: "workspace:nodebench",
+          nativeSessionId: "session:desktop:2026-07-29",
+          nativeSessionGeneration: 4,
+          peerId: "peer:runner:codex",
+        },
         metadata: undefined,
       },
     });
@@ -101,6 +120,53 @@ describe("executionTraceTools", () => {
     expect(result.publicTraceId).toBe("trace_public_789");
   });
 
+  it("records an exact NodeKit edge binding instead of inferring readiness from exit status", async () => {
+    process.env.CONVEX_SITE_URL = "https://example.convex.site/";
+    process.env.MCP_SECRET = "trace-secret";
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ success: true, data: "event_doc_123" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const tool = executionTraceTools.find(
+      (entry) => entry.name === "record_execution_graph_event",
+    );
+    const payload = {
+      traceId: "trace_doc_456",
+      eventType: "edge.consumed",
+      graphId: `execution-graph:sha256:${"a".repeat(64)}`,
+      graphHash: "b".repeat(64),
+      caseId: "case:nodebench",
+      stageId: "build",
+      caseContentHash: "c".repeat(64),
+      nodeId: "node:build-ui",
+      nodeRunId: "node-run:build-ui:1",
+      edgeId: "edge:research-to-ui",
+      bindingId: `execution-edge-binding:sha256:${"d".repeat(64)}`,
+      bindingHash: "e".repeat(64),
+      artifactId: "artifact:research-pack",
+      artifactSchemaVersion: "nodekit.research-pack/v1",
+      artifactContentHash: "f".repeat(64),
+      authorityKind: "deterministic",
+    };
+
+    const result = (await tool!.handler(payload)) as any;
+
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body)).toEqual({
+      fn: "recordExecutionGraphEvent",
+      args: payload,
+    });
+    expect(result).toMatchObject({
+      success: true,
+      eventHash: "event_doc_123",
+      eventType: "edge.consumed",
+    });
+  });
+
   it("requires an error message when completing a failed execution run", async () => {
     process.env.CONVEX_SITE_URL = "https://example.convex.site/";
     process.env.MCP_SECRET = "trace-secret";
@@ -108,12 +174,14 @@ describe("executionTraceTools", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    const tool = executionTraceTools.find((entry) => entry.name === "complete_execution_run");
-    const result = await tool!.handler({
+    const tool = executionTraceTools.find(
+      (entry) => entry.name === "complete_execution_run",
+    );
+    const result = (await tool!.handler({
       sessionId: "session_123",
       traceId: "trace_doc_456",
       status: "failed",
-    }) as any;
+    })) as any;
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(result.error).toBe(true);

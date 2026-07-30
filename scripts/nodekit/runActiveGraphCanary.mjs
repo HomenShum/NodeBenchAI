@@ -55,6 +55,13 @@ const EVENT_TYPES = new Set([
   "verification.recorded",
   "evidence.attached",
   "approval.requested",
+  "node.started",
+  "edge.consumed",
+  "artifact.produced",
+  "node.completed",
+  "node.failed",
+  "barrier.opened",
+  "barrier.blocked",
   "run.completed",
   "run.failed",
 ]);
@@ -68,6 +75,13 @@ const SAFE_FIELDS_BY_EVENT = {
     "goalId",
     "sessionType",
     "sessionStartedAt",
+    "identityRef",
+    "workspaceId",
+    "agentId",
+    "nativeSessionId",
+    "nativeSessionGeneration",
+    "peerId",
+    "identitySnapshotHash",
   ]),
   "span.started": new Set([
     "spanId",
@@ -90,6 +104,95 @@ const SAFE_FIELDS_BY_EVENT = {
   "verification.recorded": new Set(["status"]),
   "evidence.attached": new Set(),
   "approval.requested": new Set(["approvalId", "toolName", "riskLevel"]),
+  "node.started": new Set([
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "nodeKind",
+    "frontierHash",
+    "reviewContextRef",
+  ]),
+  "edge.consumed": new Set([
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "edgeId",
+    "bindingId",
+    "bindingHash",
+    "artifactId",
+    "artifactSchemaVersion",
+    "artifactContentHash",
+    "authorityKind",
+  ]),
+  "artifact.produced": new Set([
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "artifactId",
+    "artifactSchemaVersion",
+    "artifactContentHash",
+    "authorityKind",
+  ]),
+  "node.completed": new Set([
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "status",
+    "reviewContextRef",
+    "reviewSeparation",
+    "protectedEvaluator",
+  ]),
+  "node.failed": new Set([
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "status",
+    "reasonCode",
+  ]),
+  "barrier.opened": new Set([
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "frontierHash",
+    "status",
+  ]),
+  "barrier.blocked": new Set([
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "frontierHash",
+    "status",
+    "reasonCode",
+    "blockingEdgeCount",
+  ]),
   "run.completed": new Set([
     "status",
     "totalDurationMs",
@@ -107,6 +210,84 @@ const REQUIRED_FIELDS_BY_EVENT = {
   "run.started": ["workflowName", "sessionType", "sessionStartedAt"],
   "span.started": ["spanId"],
   "span.completed": ["spanId"],
+  "node.started": [
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+  ],
+  "edge.consumed": [
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "edgeId",
+    "bindingId",
+    "bindingHash",
+    "artifactId",
+    "artifactSchemaVersion",
+    "artifactContentHash",
+    "authorityKind",
+  ],
+  "artifact.produced": [
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "artifactId",
+    "artifactSchemaVersion",
+    "artifactContentHash",
+    "authorityKind",
+  ],
+  "node.completed": [
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "status",
+  ],
+  "node.failed": [
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "status",
+  ],
+  "barrier.opened": [
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "frontierHash",
+  ],
+  "barrier.blocked": [
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "frontierHash",
+  ],
   "run.completed": ["status"],
   "run.failed": ["status"],
 };
@@ -519,6 +700,78 @@ function assertSafeEventPayload(payload, eventType, label) {
       `${label} requires status ${expectedTerminalStatus}.`,
     );
   }
+  if (eventType === "run.started") {
+    const identityFields = [
+      "identityRef",
+      "workspaceId",
+      "agentId",
+      "nativeSessionId",
+      "nativeSessionGeneration",
+      "identitySnapshotHash",
+    ];
+    const present = identityFields.filter((field) => field in payload.fields);
+    if (present.length !== 0 && present.length !== identityFields.length) {
+      fail(
+        "native_identity_incomplete",
+        `${label} must bind the complete native identity snapshot.`,
+      );
+    }
+    if (present.length === identityFields.length) {
+      assertHash(
+        payload.fields.identitySnapshotHash,
+        `${label}.identitySnapshotHash`,
+      );
+      if (
+        !Number.isSafeInteger(payload.fields.nativeSessionGeneration) ||
+        payload.fields.nativeSessionGeneration < 0
+      ) {
+        fail(
+          "native_session_generation_invalid",
+          `${label}.nativeSessionGeneration is invalid.`,
+        );
+      }
+    }
+  }
+  if (
+    eventType === "node.started" ||
+    eventType === "edge.consumed" ||
+    eventType === "artifact.produced" ||
+    eventType === "node.completed" ||
+    eventType === "node.failed" ||
+    eventType === "barrier.opened" ||
+    eventType === "barrier.blocked"
+  ) {
+    if (
+      typeof payload.fields.graphId !== "string" ||
+      !/^execution-graph:sha256:[a-f0-9]{64}$/.test(payload.fields.graphId)
+    ) {
+      fail("graph_id_invalid", `${label}.graphId is invalid.`);
+    }
+    for (const field of [
+      "graphHash",
+      "caseContentHash",
+      "frontierHash",
+      "bindingHash",
+      "artifactContentHash",
+    ]) {
+      if (
+        field in payload.fields &&
+        (typeof payload.fields[field] !== "string" ||
+          !/^[a-f0-9]{64}$/.test(payload.fields[field]))
+      ) {
+        fail("graph_hash_invalid", `${label}.${field} is invalid.`);
+      }
+    }
+    if (
+      "bindingId" in payload.fields &&
+      (typeof payload.fields.bindingId !== "string" ||
+        !/^execution-edge-binding:sha256:[a-f0-9]{64}$/.test(
+          payload.fields.bindingId,
+        ))
+    ) {
+      fail("edge_binding_id_invalid", `${label}.bindingId is invalid.`);
+    }
+  }
   if (
     Buffer.byteLength(canonicalJson(payload), "utf8") > MAX_STORED_PAYLOAD_BYTES
   ) {
@@ -567,7 +820,16 @@ export function assertCanonicalNodeKitRunExport(value) {
   assertObject(value.trace, "trace");
   assertObject(value.completeness, "completeness");
   assertObject(value.hashes, "hashes");
-  exactKeys(value.session, ["id", "typeAtRunStart", "startedAt"], "session");
+  exactKeys(
+    value.session,
+    [
+      "id",
+      "typeAtRunStart",
+      "startedAt",
+      ...("nativeIdentity" in value.session ? ["nativeIdentity"] : []),
+    ],
+    "session",
+  );
   exactKeys(
     value.trace,
     ["id", "runId", "workflowName", "status", "startedAt", "endedAt"],
@@ -593,6 +855,23 @@ export function assertCanonicalNodeKitRunExport(value) {
     maxLength: 256,
   });
   assertTimestamp(value.session.startedAt, "session.startedAt");
+  if ("nativeIdentity" in value.session) {
+    assertObject(value.session.nativeIdentity, "session.nativeIdentity");
+    exactKeys(
+      value.session.nativeIdentity,
+      [
+        "schemaVersion",
+        "identityRef",
+        "agentId",
+        "workspaceId",
+        "nativeSessionId",
+        "nativeSessionGeneration",
+        ...("peerId" in value.session.nativeIdentity ? ["peerId"] : []),
+        "snapshotHash",
+      ],
+      "session.nativeIdentity",
+    );
+  }
   assertString(value.trace.id, "trace.id", { nonEmpty: true });
   assertString(value.trace.runId, "trace.runId", {
     nonEmpty: true,
@@ -626,6 +905,9 @@ export function assertCanonicalNodeKitRunExport(value) {
   let terminalIndex = -1;
   const openSpans = new Set();
   const completedSpans = new Set();
+  const openNodes = new Map();
+  const closedNodeRuns = new Set();
+  let graphScope;
   for (let index = 0; index < value.events.length; index += 1) {
     const event = value.events[index];
     assertObject(event, `events[${index}]`);
@@ -716,6 +998,53 @@ export function assertCanonicalNodeKitRunExport(value) {
       openSpans.delete(spanId);
       completedSpans.add(spanId);
     }
+    if (
+      event.eventType === "node.started" ||
+      event.eventType === "edge.consumed" ||
+      event.eventType === "artifact.produced" ||
+      event.eventType === "node.completed" ||
+      event.eventType === "node.failed" ||
+      event.eventType === "barrier.opened" ||
+      event.eventType === "barrier.blocked"
+    ) {
+      const fields = event.payload.fields;
+      const currentScope = [
+        fields.graphId,
+        fields.graphHash,
+        fields.caseId,
+        fields.stageId,
+        fields.caseContentHash,
+      ].join("|");
+      graphScope ??= currentScope;
+      if (currentScope !== graphScope) {
+        fail(
+          "graph_scope_mismatch",
+          "One export cannot mix execution graphs, cases, or stages.",
+        );
+      }
+      const nodeRunId = fields.nodeRunId;
+      const nodeId = fields.nodeId;
+      if (event.eventType === "node.started") {
+        if (openNodes.has(nodeRunId) || closedNodeRuns.has(nodeRunId)) {
+          fail("graph_node_duplicate_start", `Invalid start for ${nodeRunId}.`);
+        }
+        openNodes.set(nodeRunId, nodeId);
+      } else {
+        if (openNodes.get(nodeRunId) !== nodeId) {
+          fail(
+            "graph_node_not_running",
+            `${event.eventType} is not bound to ${nodeRunId}.`,
+          );
+        }
+        if (
+          event.eventType === "node.completed" ||
+          event.eventType === "node.failed"
+        ) {
+          openNodes.delete(nodeRunId);
+          closedNodeRuns.add(nodeRunId);
+        }
+      }
+    }
     previousHash = event.contentHash;
   }
   if (value.events[0].eventType !== "run.started") {
@@ -737,6 +1066,12 @@ export function assertCanonicalNodeKitRunExport(value) {
     fail(
       "span_lifecycle_incomplete",
       `Terminal run retains ${openSpans.size} open span(s).`,
+    );
+  }
+  if (openNodes.size > 0) {
+    fail(
+      "graph_node_lifecycle_incomplete",
+      `Terminal run retains ${openNodes.size} open graph node(s).`,
     );
   }
 
@@ -762,6 +1097,43 @@ export function assertCanonicalNodeKitRunExport(value) {
       "event_snapshot_mismatch",
       "Session or trace metadata differs from immutable event snapshots.",
     );
+  }
+  if (
+    startFields.identityRef === undefined &&
+    "nativeIdentity" in value.session
+  ) {
+    fail(
+      "native_identity_snapshot_mismatch",
+      "Session identity is absent from run.started.",
+    );
+  }
+  if (startFields.identityRef !== undefined) {
+    const expectedIdentityBody = {
+      schemaVersion: "nodekit.native-agent-session-identity/v1",
+      identityRef: startFields.identityRef,
+      agentId: startFields.agentId,
+      workspaceId: startFields.workspaceId,
+      nativeSessionId: startFields.nativeSessionId,
+      nativeSessionGeneration: startFields.nativeSessionGeneration,
+      ...(startFields.peerId === undefined
+        ? {}
+        : { peerId: startFields.peerId }),
+    };
+    const expectedIdentity = {
+      ...expectedIdentityBody,
+      snapshotHash: canonicalHash(expectedIdentityBody),
+    };
+    if (
+      !("nativeIdentity" in value.session) ||
+      canonicalJson(value.session.nativeIdentity) !==
+        canonicalJson(expectedIdentity) ||
+      startFields.identitySnapshotHash !== expectedIdentity.snapshotHash
+    ) {
+      fail(
+        "native_identity_snapshot_mismatch",
+        "Session identity differs from immutable run.started fields.",
+      );
+    }
   }
   if (
     value.completeness.eventChainComplete !== true ||

@@ -255,7 +255,24 @@ describe("NodeKit bounded retention maintenance", () => {
       payload: { spanId: "span-open" },
       previousHash: started.contentHash,
     });
-    const rows = [started, spanStarted].map((event, index) => ({
+    const nodeStarted = await buildNodeKitRunEvent({
+      runId,
+      sequence: 2,
+      eventType: "node.started",
+      recordedAt: spanStarted.recordedAt + 1,
+      payload: {
+        graphId: `execution-graph:sha256:${"a".repeat(64)}`,
+        graphHash: "b".repeat(64),
+        caseId: "case:stale",
+        stageId: "build",
+        caseContentHash: "c".repeat(64),
+        nodeId: "node:stale-build",
+        nodeRunId: "node-run:stale-build:1",
+        nodeKind: "task",
+      },
+      previousHash: spanStarted.contentHash,
+    });
+    const rows = [started, spanStarted, nodeStarted].map((event, index) => ({
       _id: `stale-event-${index}`,
       sessionId: "stale-session",
       traceId: "stale-trace",
@@ -300,6 +317,12 @@ describe("NodeKit bounded retention maintenance", () => {
     expect(result).toMatchObject({ staleClosed: 1, staleCorruptPurged: 0 });
     expect((await ctx.db.get("stale-trace"))?.status).toBe("error");
     expect((await ctx.db.get("span-open"))?.status).toBe("error");
+    expect(ctx.db.tables.nodeKitRunEvents.at(-3)?.eventType).toBe(
+      "node.failed",
+    );
+    expect(ctx.db.tables.nodeKitRunEvents.at(-2)?.eventType).toBe(
+      "span.completed",
+    );
     expect(ctx.db.tables.nodeKitRunEvents.at(-1)?.eventType).toBe("run.failed");
     expect(
       ctx.db.tables.nodeKitRunEvents.at(-1)?.retentionExpiresAt,

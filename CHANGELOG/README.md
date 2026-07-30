@@ -23,6 +23,7 @@ This directory contains append-only per-surface changelog lanes. Each lane recor
 
 - [`integrations/ai-elements.md`](integrations/ai-elements.md) — Vercel AI Elements scaffold, adapter, and governance integration.
 - [`integrations/pipeline-runtime.md`](integrations/pipeline-runtime.md) — Owner-scoped pipeline launch, activity, streaming, evaluation, schedules, and MCP bridge contracts.
+- [`integrations/nodekit-stage-local-runtime.md`](integrations/nodekit-stage-local-runtime.md) — NodeKit current-stage graph, exact edge-binding, native-session identity, MCP trace, and offline ActiveGraph contracts.
 
 ### Build and bundling
 
