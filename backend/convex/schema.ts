@@ -12850,18 +12850,6 @@ export default defineSchema({
     agentRunId: v.optional(v.id("agentRuns")),
     agentThreadId: v.optional(v.string()),
     swarmId: v.optional(v.string()),
-    nativeIdentity: v.optional(
-      v.object({
-        schemaVersion: v.literal("nodekit.native-agent-session-identity/v1"),
-        identityRef: v.string(),
-        agentId: v.string(),
-        workspaceId: v.string(),
-        nativeSessionId: v.string(),
-        nativeSessionGeneration: v.number(),
-        peerId: v.optional(v.string()),
-        snapshotHash: v.string(),
-      }),
-    ),
     nativeSessionReference: v.optional(
       v.object({
         schemaVersion: v.literal("nodekit.native-session-reference/v1"),
@@ -12954,18 +12942,6 @@ export default defineSchema({
     ),
     estimatedCostUsd: v.optional(v.number()),
     model: v.optional(v.string()),
-    nativeIdentity: v.optional(
-      v.object({
-        schemaVersion: v.literal("nodekit.native-agent-session-identity/v1"),
-        identityRef: v.string(),
-        agentId: v.string(),
-        workspaceId: v.string(),
-        nativeSessionId: v.string(),
-        nativeSessionGeneration: v.number(),
-        peerId: v.optional(v.string()),
-        snapshotHash: v.string(),
-      }),
-    ),
     nativeSessionReference: v.optional(
       v.object({
         schemaVersion: v.literal("nodekit.native-session-reference/v1"),
@@ -14519,13 +14495,6 @@ export default defineSchema({
     agentId: v.string(),
     ownerUserId: v.optional(v.id("users")),
     workspaceId: v.optional(v.string()),
-    identityContractVersion: v.optional(
-      v.literal("nodekit.native-agent-session-identity/v1"),
-    ),
-    nativeSessionId: v.optional(v.string()),
-    nativeSessionGeneration: v.optional(v.number()),
-    nativePeerId: v.optional(v.string()),
-    nativeIdentitySnapshotHash: v.optional(v.string()),
     lastSeenAt: v.optional(v.number()),
     name: v.string(),
     persona: v.string(),
