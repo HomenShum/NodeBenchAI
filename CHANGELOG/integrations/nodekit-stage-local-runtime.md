@@ -17,11 +17,11 @@ representative graph-and-identity corpus.
 Caseflow remains canonical. NodeBench does not compile a second graph, infer
 readiness from exit codes, approve review findings, or advance stages.
 
-**PR / canonical main commit**: PENDING PR / MAIN SHA / FINAL QA.
+**PR / canonical main commit**: #602 / PENDING MAIN SHA / FINAL QA.
 
 **Evidence state**:
 
-- Source: pending on `codex/nodekit-stage-local-integration`.
+- Source: pending in PR #602 from `codex/nodekit-stage-local-integration`.
 - Checks: root typecheck passed; 74 focused contract, database, export, retention, MCP, and ActiveGraph scenarios passed; the root production build and MCP-local package build passed. CI remains pending.
 - Visual proof: not applicable; this slice changes backend and tool contracts.
 - Preview: not recorded.
