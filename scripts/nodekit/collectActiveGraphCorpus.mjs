@@ -369,12 +369,21 @@ export async function collectActiveGraphCorpus({
                   ? "agent"
                   : "swarm",
         visibility: "private",
-        nativeIdentity: {
-          agentId: `activegraph.corpus.${index}`,
-          workspaceId: "workspace:nodebench-activegraph-corpus",
-          nativeSessionId: `session:activegraph-corpus:${index}:1`,
-          nativeSessionGeneration: 1,
-          peerId: "peer:nodekit-offline-evaluator",
+        nativeSessionReference: {
+          workspaceId: `workspace:sha256:${rawHash("activegraph-corpus-workspace")}`,
+          sessionId: `session:sha256:${rawHash(`activegraph-corpus-session:${index}`)}`,
+          workspaceArtifactRef: `native-workspace:sha256:${rawHash("activegraph-corpus-workspace-artifact")}`,
+          workspaceArtifactDigest: rawHash(
+            "activegraph-corpus-workspace-artifact",
+          ),
+          sessionArtifactRef: `native-agent-session:sha256:${rawHash(`activegraph-corpus-session-artifact:${index}`)}`,
+          sessionArtifactDigest: rawHash(
+            `activegraph-corpus-session-artifact:${index}`,
+          ),
+          checkpointArtifactRef: `native-session-checkpoint:sha256:${rawHash(`activegraph-corpus-checkpoint:${index}`)}`,
+          checkpointArtifactDigest: rawHash(
+            `activegraph-corpus-checkpoint:${index}`,
+          ),
         },
         metadata: {
           corpusSchemaVersion: ACTIVEGRAPH_CORPUS_SCHEMA,

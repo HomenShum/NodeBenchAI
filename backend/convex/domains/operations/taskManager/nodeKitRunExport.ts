@@ -19,8 +19,8 @@ import {
   type NodeKitSafeEventPayload,
 } from "./nodeKitRunEvents";
 import {
-  buildNodeKitNativeSessionIdentity,
-  type NodeKitNativeSessionIdentity,
+  buildNodeKitNativeSessionReference,
+  type NodeKitNativeSessionReference,
 } from "./nodeKitRuntimeIdentity";
 
 export const NODEKIT_RUN_EXPORT_SCHEMA_VERSION =
@@ -41,7 +41,7 @@ type SessionExport = Readonly<{
   id: string;
   typeAtRunStart: string;
   startedAt: number;
-  nativeIdentity?: NodeKitNativeSessionIdentity;
+  nativeSessionReference?: NodeKitNativeSessionReference;
 }>;
 
 type TraceExport = Readonly<{
@@ -138,7 +138,7 @@ function assertSessionExport(
       "id",
       "typeAtRunStart",
       "startedAt",
-      ...("nativeIdentity" in value ? ["nativeIdentity"] : []),
+      ...("nativeSessionReference" in value ? ["nativeSessionReference"] : []),
     ],
     "session",
   );
@@ -148,8 +148,11 @@ function assertSessionExport(
     maxLength: 256,
   });
   assertTimestamp(value.startedAt, "session.startedAt");
-  if ("nativeIdentity" in value) {
-    assertObject(value.nativeIdentity, "session.nativeIdentity");
+  if ("nativeSessionReference" in value) {
+    assertObject(
+      value.nativeSessionReference,
+      "session.nativeSessionReference",
+    );
   }
 }
 
@@ -231,39 +234,47 @@ export async function buildCanonicalNodeKitRunExport(input: {
       "run.started has an invalid event-bound session/trace snapshot.",
     );
   }
-  const identityRef = startEvent.payload.fields.identityRef;
   const workspaceId = startEvent.payload.fields.workspaceId;
-  const agentId = startEvent.payload.fields.agentId;
-  const nativeSessionId = startEvent.payload.fields.nativeSessionId;
-  const nativeSessionGeneration =
-    startEvent.payload.fields.nativeSessionGeneration;
-  const peerId = startEvent.payload.fields.peerId;
-  const identitySnapshotHash = startEvent.payload.fields.identitySnapshotHash;
-  const nativeIdentity =
-    identityRef === undefined
+  const nativeSessionReference =
+    workspaceId === undefined
       ? undefined
-      : await buildNodeKitNativeSessionIdentity({
-          identityRef: String(identityRef),
+      : await buildNodeKitNativeSessionReference({
           workspaceId: String(workspaceId),
-          agentId: String(agentId),
-          nativeSessionId: String(nativeSessionId),
-          nativeSessionGeneration: Number(nativeSessionGeneration),
-          ...(peerId === undefined ? {} : { peerId: String(peerId) }),
+          sessionId: String(startEvent.payload.fields.sessionId),
+          workspaceArtifactRef: String(
+            startEvent.payload.fields.workspaceArtifactRef,
+          ),
+          workspaceArtifactDigest: String(
+            startEvent.payload.fields.workspaceArtifactDigest,
+          ),
+          sessionArtifactRef: String(
+            startEvent.payload.fields.sessionArtifactRef,
+          ),
+          sessionArtifactDigest: String(
+            startEvent.payload.fields.sessionArtifactDigest,
+          ),
+          checkpointArtifactRef: String(
+            startEvent.payload.fields.checkpointArtifactRef,
+          ),
+          checkpointArtifactDigest: String(
+            startEvent.payload.fields.checkpointArtifactDigest,
+          ),
         });
   if (
-    nativeIdentity !== undefined &&
-    nativeIdentity.snapshotHash !== identitySnapshotHash
+    nativeSessionReference !== undefined &&
+    nativeSessionReference.referenceHash !==
+      startEvent.payload.fields.nativeSessionReferenceHash
   ) {
     fail(
-      "native_identity_hash_mismatch",
-      "run.started native identity fields do not match identitySnapshotHash.",
+      "native_session_reference_hash_mismatch",
+      "run.started native session fields do not match nativeSessionReferenceHash.",
     );
   }
   const session: SessionExport = {
     id: input.sessionId,
     typeAtRunStart: sessionType,
     startedAt: sessionStartedAt as number,
-    ...(nativeIdentity === undefined ? {} : { nativeIdentity }),
+    ...(nativeSessionReference === undefined ? {} : { nativeSessionReference }),
   };
   const trace: TraceExport = {
     id: input.traceId,
@@ -398,34 +409,45 @@ export async function assertNodeKitRunExport(
       "Session or trace metadata differs from the immutable event snapshots.",
     );
   }
-  const startIdentityRef = startEvent.payload.fields.identityRef;
-  if (startIdentityRef === undefined && "nativeIdentity" in value.session) {
+  const startWorkspaceId = startEvent.payload.fields.workspaceId;
+  if (
+    startWorkspaceId === undefined &&
+    "nativeSessionReference" in value.session
+  ) {
     fail(
-      "native_identity_snapshot_mismatch",
-      "The export session cannot add identity absent from run.started.",
+      "native_session_reference_mismatch",
+      "The export session cannot add a native session reference absent from run.started.",
     );
   }
-  if (startIdentityRef !== undefined) {
-    const expectedIdentity = await buildNodeKitNativeSessionIdentity({
-      identityRef: String(startIdentityRef),
-      workspaceId: String(startEvent.payload.fields.workspaceId),
-      agentId: String(startEvent.payload.fields.agentId),
-      nativeSessionId: String(startEvent.payload.fields.nativeSessionId),
-      nativeSessionGeneration: Number(
-        startEvent.payload.fields.nativeSessionGeneration,
+  if (startWorkspaceId !== undefined) {
+    const expectedReference = await buildNodeKitNativeSessionReference({
+      workspaceId: String(startWorkspaceId),
+      sessionId: String(startEvent.payload.fields.sessionId),
+      workspaceArtifactRef: String(
+        startEvent.payload.fields.workspaceArtifactRef,
       ),
-      ...(startEvent.payload.fields.peerId === undefined
-        ? {}
-        : { peerId: String(startEvent.payload.fields.peerId) }),
+      workspaceArtifactDigest: String(
+        startEvent.payload.fields.workspaceArtifactDigest,
+      ),
+      sessionArtifactRef: String(startEvent.payload.fields.sessionArtifactRef),
+      sessionArtifactDigest: String(
+        startEvent.payload.fields.sessionArtifactDigest,
+      ),
+      checkpointArtifactRef: String(
+        startEvent.payload.fields.checkpointArtifactRef,
+      ),
+      checkpointArtifactDigest: String(
+        startEvent.payload.fields.checkpointArtifactDigest,
+      ),
     });
     if (
-      !("nativeIdentity" in value.session) ||
-      canonicalNodeKitJson(value.session.nativeIdentity) !==
-        canonicalNodeKitJson(expectedIdentity)
+      !("nativeSessionReference" in value.session) ||
+      canonicalNodeKitJson(value.session.nativeSessionReference) !==
+        canonicalNodeKitJson(expectedReference)
     ) {
       fail(
-        "native_identity_snapshot_mismatch",
-        "The export session identity differs from run.started.",
+        "native_session_reference_mismatch",
+        "The export session reference differs from run.started.",
       );
     }
   }

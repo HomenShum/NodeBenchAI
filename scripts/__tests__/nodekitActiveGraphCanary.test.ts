@@ -27,7 +27,7 @@ import {
   canonicalNodeKitJson,
 } from "../../backend/convex/domains/operations/taskManager/nodeKitRunEvents";
 import { buildCanonicalNodeKitRunExport } from "../../backend/convex/domains/operations/taskManager/nodeKitRunExport";
-import { buildNodeKitNativeSessionIdentity } from "../../backend/convex/domains/operations/taskManager/nodeKitRuntimeIdentity";
+import { buildNodeKitNativeSessionReference } from "../../backend/convex/domains/operations/taskManager/nodeKitRuntimeIdentity";
 
 const hashBytes = (value: Buffer) =>
   createHash("sha256").update(value).digest("hex");
@@ -81,13 +81,15 @@ function listTypeScriptSources(directory: string): string[] {
 
 async function writeValidExport(path: string) {
   const runId = "trace_disposable_copy_test";
-  const nativeIdentity = await buildNodeKitNativeSessionIdentity({
-    identityRef: "nodebench:agent-identity:fixture-agent",
-    agentId: "codex.fixture",
-    workspaceId: "workspace:activegraph-canary",
-    nativeSessionId: "session:representative-stage-local-run",
-    nativeSessionGeneration: 1,
-    peerId: "peer:runner:fixture",
+  const nativeSessionReference = await buildNodeKitNativeSessionReference({
+    workspaceId: `workspace:sha256:${"1".repeat(64)}`,
+    sessionId: `session:sha256:${"2".repeat(64)}`,
+    workspaceArtifactRef: `native-workspace:sha256:${"3".repeat(64)}`,
+    workspaceArtifactDigest: "3".repeat(64),
+    sessionArtifactRef: `native-agent-session:sha256:${"4".repeat(64)}`,
+    sessionArtifactDigest: "4".repeat(64),
+    checkpointArtifactRef: `native-session-checkpoint:sha256:${"5".repeat(64)}`,
+    checkpointArtifactDigest: "5".repeat(64),
   });
   const started = await buildNodeKitRunEvent({
     runId,
@@ -98,13 +100,15 @@ async function writeValidExport(path: string) {
       workflowName: "offline-copy-test",
       sessionType: "agent",
       sessionStartedAt: 5,
-      identityRef: nativeIdentity.identityRef,
-      workspaceId: nativeIdentity.workspaceId,
-      agentId: nativeIdentity.agentId,
-      nativeSessionId: nativeIdentity.nativeSessionId,
-      nativeSessionGeneration: nativeIdentity.nativeSessionGeneration,
-      peerId: nativeIdentity.peerId,
-      identitySnapshotHash: nativeIdentity.snapshotHash,
+      workspaceId: nativeSessionReference.workspaceId,
+      sessionId: nativeSessionReference.sessionId,
+      workspaceArtifactRef: nativeSessionReference.workspaceArtifactRef,
+      workspaceArtifactDigest: nativeSessionReference.workspaceArtifactDigest,
+      sessionArtifactRef: nativeSessionReference.sessionArtifactRef,
+      sessionArtifactDigest: nativeSessionReference.sessionArtifactDigest,
+      checkpointArtifactRef: nativeSessionReference.checkpointArtifactRef,
+      checkpointArtifactDigest: nativeSessionReference.checkpointArtifactDigest,
+      nativeSessionReferenceHash: nativeSessionReference.referenceHash,
     },
     previousHash: NODEKIT_RUN_GENESIS_HASH,
   });

@@ -15,7 +15,7 @@ import {
   assertNodeKitRunExport,
   buildCanonicalNodeKitRunExport,
 } from "./nodeKitRunExport";
-import { buildNodeKitNativeSessionIdentity } from "./nodeKitRuntimeIdentity";
+import { buildNodeKitNativeSessionReference } from "./nodeKitRuntimeIdentity";
 
 const RUN_ID = "trace_nodekit_export_contract";
 
@@ -60,14 +60,16 @@ async function validEvents(): Promise<NodeKitRunEvent[]> {
 }
 
 describe("canonical NodeKit run export", () => {
-  it("exports the event-bound native identity snapshot without consulting mutable agent state", async () => {
-    const identity = await buildNodeKitNativeSessionIdentity({
-      identityRef: "nodebench:agent-identity:agent_doc_123",
-      agentId: "codex.desktop",
-      workspaceId: "workspace:nodebench",
-      nativeSessionId: "session:desktop:2026-07-29",
-      nativeSessionGeneration: 4,
-      peerId: "peer:runner:codex",
+  it("exports only event-bound canonical artifact refs without consulting mutable agent state", async () => {
+    const reference = await buildNodeKitNativeSessionReference({
+      workspaceId: `workspace:sha256:${"a".repeat(64)}`,
+      sessionId: `session:sha256:${"b".repeat(64)}`,
+      workspaceArtifactRef: `native-workspace:sha256:${"c".repeat(64)}`,
+      workspaceArtifactDigest: "c".repeat(64),
+      sessionArtifactRef: `native-agent-session:sha256:${"d".repeat(64)}`,
+      sessionArtifactDigest: "d".repeat(64),
+      checkpointArtifactRef: `native-session-checkpoint:sha256:${"e".repeat(64)}`,
+      checkpointArtifactDigest: "e".repeat(64),
     });
     const started = await buildNodeKitRunEvent({
       runId: RUN_ID,
@@ -78,13 +80,15 @@ describe("canonical NodeKit run export", () => {
         workflowName: "Identity-bound workflow",
         sessionType: "agent",
         sessionStartedAt: 1_724_999_999_000,
-        identityRef: identity.identityRef,
-        agentId: identity.agentId,
-        workspaceId: identity.workspaceId,
-        nativeSessionId: identity.nativeSessionId,
-        nativeSessionGeneration: identity.nativeSessionGeneration,
-        peerId: identity.peerId,
-        identitySnapshotHash: identity.snapshotHash,
+        workspaceId: reference.workspaceId,
+        sessionId: reference.sessionId,
+        workspaceArtifactRef: reference.workspaceArtifactRef,
+        workspaceArtifactDigest: reference.workspaceArtifactDigest,
+        sessionArtifactRef: reference.sessionArtifactRef,
+        sessionArtifactDigest: reference.sessionArtifactDigest,
+        checkpointArtifactRef: reference.checkpointArtifactRef,
+        checkpointArtifactDigest: reference.checkpointArtifactDigest,
+        nativeSessionReferenceHash: reference.referenceHash,
       },
       previousHash: NODEKIT_RUN_GENESIS_HASH,
     });
@@ -103,7 +107,10 @@ describe("canonical NodeKit run export", () => {
       events: [started, completed],
     });
 
-    expect(exportDoc.session.nativeIdentity).toEqual(identity);
+    expect(exportDoc.session.nativeSessionReference).toEqual(reference);
+    expect(JSON.stringify(exportDoc)).not.toMatch(
+      /provider|generation|credential|host|resumable/i,
+    );
     await expect(assertNodeKitRunExport(exportDoc)).resolves.toBe(exportDoc);
   });
 

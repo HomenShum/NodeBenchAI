@@ -324,10 +324,11 @@ adoption.
 ### Gate 3a — representative graph-and-identity fixture: implemented
 
 The TypeScript boundary suite now uses a representative stage-local export
-containing an immutable native-session identity snapshot, frontier-bound node
-start, exact edge consumption, artifact production, node completion, and run
-completion. All canary tamper and isolation tests therefore exercise the new
-graph and identity fields rather than the former two-event trace fixture.
+containing Caseflow-canonical workspace/session/checkpoint refs and digests, a
+frontier-bound node start, exact edge consumption, artifact production, node
+completion, and run completion. All canary tamper and isolation tests exercise
+the graph plus the refs-only session projection rather than the former
+authority-bearing combined identity snapshot.
 
 This proves the boundary on one deterministic representative corpus. It does
 not satisfy the owner-authorized multi-run adoption experiment.

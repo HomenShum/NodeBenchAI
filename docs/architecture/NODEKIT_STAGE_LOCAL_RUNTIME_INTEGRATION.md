@@ -1,8 +1,8 @@
 # NodeKit stage-local runtime integration
 
 - **Status:** Candidate; reviewed deployment required
-- **Contract date:** 2026-07-29
-- **Upstream NodeKit change:** [node-platform PR #29](https://github.com/HomenShum/node-platform/pull/29)
+- **Contract date:** 2026-07-30
+- **Upstream NodeKit change:** [node-platform PR #30](https://github.com/HomenShum/node-platform/pull/30)
 - **Runtime owner:** NodeBench execution trace and MCP gateway
 
 ## Decision
@@ -29,32 +29,33 @@ evidentiary.
 
 ## Compatibility matrix
 
-| NodeKit contract                           | NodeBench representation                                                                           | Enforced boundary                                                              |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `nodekit.execution-graph/v1`               | `graphId`, `graphHash`, `caseId`, `stageId`, `caseContentHash` on graph events                     | One run cannot mix graph, case, or stage scope                                 |
-| `nodekit.execution-edge-binding/v1`        | `edge.consumed` with exact binding, artifact, schema, content hash, and authority                  | No readiness from exit code; all required binding fields verify                |
-| `nodekit.runnable-frontier/v1`             | `frontierHash` on `node.started`                                                                   | NodeBench records the NodeKit-derived frontier and never derives its own       |
-| `nodekit.review-context/v1`                | Review context reference, separation class, and protected-evaluator flag on terminal node evidence | Recording a review never grants approval or stage-advance authority            |
-| `nodekit.native-agent-session-identity/v1` | Optional immutable identity snapshot on sessions, traces, and `run.started`                        | Owner/workspace scope, monotonic generation, reconnect and peer continuity     |
-| `nodekit.run-event/v1`                     | Bounded append-only hash chain                                                                     | At most 256 events, safe-field projection, lifecycle and terminal closure      |
-| `nodekit.run-export/v1`                    | Owner-scoped terminal transfer document                                                            | Identity and graph evidence derive from immutable events, not mutable profiles |
+| NodeKit contract                                                                                         | NodeBench representation                                                                           | Enforced boundary                                                              |
+| -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `nodekit.execution-graph/v1`                                                                             | `graphId`, `graphHash`, `caseId`, `stageId`, `caseContentHash` on graph events                     | One run cannot mix graph, case, or stage scope                                 |
+| `nodekit.execution-edge-binding/v1`                                                                      | `edge.consumed` with exact binding, artifact, schema, content hash, and authority                  | No readiness from exit code; all required binding fields verify                |
+| `nodekit.runnable-frontier/v1`                                                                           | `frontierHash` on `node.started`                                                                   | NodeBench records the NodeKit-derived frontier and never derives its own       |
+| `nodekit.review-context/v1`                                                                              | Review context reference, separation class, and protected-evaluator flag on terminal node evidence | Recording a review never grants approval or stage-advance authority            |
+| `nodekit.native-workspace/v1`, `nodekit.native-agent-session/v1`, `nodekit.native-session-checkpoint/v1` | Optional refs-and-digests-only projection on sessions, traces, and `run.started`                   | Caseflow remains canonical; the projection cannot authorize resume             |
+| `nodekit.run-event/v1`                                                                                   | Bounded append-only hash chain                                                                     | At most 256 events, safe-field projection, lifecycle and terminal closure      |
+| `nodekit.run-export/v1`                                                                                  | Owner-scoped terminal transfer document                                                            | Identity and graph evidence derive from immutable events, not mutable profiles |
 
-## Native session identity
+## Native session references
 
-The persistent identity contract separates four concerns:
+NodeBench does not own native-session lifecycle state. `start_execution_run`
+may receive only the canonical workspace/session IDs plus exact workspace,
+session, and latest-checkpoint artifact refs and digests. It hashes and records
+that bounded projection on the session, trace, and `run.started`.
 
-- `identityRef`: durable NodeBench identity row;
-- `agentId` and `workspaceId`: owner-scoped execution boundary;
-- `nativeSessionId` and monotonic generation: native runtime continuity;
-- optional `peerId`: reconnect binding for the active generation.
+The projection contains no owner input, provider session ID, agent ID,
+generation, host, credential, cursor, lifecycle status, or resumable flag. A
+recorded reference cannot authorize `session_resume`; that decision stays in
+NodeKit's Caseflow-canonical five-operation API with trusted adapter receipts
+and a newly persisted checkpoint.
 
-Reconnect requires the same generation and session ID. Rotation requires a
-higher generation. A lower generation, same-generation session collision, or
-peer replacement fails before any session, trace, or event is inserted.
-
-The current identity snapshot is stored on the mutable identity row for future
-continuity checks. Every run also stores an immutable snapshot and commits its
-hash into `run.started`; export reads only the event-bound snapshot.
+The internal bounded migration page removes the superseded combined snapshots
+from sessions and traces and removes native lifecycle fields from legacy agent
+profiles. It is dry-run capable and idempotent. Schema removal happens only
+after every page verifies zero remaining legacy rows.
 
 ## Graph event lifecycle
 
@@ -82,9 +83,9 @@ source limits.
 
 ## MCP boundary
 
-`start_execution_run` may provide `nativeIdentity`. The internal
-`mcpStartExecutionRun` mutation resolves it against an owner/workspace-scoped
-identity and returns `created`, `reconnect`, or `rotate`.
+`start_execution_run` may provide `nativeSessionReference`. The internal
+`mcpStartExecutionRun` mutation validates and content-hashes the exact
+refs-and-digests-only projection before inserting any session, trace, or event.
 
 `record_execution_graph_event` calls the secret-gated
 `recordExecutionGraphEvent` dispatcher entry. The gateway injects the service
@@ -98,9 +99,9 @@ the event transaction succeeds.
 ## ActiveGraph boundary
 
 ActiveGraph receives only a validated terminal `nodekit.run-export/v1`. The
-representative fixture now contains native identity plus a real stage-local
-sequence: start, frontier-bound node start, exact edge consumption, artifact
-production, node completion, and run completion.
+representative fixture now contains canonical session artifact references plus
+a real stage-local sequence: start, frontier-bound node start, exact edge
+consumption, artifact production, node completion, and run completion.
 
 ActiveGraph remains an offline disposable replay observer. It is not a graph
 compiler, scheduler, workflow database, or approval authority.
@@ -109,14 +110,14 @@ compiler, scheduler, workflow database, or approval authority.
 
 | Gate           | Result                                                                                                            |
 | -------------- | ----------------------------------------------------------------------------------------------------------------- |
-| BOUND          | 256-event run cap, reserved lifecycle closure, bounded identity fields and payload sizes                          |
-| HONEST_STATUS  | Mutations throw on ownership, lifecycle, identity, or persistence failure                                         |
+| BOUND          | 256-event run cap, reserved lifecycle closure, bounded reference fields and payload sizes                         |
+| HONEST_STATUS  | Mutations throw on ownership, lifecycle, reference, or persistence failure                                        |
 | HONEST_SCORES  | No score or confidence is generated                                                                               |
 | TIMEOUT        | New mutations perform no network I/O; the existing offline canary retains its process timeout                     |
 | SSRF           | No caller URL is accepted or fetched                                                                              |
-| BOUND_READ     | Indexed identity lookup and bounded run-prefix reads; gateway body cap remains unchanged                          |
+| BOUND_READ     | 100-row migration pages and bounded run-prefix reads; gateway body cap remains unchanged                          |
 | ERROR_BOUNDARY | Validation happens before persistence; a failed append aborts the owning mutation                                 |
-| DETERMINISTIC  | Canonical sorted-key SHA-256 hashes bind identities, events, chains, exports, graph references, and edge bindings |
+| DETERMINISTIC  | Canonical sorted-key SHA-256 hashes bind references, events, chains, exports, graph references, and edge bindings |
 
 ## Required verification
 

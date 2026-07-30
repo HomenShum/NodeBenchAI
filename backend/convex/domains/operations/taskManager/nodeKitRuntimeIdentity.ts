@@ -3,19 +3,32 @@ import {
   sha256CanonicalNodeKitValue,
 } from "./nodeKitRunEvents";
 
-export const NODEKIT_NATIVE_AGENT_SESSION_IDENTITY_VERSION =
-  "nodekit.native-agent-session-identity/v1" as const;
+export const NODEKIT_NATIVE_SESSION_REFERENCE_VERSION =
+  "nodekit.native-session-reference/v1" as const;
 
-export type NodeKitNativeSessionIdentity = Readonly<{
-  schemaVersion: typeof NODEKIT_NATIVE_AGENT_SESSION_IDENTITY_VERSION;
-  identityRef: string;
-  agentId: string;
+const SHA256 = /^[a-f0-9]{64}$/;
+const WORKSPACE_ID = /^workspace:sha256:[a-f0-9]{64}$/;
+const SESSION_ID = /^session:sha256:[a-f0-9]{64}$/;
+const WORKSPACE_REF = /^native-workspace:sha256:[a-f0-9]{64}$/;
+const SESSION_REF = /^native-agent-session:sha256:[a-f0-9]{64}$/;
+const CHECKPOINT_REF = /^native-session-checkpoint:sha256:[a-f0-9]{64}$/;
+
+export type NodeKitNativeSessionReferenceInput = Readonly<{
   workspaceId: string;
-  nativeSessionId: string;
-  nativeSessionGeneration: number;
-  peerId?: string;
-  snapshotHash: string;
+  sessionId: string;
+  workspaceArtifactRef: string;
+  workspaceArtifactDigest: string;
+  sessionArtifactRef: string;
+  sessionArtifactDigest: string;
+  checkpointArtifactRef: string;
+  checkpointArtifactDigest: string;
 }>;
+
+export type NodeKitNativeSessionReference = NodeKitNativeSessionReferenceInput &
+  Readonly<{
+    schemaVersion: typeof NODEKIT_NATIVE_SESSION_REFERENCE_VERSION;
+    referenceHash: string;
+  }>;
 
 export class NodeKitRuntimeIdentityError extends Error {
   readonly code: string;
@@ -31,125 +44,62 @@ function fail(code: string, message: string): never {
   throw new NodeKitRuntimeIdentityError(code, message);
 }
 
-function assertBoundedId(value: string, field: string, maxLength = 256): void {
+function assertValue(value: string, field: string, pattern: RegExp): void {
   if (
     typeof value !== "string" ||
     value.length === 0 ||
-    value.length > maxLength ||
-    !/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(value)
+    value.length > 512 ||
+    !pattern.test(value)
   ) {
     fail(
-      "native_identity_field_invalid",
-      `${field} must be a non-empty bounded identifier.`,
+      "native_session_reference_invalid",
+      `${field} is not a canonical bounded NodeKit reference.`,
     );
   }
 }
 
-export type NodeKitNativeSessionIdentityInput = Readonly<{
-  agentId: string;
-  workspaceId: string;
-  nativeSessionId: string;
-  nativeSessionGeneration: number;
-  peerId?: string;
-}>;
-
-export function validateNodeKitNativeSessionIdentityInput(
-  input: NodeKitNativeSessionIdentityInput,
+export function validateNodeKitNativeSessionReferenceInput(
+  input: NodeKitNativeSessionReferenceInput,
 ): void {
-  assertBoundedId(input.agentId, "agentId", 128);
-  assertBoundedId(input.workspaceId, "workspaceId");
-  assertBoundedId(input.nativeSessionId, "nativeSessionId");
-  if (input.peerId !== undefined) assertBoundedId(input.peerId, "peerId");
-  if (
-    !Number.isSafeInteger(input.nativeSessionGeneration) ||
-    input.nativeSessionGeneration < 0
-  ) {
-    fail(
-      "native_session_generation_invalid",
-      "nativeSessionGeneration must be a non-negative safe integer.",
-    );
-  }
+  assertValue(input.workspaceId, "workspaceId", WORKSPACE_ID);
+  assertValue(input.sessionId, "sessionId", SESSION_ID);
+  assertValue(
+    input.workspaceArtifactRef,
+    "workspaceArtifactRef",
+    WORKSPACE_REF,
+  );
+  assertValue(input.workspaceArtifactDigest, "workspaceArtifactDigest", SHA256);
+  assertValue(input.sessionArtifactRef, "sessionArtifactRef", SESSION_REF);
+  assertValue(input.sessionArtifactDigest, "sessionArtifactDigest", SHA256);
+  assertValue(
+    input.checkpointArtifactRef,
+    "checkpointArtifactRef",
+    CHECKPOINT_REF,
+  );
+  assertValue(
+    input.checkpointArtifactDigest,
+    "checkpointArtifactDigest",
+    SHA256,
+  );
 }
 
-export async function buildNodeKitNativeIdentityRef(
-  storageIdentityId: string,
-): Promise<string> {
-  if (
-    typeof storageIdentityId !== "string" ||
-    storageIdentityId.length === 0 ||
-    storageIdentityId.length > 512
-  ) {
-    fail(
-      "native_identity_storage_id_invalid",
-      "The storage identity ID must be non-empty and bounded.",
-    );
-  }
-  const digest = await sha256CanonicalNodeKitValue({ storageIdentityId });
-  return `nodebench:agent-identity:${digest.slice("sha256:".length)}`;
-}
-
-export async function buildNodeKitNativeSessionIdentity(
-  input: NodeKitNativeSessionIdentityInput & { identityRef: string },
-): Promise<NodeKitNativeSessionIdentity> {
-  assertBoundedId(input.identityRef, "identityRef");
-  validateNodeKitNativeSessionIdentityInput(input);
-
+export async function buildNodeKitNativeSessionReference(
+  input: NodeKitNativeSessionReferenceInput,
+): Promise<NodeKitNativeSessionReference> {
+  validateNodeKitNativeSessionReferenceInput(input);
   const body = {
-    schemaVersion: NODEKIT_NATIVE_AGENT_SESSION_IDENTITY_VERSION,
-    identityRef: input.identityRef,
-    agentId: input.agentId,
+    schemaVersion: NODEKIT_NATIVE_SESSION_REFERENCE_VERSION,
     workspaceId: input.workspaceId,
-    nativeSessionId: input.nativeSessionId,
-    nativeSessionGeneration: input.nativeSessionGeneration,
-    ...(input.peerId === undefined ? {} : { peerId: input.peerId }),
+    sessionId: input.sessionId,
+    workspaceArtifactRef: input.workspaceArtifactRef,
+    workspaceArtifactDigest: input.workspaceArtifactDigest,
+    sessionArtifactRef: input.sessionArtifactRef,
+    sessionArtifactDigest: input.sessionArtifactDigest,
+    checkpointArtifactRef: input.checkpointArtifactRef,
+    checkpointArtifactDigest: input.checkpointArtifactDigest,
   } as const;
-
   return deepFreezeNodeKitValue({
     ...body,
-    snapshotHash: await sha256CanonicalNodeKitValue(body),
+    referenceHash: await sha256CanonicalNodeKitValue(body),
   });
-}
-
-export function compareNodeKitNativeSessionIdentity(
-  previous: NodeKitNativeSessionIdentity,
-  next: NodeKitNativeSessionIdentity,
-): "reconnect" | "rotate" {
-  if (
-    previous.identityRef !== next.identityRef ||
-    previous.agentId !== next.agentId ||
-    previous.workspaceId !== next.workspaceId
-  ) {
-    fail(
-      "native_identity_scope_mismatch",
-      "A native session cannot cross an agent or workspace identity boundary.",
-    );
-  }
-  if (next.nativeSessionGeneration < previous.nativeSessionGeneration) {
-    fail(
-      "native_session_stale",
-      "The native session generation is older than the persisted identity state.",
-    );
-  }
-  if (
-    next.nativeSessionGeneration === previous.nativeSessionGeneration &&
-    next.nativeSessionId !== previous.nativeSessionId
-  ) {
-    fail(
-      "native_session_collision",
-      "One native session generation cannot identify two different sessions.",
-    );
-  }
-  if (
-    next.nativeSessionGeneration === previous.nativeSessionGeneration &&
-    previous.peerId !== undefined &&
-    next.peerId !== previous.peerId
-  ) {
-    fail(
-      "native_peer_mismatch",
-      "A reconnect cannot replace the peer bound to the active native session.",
-    );
-  }
-  return next.nativeSessionGeneration === previous.nativeSessionGeneration
-    ? "reconnect"
-    : "rotate";
 }

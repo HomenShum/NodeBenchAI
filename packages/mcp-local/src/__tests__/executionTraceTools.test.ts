@@ -78,12 +78,15 @@ describe("executionTraceTools", () => {
       workflowName: "Spreadsheet enrichment",
       type: "agent",
       visibility: "private",
-      nativeIdentity: {
-        agentId: "codex.desktop",
-        workspaceId: "workspace:nodebench",
-        nativeSessionId: "session:desktop:2026-07-29",
-        nativeSessionGeneration: 4,
-        peerId: "peer:runner:codex",
+      nativeSessionReference: {
+        workspaceId: `workspace:sha256:${"a".repeat(64)}`,
+        sessionId: `session:sha256:${"b".repeat(64)}`,
+        workspaceArtifactRef: `native-workspace:sha256:${"c".repeat(64)}`,
+        workspaceArtifactDigest: "c".repeat(64),
+        sessionArtifactRef: `native-agent-session:sha256:${"d".repeat(64)}`,
+        sessionArtifactDigest: "d".repeat(64),
+        checkpointArtifactRef: `native-session-checkpoint:sha256:${"e".repeat(64)}`,
+        checkpointArtifactDigest: "e".repeat(64),
       },
     })) as any;
 
@@ -104,12 +107,15 @@ describe("executionTraceTools", () => {
         visionSnapshot: undefined,
         successCriteria: undefined,
         sourceRefs: undefined,
-        nativeIdentity: {
-          agentId: "codex.desktop",
-          workspaceId: "workspace:nodebench",
-          nativeSessionId: "session:desktop:2026-07-29",
-          nativeSessionGeneration: 4,
-          peerId: "peer:runner:codex",
+        nativeSessionReference: {
+          workspaceId: `workspace:sha256:${"a".repeat(64)}`,
+          sessionId: `session:sha256:${"b".repeat(64)}`,
+          workspaceArtifactRef: `native-workspace:sha256:${"c".repeat(64)}`,
+          workspaceArtifactDigest: "c".repeat(64),
+          sessionArtifactRef: `native-agent-session:sha256:${"d".repeat(64)}`,
+          sessionArtifactDigest: "d".repeat(64),
+          checkpointArtifactRef: `native-session-checkpoint:sha256:${"e".repeat(64)}`,
+          checkpointArtifactDigest: "e".repeat(64),
         },
         metadata: undefined,
       },

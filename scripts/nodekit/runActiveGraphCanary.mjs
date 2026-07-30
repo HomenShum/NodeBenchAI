@@ -75,13 +75,15 @@ const SAFE_FIELDS_BY_EVENT = {
     "goalId",
     "sessionType",
     "sessionStartedAt",
-    "identityRef",
     "workspaceId",
-    "agentId",
-    "nativeSessionId",
-    "nativeSessionGeneration",
-    "peerId",
-    "identitySnapshotHash",
+    "sessionId",
+    "workspaceArtifactRef",
+    "workspaceArtifactDigest",
+    "sessionArtifactRef",
+    "sessionArtifactDigest",
+    "checkpointArtifactRef",
+    "checkpointArtifactDigest",
+    "nativeSessionReferenceHash",
   ]),
   "span.started": new Set([
     "spanId",
@@ -701,35 +703,44 @@ function assertSafeEventPayload(payload, eventType, label) {
     );
   }
   if (eventType === "run.started") {
-    const identityFields = [
-      "identityRef",
+    const referenceFields = [
       "workspaceId",
-      "agentId",
-      "nativeSessionId",
-      "nativeSessionGeneration",
-      "identitySnapshotHash",
+      "sessionId",
+      "workspaceArtifactRef",
+      "workspaceArtifactDigest",
+      "sessionArtifactRef",
+      "sessionArtifactDigest",
+      "checkpointArtifactRef",
+      "checkpointArtifactDigest",
+      "nativeSessionReferenceHash",
     ];
-    const present = identityFields.filter((field) => field in payload.fields);
-    if (present.length !== 0 && present.length !== identityFields.length) {
+    const present = referenceFields.filter((field) => field in payload.fields);
+    if (present.length !== 0 && present.length !== referenceFields.length) {
       fail(
-        "native_identity_incomplete",
-        `${label} must bind the complete native identity snapshot.`,
+        "native_session_reference_incomplete",
+        `${label} must bind the complete native session reference.`,
       );
     }
-    if (present.length === identityFields.length) {
-      assertHash(
-        payload.fields.identitySnapshotHash,
-        `${label}.identitySnapshotHash`,
-      );
-      if (
-        !Number.isSafeInteger(payload.fields.nativeSessionGeneration) ||
-        payload.fields.nativeSessionGeneration < 0
-      ) {
-        fail(
-          "native_session_generation_invalid",
-          `${label}.nativeSessionGeneration is invalid.`,
-        );
+    if (present.length === referenceFields.length) {
+      for (const field of [
+        "workspaceArtifactDigest",
+        "sessionArtifactDigest",
+        "checkpointArtifactDigest",
+      ]) {
+        if (
+          typeof payload.fields[field] !== "string" ||
+          !/^[a-f0-9]{64}$/.test(payload.fields[field])
+        ) {
+          fail(
+            "hash_invalid",
+            `${label}.${field} must be a lowercase SHA-256 digest.`,
+          );
+        }
       }
+      assertHash(
+        payload.fields.nativeSessionReferenceHash,
+        `${label}.nativeSessionReferenceHash`,
+      );
     }
   }
   if (
@@ -826,7 +837,9 @@ export function assertCanonicalNodeKitRunExport(value) {
       "id",
       "typeAtRunStart",
       "startedAt",
-      ...("nativeIdentity" in value.session ? ["nativeIdentity"] : []),
+      ...("nativeSessionReference" in value.session
+        ? ["nativeSessionReference"]
+        : []),
     ],
     "session",
   );
@@ -855,21 +868,26 @@ export function assertCanonicalNodeKitRunExport(value) {
     maxLength: 256,
   });
   assertTimestamp(value.session.startedAt, "session.startedAt");
-  if ("nativeIdentity" in value.session) {
-    assertObject(value.session.nativeIdentity, "session.nativeIdentity");
+  if ("nativeSessionReference" in value.session) {
+    assertObject(
+      value.session.nativeSessionReference,
+      "session.nativeSessionReference",
+    );
     exactKeys(
-      value.session.nativeIdentity,
+      value.session.nativeSessionReference,
       [
         "schemaVersion",
-        "identityRef",
-        "agentId",
         "workspaceId",
-        "nativeSessionId",
-        "nativeSessionGeneration",
-        ...("peerId" in value.session.nativeIdentity ? ["peerId"] : []),
-        "snapshotHash",
+        "sessionId",
+        "workspaceArtifactRef",
+        "workspaceArtifactDigest",
+        "sessionArtifactRef",
+        "sessionArtifactDigest",
+        "checkpointArtifactRef",
+        "checkpointArtifactDigest",
+        "referenceHash",
       ],
-      "session.nativeIdentity",
+      "session.nativeSessionReference",
     );
   }
   assertString(value.trace.id, "trace.id", { nonEmpty: true });
@@ -1099,39 +1117,39 @@ export function assertCanonicalNodeKitRunExport(value) {
     );
   }
   if (
-    startFields.identityRef === undefined &&
-    "nativeIdentity" in value.session
+    startFields.workspaceId === undefined &&
+    "nativeSessionReference" in value.session
   ) {
     fail(
-      "native_identity_snapshot_mismatch",
-      "Session identity is absent from run.started.",
+      "native_session_reference_mismatch",
+      "Session reference is absent from run.started.",
     );
   }
-  if (startFields.identityRef !== undefined) {
-    const expectedIdentityBody = {
-      schemaVersion: "nodekit.native-agent-session-identity/v1",
-      identityRef: startFields.identityRef,
-      agentId: startFields.agentId,
+  if (startFields.workspaceId !== undefined) {
+    const expectedReferenceBody = {
+      schemaVersion: "nodekit.native-session-reference/v1",
       workspaceId: startFields.workspaceId,
-      nativeSessionId: startFields.nativeSessionId,
-      nativeSessionGeneration: startFields.nativeSessionGeneration,
-      ...(startFields.peerId === undefined
-        ? {}
-        : { peerId: startFields.peerId }),
+      sessionId: startFields.sessionId,
+      workspaceArtifactRef: startFields.workspaceArtifactRef,
+      workspaceArtifactDigest: startFields.workspaceArtifactDigest,
+      sessionArtifactRef: startFields.sessionArtifactRef,
+      sessionArtifactDigest: startFields.sessionArtifactDigest,
+      checkpointArtifactRef: startFields.checkpointArtifactRef,
+      checkpointArtifactDigest: startFields.checkpointArtifactDigest,
     };
-    const expectedIdentity = {
-      ...expectedIdentityBody,
-      snapshotHash: canonicalHash(expectedIdentityBody),
+    const expectedReference = {
+      ...expectedReferenceBody,
+      referenceHash: canonicalHash(expectedReferenceBody),
     };
     if (
-      !("nativeIdentity" in value.session) ||
-      canonicalJson(value.session.nativeIdentity) !==
-        canonicalJson(expectedIdentity) ||
-      startFields.identitySnapshotHash !== expectedIdentity.snapshotHash
+      !("nativeSessionReference" in value.session) ||
+      canonicalJson(value.session.nativeSessionReference) !==
+        canonicalJson(expectedReference) ||
+      startFields.nativeSessionReferenceHash !== expectedReference.referenceHash
     ) {
       fail(
-        "native_identity_snapshot_mismatch",
-        "Session identity differs from immutable run.started fields.",
+        "native_session_reference_mismatch",
+        "Session reference differs from immutable run.started fields.",
       );
     }
   }

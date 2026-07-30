@@ -4,6 +4,20 @@ Append-only lane for NodeKit graph, exact edge-binding, native-session identity,
 run-event, export, MCP, and offline ActiveGraph compatibility. Newest entries
 first.
 
+## 2026-07-30 — Remove NodeBench native-session lifecycle authority
+
+The candidate replaces the combined native identity snapshot and generation
+protocol with a `nodekit.native-session-reference/v1` projection containing
+only Caseflow-canonical workspace/session/checkpoint refs and digests.
+NodeBench no longer creates or updates an agent-identity row when a trace
+starts, and the run/export/canary boundaries reject raw provider IDs,
+generation, host, credential, status, cursor, and resumable fields.
+
+A bounded, dry-run-capable internal migration removes the obsolete snapshots
+and native lifecycle fields before their schema fields are retired. ActiveGraph
+remains a disposable offline observer and receives only the verified terminal
+export.
+
 ## 2026-07-29 — Bind NodeBench traces to NodeKit's current-stage graph
 
 The shipped integration adds an owner/workspace-scoped native-agent session

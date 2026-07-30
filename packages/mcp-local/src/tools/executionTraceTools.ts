@@ -115,22 +115,29 @@ export const executionTraceTools: McpTool[] = [
             required: ["label"],
           },
         },
-        nativeIdentity: {
+        nativeSessionReference: {
           type: "object",
           description:
-            "Optional persistent native-agent/workspace/session identity. Reuse the same session ID and generation on reconnect; increment the generation on restart or rotation.",
+            "Optional refs-and-digests-only projection of Caseflow-canonical native workspace, session, and latest checkpoint artifacts. This reference cannot authorize resume.",
           properties: {
-            agentId: { type: "string" },
             workspaceId: { type: "string" },
-            nativeSessionId: { type: "string" },
-            nativeSessionGeneration: { type: "number" },
-            peerId: { type: "string" },
+            sessionId: { type: "string" },
+            workspaceArtifactRef: { type: "string" },
+            workspaceArtifactDigest: { type: "string" },
+            sessionArtifactRef: { type: "string" },
+            sessionArtifactDigest: { type: "string" },
+            checkpointArtifactRef: { type: "string" },
+            checkpointArtifactDigest: { type: "string" },
           },
           required: [
-            "agentId",
             "workspaceId",
-            "nativeSessionId",
-            "nativeSessionGeneration",
+            "sessionId",
+            "workspaceArtifactRef",
+            "workspaceArtifactDigest",
+            "sessionArtifactRef",
+            "sessionArtifactDigest",
+            "checkpointArtifactRef",
+            "checkpointArtifactDigest",
           ],
           additionalProperties: false,
         },
@@ -157,12 +164,15 @@ export const executionTraceTools: McpTool[] = [
         note?: string;
         kind?: string;
       }>;
-      nativeIdentity?: {
-        agentId: string;
+      nativeSessionReference?: {
         workspaceId: string;
-        nativeSessionId: string;
-        nativeSessionGeneration: number;
-        peerId?: string;
+        sessionId: string;
+        workspaceArtifactRef: string;
+        workspaceArtifactDigest: string;
+        sessionArtifactRef: string;
+        sessionArtifactDigest: string;
+        checkpointArtifactRef: string;
+        checkpointArtifactDigest: string;
       };
       metadata?: Record<string, unknown>;
     }) => {
@@ -182,7 +192,7 @@ export const executionTraceTools: McpTool[] = [
         visionSnapshot: args.visionSnapshot,
         successCriteria: args.successCriteria,
         sourceRefs: args.sourceRefs,
-        nativeIdentity: args.nativeIdentity,
+        nativeSessionReference: args.nativeSessionReference,
         metadata: args.metadata,
       });
 
