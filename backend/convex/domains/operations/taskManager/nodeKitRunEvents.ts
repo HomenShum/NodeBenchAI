@@ -79,13 +79,15 @@ const SAFE_FIELDS_BY_EVENT: Readonly<
     "goalId",
     "sessionType",
     "sessionStartedAt",
-    "identityRef",
     "workspaceId",
-    "agentId",
-    "nativeSessionId",
-    "nativeSessionGeneration",
-    "peerId",
-    "identitySnapshotHash",
+    "sessionId",
+    "workspaceArtifactRef",
+    "workspaceArtifactDigest",
+    "sessionArtifactRef",
+    "sessionArtifactDigest",
+    "checkpointArtifactRef",
+    "checkpointArtifactDigest",
+    "nativeSessionReferenceHash",
   ],
   "span.started": [
     "spanId",
@@ -340,36 +342,37 @@ function assertGraphPayloadFields(
   label: string,
 ): void {
   if (eventType === "run.started") {
-    const identityFields = [
-      "identityRef",
+    const referenceFields = [
       "workspaceId",
-      "agentId",
-      "nativeSessionId",
-      "nativeSessionGeneration",
-      "identitySnapshotHash",
+      "sessionId",
+      "workspaceArtifactRef",
+      "workspaceArtifactDigest",
+      "sessionArtifactRef",
+      "sessionArtifactDigest",
+      "checkpointArtifactRef",
+      "checkpointArtifactDigest",
+      "nativeSessionReferenceHash",
     ] as const;
-    const presentCount = identityFields.filter(
+    const presentCount = referenceFields.filter(
       (field) => field in fields,
     ).length;
-    if (presentCount !== 0 && presentCount !== identityFields.length) {
+    if (presentCount !== 0 && presentCount !== referenceFields.length) {
       fail(
-        "native_identity_incomplete",
-        `${label} must bind the complete native identity snapshot.`,
+        "native_session_reference_incomplete",
+        `${label} must bind the complete native session artifact reference.`,
       );
     }
-    if (presentCount === identityFields.length) {
-      if (
-        !Number.isSafeInteger(fields.nativeSessionGeneration) ||
-        (fields.nativeSessionGeneration as number) < 0
-      ) {
-        fail(
-          "native_session_generation_invalid",
-          `${label} nativeSessionGeneration must be a non-negative safe integer.`,
-        );
+    if (presentCount === referenceFields.length) {
+      for (const field of [
+        "workspaceArtifactDigest",
+        "sessionArtifactDigest",
+        "checkpointArtifactDigest",
+      ] as const) {
+        assertRawSha256(fields[field], `${label}.${field}`);
       }
       assertHash(
-        String(fields.identitySnapshotHash),
-        `${label}.identitySnapshotHash`,
+        String(fields.nativeSessionReferenceHash),
+        `${label}.nativeSessionReferenceHash`,
       );
     }
     return;

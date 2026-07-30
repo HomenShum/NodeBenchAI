@@ -57,6 +57,18 @@ Server Error) for an unknown slug.
 
 ## Active claims (who is editing what RIGHT NOW)
 
+- **2026-07-30 · Codex `/root` →** `backend/convex/schema.ts`,
+  `backend/convex/domains/operations/taskManager/nodeKitRuntimeIdentity.ts`,
+  `backend/convex/domains/operations/taskManager/nodeKitRunEvents.ts`,
+  `backend/convex/domains/operations/taskManager/nodeKitRunExport.ts`,
+  `backend/convex/domains/mcp/mcpExecutionTraceEndpoints.ts`,
+  `packages/mcp-local/src/tools/executionTraceTools.ts`, and
+  `scripts/nodekit/*ActiveGraph*` · migrate the obsolete combined
+  native-session snapshot/generation contract to Caseflow-canonical
+  workspace/session/checkpoint artifact refs and digests while preserving the
+  offline, non-authoritative ActiveGraph boundary · branch
+  `codex/nodekit-native-canonical-artifacts`.
+
 - **2026-07-29 · Codex `/root` →** `backend/convex/domains/operations/taskManager/nodeKitRunExport.ts`,
   `backend/convex/domains/mcp/mcpExecutionTraceEndpoints.ts`,
   `backend/convex/domains/mcp/mcpGatewayDispatcher.ts`, and
@@ -84,22 +96,30 @@ Server Error) for an unknown slug.
 
 ## Hand-offs (built + ready for the other agent to call)
 
-- **2026-07-29 - Codex `/root` -> execution-trace and MCP consumers** -
-  Shipped through PR #603 at `1e034f5fd3bf109f6283669c2c24774c78962b86`:
-  `mcpStartExecutionRun({ ..., nativeIdentity?: {agentId, workspaceId,
-nativeSessionId, nativeSessionGeneration, peerId?} })` returns the immutable
-  `nodekit.native-agent-session-identity/v1` snapshot plus continuity
-  `created | reconnect | rotate`. `recordExecutionGraphEvent({traceId,
+- **2026-07-30 - Codex `/root` -> execution-trace and MCP consumers** -
+  **Supersedes the 2026-07-29 combined-snapshot hand-off.** The NodeKit native
+  identity contract now has exactly three Caseflow-canonical artifacts
+  (`nodekit.native-workspace/v1`, `nodekit.native-agent-session/v1`, and
+  `nodekit.native-session-checkpoint/v1`) and exactly five public operations
+  (`workspace_bind`, `session_start`, `session_checkpoint`, `session_resume`,
+  and `session_status`). NodeBench accepts only the disposable
+  `nodekit.native-session-reference/v1` projection through
+  `mcpStartExecutionRun({ ..., nativeSessionReference?: {
+workspaceId, sessionId, workspaceArtifactRef, workspaceArtifactDigest,
+sessionArtifactRef, sessionArtifactDigest, checkpointArtifactRef,
+checkpointArtifactDigest} })`. It stores refs and digests only; it cannot
+  authorize resume and never stores raw provider IDs, agent IDs, caller-supplied
+  owners, generations, hosts, credentials, lifecycle flags, or resumability
+  flags. `recordExecutionGraphEvent({traceId,
 eventType, graphId, graphHash, caseId, stageId, caseContentHash, nodeId,
 nodeRunId, ...eventSpecificFields})` appends one exact graph event and returns
   its SHA-256 content hash. The gateway entry is secret-gated and injects the
   service owner. Shared schema additions are optional. Caseflow remains
   authoritative; the runtime records NodeKit-generated graph/frontier/binding
   evidence and never derives approval or stage advancement. No out-of-band
-  Convex deploy. Production verification: main CI and Convex deploy passed;
-  the owner-scoped gateway verified create/reconnect/rotate and stale-generation
-  rejection; the graph lifecycle stored exact frontier, edge, artifact, barrier,
-  and review-context evidence in one valid terminal hash chain.
+  Convex deploy. The old `nativeIdentity` fields remain only for the bounded
+  phase-one migration and must be removed in a phase-two PR after production
+  dry-run/apply/zero-match verification.
 
 - **2026-07-28 - Codex `/root/activegraph_final_audit` -> `/root`** -
   Release-hardening audit complete on the uncommitted

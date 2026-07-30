@@ -1,15 +1,10 @@
 import { v } from "convex/values";
-import { internalMutation, type MutationCtx } from "../../_generated/server";
+import { internalMutation } from "../../_generated/server";
 import type { Id } from "../../_generated/dataModel";
 import { appendNodeKitRunEvent } from "../operations/taskManager/nodeKitRunEvents";
 import {
-  NODEKIT_NATIVE_AGENT_SESSION_IDENTITY_VERSION,
-  buildNodeKitNativeIdentityRef,
-  buildNodeKitNativeSessionIdentity,
-  compareNodeKitNativeSessionIdentity,
-  type NodeKitNativeSessionIdentity,
-  type NodeKitNativeSessionIdentityInput,
-  validateNodeKitNativeSessionIdentityInput,
+  NODEKIT_NATIVE_SESSION_REFERENCE_VERSION,
+  buildNodeKitNativeSessionReference,
 } from "../operations/taskManager/nodeKitRuntimeIdentity";
 
 const oracleSourceRefValidator = v.object({
@@ -19,102 +14,29 @@ const oracleSourceRefValidator = v.object({
   kind: v.optional(v.string()),
 });
 
-const nativeIdentityInputValidator = v.object({
-  agentId: v.string(),
+const nativeSessionReferenceInputValidator = v.object({
   workspaceId: v.string(),
-  nativeSessionId: v.string(),
-  nativeSessionGeneration: v.number(),
-  peerId: v.optional(v.string()),
+  sessionId: v.string(),
+  workspaceArtifactRef: v.string(),
+  workspaceArtifactDigest: v.string(),
+  sessionArtifactRef: v.string(),
+  sessionArtifactDigest: v.string(),
+  checkpointArtifactRef: v.string(),
+  checkpointArtifactDigest: v.string(),
 });
 
-const nativeIdentitySnapshotValidator = v.object({
-  schemaVersion: v.literal(NODEKIT_NATIVE_AGENT_SESSION_IDENTITY_VERSION),
-  identityRef: v.string(),
-  agentId: v.string(),
+const nativeSessionReferenceValidator = v.object({
+  schemaVersion: v.literal(NODEKIT_NATIVE_SESSION_REFERENCE_VERSION),
   workspaceId: v.string(),
-  nativeSessionId: v.string(),
-  nativeSessionGeneration: v.number(),
-  peerId: v.optional(v.string()),
-  snapshotHash: v.string(),
+  sessionId: v.string(),
+  workspaceArtifactRef: v.string(),
+  workspaceArtifactDigest: v.string(),
+  sessionArtifactRef: v.string(),
+  sessionArtifactDigest: v.string(),
+  checkpointArtifactRef: v.string(),
+  checkpointArtifactDigest: v.string(),
+  referenceHash: v.string(),
 });
-
-async function resolveNativeIdentity(
-  ctx: MutationCtx,
-  userId: Id<"users">,
-  input: NodeKitNativeSessionIdentityInput,
-): Promise<{
-  snapshot: NodeKitNativeSessionIdentity;
-  continuity: "created" | "reconnect" | "rotate";
-}> {
-  validateNodeKitNativeSessionIdentityInput(input);
-  const existing = await ctx.db
-    .query("agentIdentities")
-    .withIndex("by_owner_workspace_agent", (q) =>
-      q
-        .eq("ownerUserId", userId)
-        .eq("workspaceId", input.workspaceId)
-        .eq("agentId", input.agentId),
-    )
-    .first();
-  const now = Date.now();
-  const identityId =
-    existing?._id ??
-    (await ctx.db.insert("agentIdentities", {
-      agentId: input.agentId,
-      ownerUserId: userId,
-      workspaceId: input.workspaceId,
-      identityContractVersion: NODEKIT_NATIVE_AGENT_SESSION_IDENTITY_VERSION,
-      name: input.agentId,
-      persona: "Native NodeKit execution agent",
-      allowedTools: [],
-      allowedChannels: [],
-      status: "active",
-      createdAt: now,
-      updatedAt: now,
-    }));
-  if (existing && existing.status !== "active") {
-    throw new Error(`Native agent identity is ${existing.status}.`);
-  }
-
-  const identityRef = await buildNodeKitNativeIdentityRef(String(identityId));
-  const snapshot = await buildNodeKitNativeSessionIdentity({
-    identityRef,
-    ...input,
-  });
-  let continuity: "created" | "reconnect" | "rotate" = "created";
-  if (existing) {
-    if (
-      existing.identityContractVersion !==
-        NODEKIT_NATIVE_AGENT_SESSION_IDENTITY_VERSION ||
-      existing.nativeSessionId === undefined ||
-      existing.nativeSessionGeneration === undefined
-    ) {
-      throw new Error(
-        "Native agent identity has incomplete persisted session state.",
-      );
-    }
-    const previous = await buildNodeKitNativeSessionIdentity({
-      identityRef,
-      agentId: existing.agentId,
-      workspaceId: existing.workspaceId ?? "",
-      nativeSessionId: existing.nativeSessionId,
-      nativeSessionGeneration: existing.nativeSessionGeneration,
-      peerId: existing.nativePeerId,
-    });
-    continuity = compareNodeKitNativeSessionIdentity(previous, snapshot);
-  }
-
-  await ctx.db.patch(identityId, {
-    identityContractVersion: NODEKIT_NATIVE_AGENT_SESSION_IDENTITY_VERSION,
-    nativeSessionId: snapshot.nativeSessionId,
-    nativeSessionGeneration: snapshot.nativeSessionGeneration,
-    nativePeerId: snapshot.peerId,
-    nativeIdentitySnapshotHash: snapshot.snapshotHash,
-    lastSeenAt: now,
-    updatedAt: now,
-  });
-  return { snapshot, continuity };
-}
 
 function generateTraceId(): string {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -145,7 +67,7 @@ export const mcpStartExecutionRun = internalMutation({
     visionSnapshot: v.optional(v.string()),
     successCriteria: v.optional(v.array(v.string())),
     sourceRefs: v.optional(v.array(oracleSourceRefValidator)),
-    nativeIdentity: v.optional(nativeIdentityInputValidator),
+    nativeSessionReference: v.optional(nativeSessionReferenceInputValidator),
     metadata: v.optional(v.any()),
   },
   returns: v.object({
@@ -153,25 +75,14 @@ export const mcpStartExecutionRun = internalMutation({
     traceId: v.id("agentTaskTraces"),
     publicTraceId: v.string(),
     status: v.string(),
-    nativeIdentity: v.optional(nativeIdentitySnapshotValidator),
-    nativeIdentityContinuity: v.optional(
-      v.union(
-        v.literal("created"),
-        v.literal("reconnect"),
-        v.literal("rotate"),
-      ),
-    ),
+    nativeSessionReference: v.optional(nativeSessionReferenceValidator),
   }),
   handler: async (ctx, args) => {
     const now = Date.now();
-    const resolvedIdentity =
-      args.nativeIdentity === undefined
+    const nativeSessionReference =
+      args.nativeSessionReference === undefined
         ? undefined
-        : await resolveNativeIdentity(
-            ctx,
-            args.userId as Id<"users">,
-            args.nativeIdentity,
-          );
+        : await buildNodeKitNativeSessionReference(args.nativeSessionReference);
     const sessionId = await ctx.db.insert("agentTaskSessions", {
       title: args.title,
       description: args.description,
@@ -184,7 +95,7 @@ export const mcpStartExecutionRun = internalMutation({
       visionSnapshot: args.visionSnapshot,
       successCriteria: args.successCriteria,
       sourceRefs: args.sourceRefs,
-      nativeIdentity: resolvedIdentity?.snapshot,
+      nativeSessionReference,
       metadata: {
         executionTraceOrigin: "mcp",
         ...(args.metadata && typeof args.metadata === "object"
@@ -202,7 +113,7 @@ export const mcpStartExecutionRun = internalMutation({
       visionSnapshot: args.visionSnapshot,
       successCriteria: args.successCriteria,
       sourceRefs: args.sourceRefs,
-      nativeIdentity: resolvedIdentity?.snapshot,
+      nativeSessionReference,
       status: "running",
       startedAt: now,
       metadata: {
@@ -225,19 +136,22 @@ export const mcpStartExecutionRun = internalMutation({
         origin: "mcp",
         sessionType: args.type ?? "agent",
         sessionStartedAt: now,
-        ...(resolvedIdentity === undefined
+        ...(nativeSessionReference === undefined
           ? {}
           : {
-              identityRef: resolvedIdentity.snapshot.identityRef,
-              workspaceId: resolvedIdentity.snapshot.workspaceId,
-              agentId: resolvedIdentity.snapshot.agentId,
-              nativeSessionId: resolvedIdentity.snapshot.nativeSessionId,
-              nativeSessionGeneration:
-                resolvedIdentity.snapshot.nativeSessionGeneration,
-              ...(resolvedIdentity.snapshot.peerId === undefined
-                ? {}
-                : { peerId: resolvedIdentity.snapshot.peerId }),
-              identitySnapshotHash: resolvedIdentity.snapshot.snapshotHash,
+              workspaceId: nativeSessionReference.workspaceId,
+              sessionId: nativeSessionReference.sessionId,
+              workspaceArtifactRef: nativeSessionReference.workspaceArtifactRef,
+              workspaceArtifactDigest:
+                nativeSessionReference.workspaceArtifactDigest,
+              sessionArtifactRef: nativeSessionReference.sessionArtifactRef,
+              sessionArtifactDigest:
+                nativeSessionReference.sessionArtifactDigest,
+              checkpointArtifactRef:
+                nativeSessionReference.checkpointArtifactRef,
+              checkpointArtifactDigest:
+                nativeSessionReference.checkpointArtifactDigest,
+              nativeSessionReferenceHash: nativeSessionReference.referenceHash,
             }),
         ...(args.goalId === undefined ? {} : { goalId: args.goalId }),
       },
@@ -249,8 +163,7 @@ export const mcpStartExecutionRun = internalMutation({
       traceId,
       publicTraceId,
       status: "running",
-      nativeIdentity: resolvedIdentity?.snapshot,
-      nativeIdentityContinuity: resolvedIdentity?.continuity,
+      nativeSessionReference,
     };
   },
 });
