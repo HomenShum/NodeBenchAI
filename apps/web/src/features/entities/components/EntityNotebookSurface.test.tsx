@@ -19,21 +19,25 @@ vi.mock("@/features/entities/components/EntityNotebookView", () => ({
   ),
 }));
 
-vi.mock("@/features/entities/components/notebook/EntityNotebookLiveMount", () => ({
-  EntityNotebookLiveMount: ({
-    entitySlug,
-    canEdit,
-    latestHumanEditorOwnerKey,
-  }: {
-    entitySlug: string;
-    canEdit: boolean;
-    latestHumanEditorOwnerKey?: string | null;
-  }) => (
-    <div data-testid="mock-live-notebook">
-      live:{entitySlug}:{String(canEdit)}:{latestHumanEditorOwnerKey ?? "none"}
-    </div>
-  ),
-}));
+vi.mock(
+  "@/features/entities/components/notebook/EntityNotebookLiveMount",
+  () => ({
+    EntityNotebookLiveMount: ({
+      entitySlug,
+      canEdit,
+      latestHumanEditorOwnerKey,
+    }: {
+      entitySlug: string;
+      canEdit: boolean;
+      latestHumanEditorOwnerKey?: string | null;
+    }) => (
+      <div data-testid="mock-live-notebook">
+        live:{entitySlug}:{String(canEdit)}:
+        {latestHumanEditorOwnerKey ?? "none"}
+      </div>
+    ),
+  }),
+);
 
 describe("EntityNotebookSurface", () => {
   const baseProps = {
@@ -87,7 +91,7 @@ describe("EntityNotebookSurface", () => {
     expect(screen.queryByTestId("mock-notebook-view")).not.toBeInTheDocument();
   });
 
-  it("turns the live notebook into a read-only report surface in read mode", async () => {
+  it("preserves underlying write authority while the live notebook renders in read mode", async () => {
     render(
       <EntityNotebookSurface
         {...baseProps}
@@ -98,7 +102,7 @@ describe("EntityNotebookSurface", () => {
     );
 
     expect(await screen.findByTestId("mock-live-notebook")).toHaveTextContent(
-      "live:softbank:false:user:owner",
+      "live:softbank:true:user:owner",
     );
   });
 });

@@ -124,8 +124,11 @@ export function EntityNotebookView({ entitySlug, shareToken, canOpenLive = false
   const buildEntityPathWithShare = (nextSlug: string) => buildEntityPath(nextSlug, shareToken);
   const canTraverseLinkedEntities = !shareToken;
 
-  const [routingOpen, setRoutingOpen] = useState(true);
-  const [planOpen, setPlanOpen] = useState(true);
+  // rule-stream-not-chrome (note-surface corpus): provenance is available, not
+  // interposed — panels default closed so the first thing after the header is
+  // the note stream, not chrome.
+  const [routingOpen, setRoutingOpen] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
   const [sourcesOpen, setSourcesOpen] = useState(false);
 
   const citationLabelByKey = useMemo(() => {
@@ -197,7 +200,8 @@ export function EntityNotebookView({ entitySlug, shareToken, canOpenLive = false
 
   return (
     <div className="mt-6">
-      <section className="rounded-2xl border border-gray-200 bg-white/[0.75] p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.02]">
+      {/* rule-stream-not-chrome obs-mew-stream/f1: header ends with a divider, not a card */}
+      <section className="border-b border-gray-100 pb-4 dark:border-white/[0.06]">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
@@ -217,7 +221,8 @@ export function EntityNotebookView({ entitySlug, shareToken, canOpenLive = false
             </div>
           </div>
           <div className="flex flex-col items-start gap-2 lg:items-end">
-            <div className="rounded-full border border-[var(--accent-primary)]/20 bg-[var(--accent-primary)]/10 px-3 py-1 text-xs font-medium text-[var(--accent-primary)]">
+            {/* rule-single-accent-inline obs-mew-stream/f2: run metadata is chrome, so it stays achromatic */}
+            <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
               {routingSummary}
             </div>
             <div className="flex flex-wrap gap-2 text-[11px] text-gray-500 dark:text-gray-400">
@@ -239,16 +244,16 @@ export function EntityNotebookView({ entitySlug, shareToken, canOpenLive = false
       <details
         open={routingOpen}
         onToggle={(event) => setRoutingOpen((event.target as HTMLDetailsElement).open)}
-        className="mt-4 overflow-hidden rounded-xl border border-gray-200 dark:border-white/10"
+        className="mt-4 border-b border-gray-100 dark:border-white/[0.06]"
       >
-        <summary className="flex cursor-pointer items-center justify-between gap-3 bg-gray-50/60 px-4 py-2.5 text-sm text-gray-600 transition-colors hover:bg-gray-50 dark:bg-white/[0.02] dark:text-gray-400 dark:hover:bg-white/[0.04]">
+        <summary className="flex cursor-pointer items-center justify-between gap-3 px-1 py-2.5 text-sm text-gray-600 transition-colors hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-white/[0.04]">
           <div className="flex items-center gap-2">
             <ChevronRight className={`h-3.5 w-3.5 transition-transform ${routingOpen ? "rotate-90" : ""}`} />
             <strong className="font-medium text-gray-900 dark:text-gray-100">Routing &amp; operator context</strong>
             <span className="text-xs text-gray-500">how this brief was generated</span>
           </div>
           {routing.mode ? (
-            <span className="rounded border border-[var(--accent-primary)]/30 bg-[var(--accent-primary)]/10 px-2 py-0.5 font-mono text-[11px] text-[var(--accent-primary)]">
+            <span className="rounded border border-gray-200 px-2 py-0.5 font-mono text-[11px] text-gray-500 dark:border-white/10 dark:text-gray-400">
               {routing.mode}
               {routing.reasoningEffort ? ` · ${routing.reasoningEffort} reasoning` : ""}
             </span>
@@ -269,9 +274,9 @@ export function EntityNotebookView({ entitySlug, shareToken, canOpenLive = false
       <details
         open={planOpen}
         onToggle={(event) => setPlanOpen((event.target as HTMLDetailsElement).open)}
-        className="mt-3 overflow-hidden rounded-xl border border-gray-200 dark:border-white/10"
+        className="mt-1 border-b border-gray-100 dark:border-white/[0.06]"
       >
-        <summary className="flex cursor-pointer items-center justify-between gap-3 bg-gray-50/60 px-4 py-2.5 text-sm text-gray-600 transition-colors hover:bg-gray-50 dark:bg-white/[0.02] dark:text-gray-400 dark:hover:bg-white/[0.04]">
+        <summary className="flex cursor-pointer items-center justify-between gap-3 px-1 py-2.5 text-sm text-gray-600 transition-colors hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-white/[0.04]">
           <div className="flex items-center gap-2">
             <ChevronRight className={`h-3.5 w-3.5 transition-transform ${planOpen ? "rotate-90" : ""}`} />
             <strong className="font-medium text-gray-900 dark:text-gray-100">Execution plan trace</strong>
@@ -292,10 +297,10 @@ export function EntityNotebookView({ entitySlug, shareToken, canOpenLive = false
                 className="grid grid-cols-[24px_170px_1fr_auto] gap-3 border-b border-dashed border-gray-200/40 py-1.5 last:border-0 dark:border-white/[0.06]"
               >
                 <span className="text-right text-gray-500">{step.step}</span>
-                <span className="truncate text-[var(--accent-primary)]">
+                <span className="truncate text-gray-300">
                   {step.tool}
                   {step.parallel ? (
-                    <span className="ml-1 rounded bg-[var(--accent-primary)]/10 px-1.5 py-0.5 text-[10px] text-[var(--accent-primary)]">
+                    <span className="ml-1 rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-gray-400">
                       parallel
                     </span>
                   ) : null}
@@ -331,9 +336,9 @@ export function EntityNotebookView({ entitySlug, shareToken, canOpenLive = false
       <details
         open={sourcesOpen}
         onToggle={(event) => setSourcesOpen((event.target as HTMLDetailsElement).open)}
-        className="mt-3 overflow-hidden rounded-xl border border-gray-200 dark:border-white/10"
+        className="mt-1 border-b border-gray-100 dark:border-white/[0.06]"
       >
-        <summary className="flex cursor-pointer items-center justify-between gap-3 bg-gray-50/60 px-4 py-2.5 text-sm text-gray-600 transition-colors hover:bg-gray-50 dark:bg-white/[0.02] dark:text-gray-400 dark:hover:bg-white/[0.04]">
+        <summary className="flex cursor-pointer items-center justify-between gap-3 px-1 py-2.5 text-sm text-gray-600 transition-colors hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-white/[0.04]">
           <div className="flex items-center gap-2">
             <ChevronRight className={`h-3.5 w-3.5 transition-transform ${sourcesOpen ? "rotate-90" : ""}`} />
             <strong className="font-medium text-gray-900 dark:text-gray-100">Sources with confidence</strong>
@@ -417,14 +422,15 @@ export function EntityNotebookView({ entitySlug, shareToken, canOpenLive = false
           <div className="text-xs font-medium uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
             Linked from · {backlinks.length} place{backlinks.length === 1 ? "" : "s"}
           </div>
-          <div className="mt-3 space-y-2">
+          {/* rule-stream-not-chrome obs-mew-stream/f1: backlinks are stream entries — divider separation, no cards */}
+          <div className="mt-3 divide-y divide-gray-100 dark:divide-white/[0.06]">
             {backlinks.map((ref: any) =>
               canTraverseLinkedEntities ? (
                 <button
                   key={ref.relationId}
                   type="button"
                   onClick={() => navigate(buildEntityPathWithShare(ref.fromEntitySlug))}
-                  className="block w-full rounded-lg border border-gray-200 px-3 py-2 text-left transition-colors hover:border-gray-300 hover:bg-gray-50 dark:border-white/10 dark:hover:bg-white/[0.03]"
+                  className="block w-full px-1 py-2.5 text-left transition-colors hover:bg-gray-50 dark:hover:bg-white/[0.03]"
                 >
                   <div className="font-medium text-gray-900 dark:text-gray-100">{ref.fromEntityName}</div>
                   <div className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
@@ -434,7 +440,7 @@ export function EntityNotebookView({ entitySlug, shareToken, canOpenLive = false
               ) : (
                 <div
                   key={ref.relationId}
-                  className="block w-full rounded-lg border border-gray-200 px-3 py-2 text-left dark:border-white/10"
+                  className="block w-full px-1 py-2.5 text-left"
                 >
                   <div className="font-medium text-gray-900 dark:text-gray-100">{ref.fromEntityName}</div>
                   <div className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
@@ -452,25 +458,27 @@ export function EntityNotebookView({ entitySlug, shareToken, canOpenLive = false
           <div className="text-xs font-medium uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
             Linked entities
           </div>
-          <div className="mt-3 flex flex-wrap gap-2">
+          {/* rule-single-accent-inline obs-mew-stream/f2: an entity link is a meaning carrier —
+              it wears the accent as inline text, the way a Mew hashtag does, instead of a bordered pill */}
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
             {snapshot.linkedFrom.map((item: any) =>
               canTraverseLinkedEntities ? (
               <button
                 key={`linked-${item.slug}`}
                 type="button"
                 onClick={() => navigate(buildEntityPathWithShare(item.slug))}
-                className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-3 py-1.5 text-sm text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/[0.03]"
+                className="inline-flex items-center gap-1.5 text-sm text-[var(--accent-primary)] transition-colors hover:underline"
               >
-                <Network className="h-3.5 w-3.5 text-[var(--accent-primary)]" />
+                <Network className="h-3.5 w-3.5" />
                 <span>{item.name}</span>
                 {item.reason ? <span className="text-xs text-gray-400">· {item.reason}</span> : null}
               </button>
               ) : (
                 <div
                   key={`linked-${item.slug}`}
-                  className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-3 py-1.5 text-sm text-gray-700 dark:border-white/10 dark:text-gray-300"
+                  className="inline-flex items-center gap-1.5 text-sm text-[var(--accent-primary)]"
                 >
-                  <Network className="h-3.5 w-3.5 text-[var(--accent-primary)]" />
+                  <Network className="h-3.5 w-3.5" />
                   <span>{item.name}</span>
                   {item.reason ? <span className="text-xs text-gray-400">&middot; {item.reason}</span> : null}
                 </div>
@@ -485,14 +493,16 @@ export function EntityNotebookView({ entitySlug, shareToken, canOpenLive = false
           <div className="text-xs font-medium uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
             Related entities (harness-suggested)
           </div>
-          <div className="mt-3 space-y-2">
+          {/* rule-stream-not-chrome obs-mew-stream/f1 + rule-single-accent-inline obs-mew-stream/f2:
+              divider rows, and the suggestion glyph is chrome so it goes achromatic */}
+          <div className="mt-3 divide-y divide-gray-100 dark:divide-white/[0.06]">
             {snapshot.relatedEntities.map((item: any) =>
               canTraverseLinkedEntities ? (
               <button
                 key={`related-${item.slug}`}
                 type="button"
                 onClick={() => navigate(buildEntityPathWithShare(item.slug))}
-                className="flex w-full items-start justify-between rounded-lg border border-gray-200 px-3 py-2 text-left transition-colors hover:border-gray-300 hover:bg-gray-50 dark:border-white/10 dark:hover:bg-white/[0.03]"
+                className="flex w-full items-start justify-between px-1 py-2.5 text-left transition-colors hover:bg-gray-50 dark:hover:bg-white/[0.03]"
               >
                 <div>
                   <div className="font-medium text-gray-900 dark:text-gray-100">{item.name}</div>
@@ -500,12 +510,12 @@ export function EntityNotebookView({ entitySlug, shareToken, canOpenLive = false
                     {item.reason ?? item.relation ?? item.entityType}
                   </div>
                 </div>
-                <Sparkles className="mt-0.5 h-4 w-4 text-[var(--accent-primary)]" />
+                <Sparkles className="mt-0.5 h-4 w-4 text-gray-400" />
               </button>
               ) : (
                 <div
                   key={`related-${item.slug}`}
-                  className="flex w-full items-start justify-between rounded-lg border border-gray-200 px-3 py-2 text-left dark:border-white/10"
+                  className="flex w-full items-start justify-between px-1 py-2.5 text-left"
                 >
                   <div>
                     <div className="font-medium text-gray-900 dark:text-gray-100">{item.name}</div>
@@ -513,7 +523,7 @@ export function EntityNotebookView({ entitySlug, shareToken, canOpenLive = false
                       {item.reason ?? item.relation ?? item.entityType}
                     </div>
                   </div>
-                  <Sparkles className="mt-0.5 h-4 w-4 text-[var(--accent-primary)]" />
+                  <Sparkles className="mt-0.5 h-4 w-4 text-gray-400" />
                 </div>
               )
             )}
@@ -618,12 +628,14 @@ function BlockBody({
       (block.href ? sourcesByKey.get(block.href) : undefined) ??
       sourcesByKey.get(block.body) ??
       (block.evidenceDomain ? sourcesByKey.get(block.evidenceDomain) : undefined);
+    // rule-stream-not-chrome obs-mew-stream/f1: evidence is an inline link in the
+    // stream, not a bordered chip — the accent icon marks it as a meaning carrier.
     return (
       <a
         href={block.href ?? "#"}
         target={block.href ? "_blank" : undefined}
         rel="noopener noreferrer"
-        className={`inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white/40 px-2.5 py-1 text-[12.5px] text-gray-600 transition-colors hover:border-gray-300 dark:border-white/10 dark:bg-white/[0.02] dark:text-gray-400 dark:hover:border-white/20 ${
+        className={`inline-flex items-center gap-1.5 text-[12.5px] text-gray-600 transition-colors hover:underline dark:text-gray-400 ${
           block.href ? "" : "pointer-events-none"
         }`}
       >
@@ -680,10 +692,13 @@ function BlockProvenance({ block }: { block: NotebookBlock }) {
   if (block.author !== "agent" || block.kind !== "text") return null;
 
   const items: Array<{ label: string; tone: string; title?: string }> = [];
+  // rule-single-accent-inline obs-mew-stream/f2: provenance chips are chrome,
+  // not inline meaning carriers — they stay achromatic so the accent keeps
+  // meaning "citation/link" on this surface.
   if (block.modelUsed) {
     items.push({
       label: block.modelUsed,
-      tone: "text-[var(--accent-primary)] bg-[var(--accent-primary)]/10",
+      tone: "text-gray-500 bg-gray-500/10",
       title: "Model used",
     });
   }
@@ -697,7 +712,7 @@ function BlockProvenance({ block }: { block: NotebookBlock }) {
   if (block.costUsd != null) {
     items.push({
       label: formatUsd(block.costUsd),
-      tone: "text-amber-500 bg-amber-500/10",
+      tone: "text-gray-500 bg-gray-500/10",
       title: "Estimated cost",
     });
   }

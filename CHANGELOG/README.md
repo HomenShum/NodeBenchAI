@@ -15,6 +15,8 @@ This directory contains append-only per-surface changelog lanes. Each lane recor
 
 ### Components
 
+- [`components/entity-notebook-surface.md`](components/entity-notebook-surface.md) - Entity notebook composition and authority propagation.
+- [`components/entity-notebook-live.md`](components/entity-notebook-live.md) - Live block stream, capture shortcut, and fail-closed editing.
 - [`components/fast-agent-panel.md`](components/fast-agent-panel.md) — FastAgentPanel AI Elements cutovers and preserved behavior seams.
 
 ### Integrations

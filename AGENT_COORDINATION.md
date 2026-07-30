@@ -57,6 +57,11 @@ Server Error) for an unknown slug.
 
 ## Active claims (who is editing what RIGHT NOW)
 
+- **2026-07-29 · Codex `/root` →** `apps/web/src/features/entities/components/notebook/EntityNotebookLive.tsx`,
+  its mount/tests, and `docs/design/note-surface/*` · complete the actual Live notebook
+  Cmd/Ctrl+E capture path and rebuild the Mobbin/Mew/Roam evidence chain · branch
+  `codex/note-surface-complete` / PR #601. No backend or Convex deploy.
+
 > **STANDARD-TREE MIGRATION (2026-07-19, feat/standard-tree-migration): repo paths moved.**
 > `convex/` → `backend/convex/` (convex.json `functions` added; function identifiers unchanged),
 > `src/` + `index.html` → `apps/web/` (`@convex` alias replaces relative `../convex` imports),

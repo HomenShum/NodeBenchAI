@@ -91,25 +91,35 @@ const {
 vi.mock("convex/react", () => ({
   usePaginatedQuery: vi.fn(() => paginatedState),
   useQuery: vi.fn((query: unknown) => {
-    if (query === api.domains.product.blocks.getEntityNotebook) return queryState.snapshot;
-    if (query === api.domains.product.blocks.getEntityBlockSummary) return queryState.blockSummary;
-    if (query === api.domains.product.blocks.listBacklinksForEntity) return queryState.backlinks;
-    if (query === api.domains.product.diligenceProjections.listForEntity) return [];
+    if (query === api.domains.product.blocks.getEntityNotebook)
+      return queryState.snapshot;
+    if (query === api.domains.product.blocks.getEntityBlockSummary)
+      return queryState.blockSummary;
+    if (query === api.domains.product.blocks.listBacklinksForEntity)
+      return queryState.backlinks;
+    if (query === api.domains.product.diligenceProjections.listForEntity)
+      return [];
     return undefined;
   }),
   useMutation: vi.fn((mutation: unknown) => {
-    if (mutation === api.domains.product.blocks.appendBlock) return mockAppendBlock;
+    if (mutation === api.domains.product.blocks.appendBlock)
+      return mockAppendBlock;
     if (mutation === api.domains.product.blocks.insertBlockBetween) {
       return mockInsertBlockBetween;
     }
-    if (mutation === api.domains.product.blocks.updateBlock) return mockUpdateBlock;
+    if (mutation === api.domains.product.blocks.updateBlock)
+      return mockUpdateBlock;
     if (mutation === api.domains.product.blocks.backfillEntityBlocks) {
       return mockBackfillEntityBlocks;
     }
-    if (mutation === api.domains.product.diligenceProjections.materializeForEntity) {
+    if (
+      mutation === api.domains.product.diligenceProjections.materializeForEntity
+    ) {
       return mockMaterializeForEntity;
     }
-    if (mutation === api.domains.product.diligenceProjections.requestRefreshAndRun) {
+    if (
+      mutation === api.domains.product.diligenceProjections.requestRefreshAndRun
+    ) {
       return mockRequestRefreshAndRun;
     }
     return vi.fn();
@@ -149,20 +159,32 @@ vi.mock("@convex-dev/prosemirror-sync/tiptap", () => ({
 
 vi.mock("./NotebookBlockEditor", async () => {
   const React = await import("react");
-  const renderChips = (chips: Array<{ value: string }>) => chips.map((chip) => chip.value).join("");
-  const MockNotebookBlockEditor = React.forwardRef(function MockNotebookBlockEditor(
-    props: {
-      ariaLabel: string;
-      chips: Array<{ value: string }>;
+  const renderChips = (chips: Array<{ value: string }>) =>
+    chips.map((chip) => chip.value).join("");
+  const MockNotebookBlockEditor = React.forwardRef(
+    function MockNotebookBlockEditor(
+      props: {
+        ariaLabel: string;
+        chips: Array<{ value: string }>;
+      },
+      ref: React.ForwardedRef<unknown>,
+    ) {
+      const elementRef = React.useRef<HTMLDivElement>(null);
+      React.useImperativeHandle(ref, () => ({
+        focus: () => elementRef.current?.focus(),
+      }));
+      return (
+        <div
+          ref={elementRef}
+          role="textbox"
+          aria-label={props.ariaLabel}
+          tabIndex={-1}
+        >
+          {renderChips(props.chips)}
+        </div>
+      );
     },
-    _ref: React.ForwardedRef<unknown>,
-  ) {
-    return (
-      <div role="textbox" aria-label={props.ariaLabel}>
-        {renderChips(props.chips)}
-      </div>
-    );
-  });
+  );
 
   return {
     NotebookBlockEditor: MockNotebookBlockEditor,
@@ -227,6 +249,137 @@ describe("EntityNotebookLive empty live notebook", () => {
         authorKind: "user",
       }),
     );
+  });
+
+  it("moves a reader into the first editable live block with Cmd+E", async () => {
+    paginatedState.results = [
+      {
+        _id: "block_first",
+        entityId: "entity_1",
+        kind: "text",
+        authorKind: "user",
+        content: [{ type: "text", value: "Existing note" }],
+        positionInt: 1,
+        positionFrac: "a0",
+        revision: 1,
+        updatedAt: Date.now(),
+        accessMode: "edit",
+      },
+    ];
+    queryState.blockSummary = {
+      blockCount: 1,
+      userEditedCount: 1,
+    };
+
+    renderWithRouter(<EntityNotebookLive entitySlug="smr-thesis" canEdit />, {
+      route: "/entity/smr-thesis?view=read",
+    });
+
+    fireEvent.keyDown(window, { key: "e", metaKey: true });
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("textbox", { name: "Block - text" }),
+      ).toHaveFocus(),
+    );
+    expect(mockAppendBlock).not.toHaveBeenCalled();
+  });
+
+  it("creates exactly one first block for two rapid capture shortcuts on an empty notebook", async () => {
+    renderWithRouter(<EntityNotebookLive entitySlug="smr-thesis" canEdit />, {
+      route: "/entity/smr-thesis?view=read",
+    });
+
+    fireEvent.keyDown(window, { key: "e", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "e", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "e", ctrlKey: true, repeat: true });
+
+    await waitFor(() => expect(mockAppendBlock).toHaveBeenCalledTimes(1));
+  });
+
+  it("does not steal Cmd+E from an active text field", async () => {
+    renderWithRouter(
+      <>
+        <input aria-label="Search notes" />
+        <EntityNotebookLive entitySlug="smr-thesis" canEdit />
+      </>,
+      { route: "/entity/smr-thesis?view=read" },
+    );
+    const input = screen.getByRole("textbox", { name: "Search notes" });
+    input.focus();
+
+    fireEvent.keyDown(input, { key: "e", metaKey: true });
+
+    await Promise.resolve();
+    expect(input).toHaveFocus();
+    expect(mockAppendBlock).not.toHaveBeenCalled();
+  });
+
+  it("does not create a block when the notebook or every existing block is read-only", async () => {
+    paginatedState.results = [
+      {
+        _id: "block_read_only",
+        entityId: "entity_1",
+        kind: "text",
+        authorKind: "agent",
+        content: [{ type: "text", value: "Shared note" }],
+        positionInt: 1,
+        positionFrac: "a0",
+        revision: 1,
+        updatedAt: Date.now(),
+        accessMode: "read",
+      },
+    ];
+    queryState.blockSummary = {
+      blockCount: 1,
+      userEditedCount: 0,
+    };
+
+    const { unmount } = renderWithRouter(
+      <EntityNotebookLive entitySlug="smr-thesis" canEdit />,
+      { route: "/entity/smr-thesis?view=read" },
+    );
+    fireEvent.keyDown(window, { key: "e", metaKey: true });
+
+    await waitFor(() =>
+      expect(mockToastWarning).toHaveBeenCalledWith(
+        "Block is read-only",
+        expect.stringContaining("edit this block"),
+      ),
+    );
+    expect(mockAppendBlock).not.toHaveBeenCalled();
+    unmount();
+
+    renderWithRouter(
+      <EntityNotebookLive entitySlug="smr-thesis" canEdit={false} />,
+      { route: "/entity/smr-thesis?view=read" },
+    );
+    fireEvent.keyDown(window, { key: "e", metaKey: true });
+    await Promise.resolve();
+    expect(mockAppendBlock).not.toHaveBeenCalled();
+  });
+
+  it("leaves the capture shortcut untouched on a shared notebook route", async () => {
+    renderWithRouter(
+      <EntityNotebookLive
+        entitySlug="smr-thesis"
+        shareToken="share_read_only"
+        canEdit
+      />,
+      { route: "/share/share_read_only?view=read" },
+    );
+    const event = new KeyboardEvent("keydown", {
+      key: "e",
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    window.dispatchEvent(event);
+
+    await Promise.resolve();
+    expect(event.defaultPrevented).toBe(false);
+    expect(mockAppendBlock).not.toHaveBeenCalled();
   });
 
   it("hydrates the notebook from the saved brief when a reference projection exists", async () => {
@@ -340,7 +493,13 @@ describe("EntityNotebookLive empty live notebook", () => {
         kind: "heading_2",
         authorKind: "agent",
         authorId: "system-archive",
-        content: [{ type: "text", value: "Supply chain AI startup Loop just raised $95M in a Series C round." }],
+        content: [
+          {
+            type: "text",
+            value:
+              "Supply chain AI startup Loop just raised $95M in a Series C round.",
+          },
+        ],
         positionInt: 1,
         positionFrac: "a0",
         revision: 1,
@@ -368,7 +527,12 @@ describe("EntityNotebookLive empty live notebook", () => {
         kind: "text",
         authorKind: "agent",
         authorId: "system-archive",
-        content: [{ type: "text", value: "This notebook was projected from archived intelligence." }],
+        content: [
+          {
+            type: "text",
+            value: "This notebook was projected from archived intelligence.",
+          },
+        ],
         sourceRefIds: ["src_1"],
         positionInt: 3,
         positionFrac: "a2",
@@ -407,7 +571,9 @@ describe("EntityNotebookLive empty live notebook", () => {
       userEditedCount: 0,
     };
 
-    renderWithRouter(<EntityNotebookLive entitySlug="smr-thesis" canEdit={false} />);
+    renderWithRouter(
+      <EntityNotebookLive entitySlug="smr-thesis" canEdit={false} />,
+    );
 
     const overlayHost = screen.getByTestId("notebook-diligence-overlay-host");
     expect(overlayHost).toBeInTheDocument();
@@ -476,17 +642,28 @@ describe("EntityNotebookLive empty live notebook", () => {
     renderWithRouter(<EntityNotebookLive entitySlug="smr-thesis" canEdit />);
 
     await waitFor(() =>
-      expect(screen.getByTestId("notebook-diligence-overlay-host")).toBeInTheDocument(),
+      expect(
+        screen.getByTestId("notebook-diligence-overlay-host"),
+      ).toBeInTheDocument(),
     );
     fireEvent.click(screen.getByRole("button", { name: "Accept" }));
 
-    await waitFor(() => expect(mockInsertBlockBetween).toHaveBeenCalledTimes(3));
+    await waitFor(() =>
+      expect(mockInsertBlockBetween).toHaveBeenCalledTimes(3),
+    );
     expect(mockInsertBlockBetween).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
         beforeBlockId: "block_blank",
         kind: "generated_marker",
-        content: [{ type: "text", value: expect.stringContaining("Accepted from live notebook intelligence") }],
+        content: [
+          {
+            type: "text",
+            value: expect.stringContaining(
+              "Accepted from live notebook intelligence",
+            ),
+          },
+        ],
       }),
     );
     expect(mockInsertBlockBetween).toHaveBeenNthCalledWith(
@@ -505,9 +682,13 @@ describe("EntityNotebookLive empty live notebook", () => {
       }),
     );
     expect(mockUpdateBlock).not.toHaveBeenCalled();
-    expect(mockToastSuccess).toHaveBeenCalledWith("Live snapshot added to notebook");
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "Live snapshot added to notebook",
+    );
     await waitFor(() =>
-      expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument(),
+      expect(
+        screen.queryByRole("button", { name: "Accept" }),
+      ).not.toBeInTheDocument(),
     );
   });
 
@@ -555,7 +736,11 @@ describe("EntityNotebookLive empty live notebook", () => {
 
     renderWithRouter(<EntityNotebookLive entitySlug="smr-thesis" canEdit />);
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument());
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Refresh" }),
+      ).toBeInTheDocument(),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
 
     await waitFor(() =>

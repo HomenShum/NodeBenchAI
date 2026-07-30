@@ -223,7 +223,7 @@ export function EntityNotebookLive({
   // overlay accept affordances, and inline insert paths all branch on
   // canEdit — masking it here keeps the change surgical instead of
   // sprinkling `isReadMode &&` guards across 29 call sites.
-  const { isReadMode } = useViewMode();
+  const { isReadMode, setViewMode } = useViewMode();
   const canEdit = canEditProp && !isReadMode;
   // Unified agent actions — routes inline decoration events into the
   // drawer's history + persists dismissals. See useAgentActions for
@@ -470,6 +470,7 @@ export function EntityNotebookLive({
     useState<NotebookAuthorityWriteStatus | null>(null);
   const createFirstBlockInFlightRef =
     useRef<Promise<Id<"productBlocks"> | null> | null>(null);
+  const pendingCaptureFocusRef = useRef(false);
   const autoCreateFirstBlockAttemptedRef = useRef(false);
   const autoSeedNotebookAttemptedRef = useRef(false);
   const editorHandlesRef = useRef<Map<string, NotebookBlockEditorHandle>>(
@@ -623,9 +624,45 @@ export function EntityNotebookLive({
     ]);
 
   useEffect(() => {
+    if (!isReadMode || !canEditProp || shareToken) return;
+
+    const handleCaptureShortcut = (event: KeyboardEvent) => {
+      if (
+        event.key.toLowerCase() !== "e" ||
+        (!event.metaKey && !event.ctrlKey) ||
+        event.altKey ||
+        event.shiftKey ||
+        event.isComposing ||
+        event.repeat
+      ) {
+        return;
+      }
+
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      if (pendingCaptureFocusRef.current) return;
+      pendingCaptureFocusRef.current = true;
+      setViewMode("edit");
+    };
+
+    window.addEventListener("keydown", handleCaptureShortcut);
+    return () => window.removeEventListener("keydown", handleCaptureShortcut);
+  }, [canEditProp, isReadMode, setViewMode, shareToken]);
+
+  useEffect(() => {
     autoCreateFirstBlockAttemptedRef.current = false;
     autoSeedNotebookAttemptedRef.current = false;
     createFirstBlockInFlightRef.current = null;
+    pendingCaptureFocusRef.current = false;
     authorityProposalPromisesRef.current.clear();
     authorityProposalResultsRef.current.clear();
     authorityCommitPromisesRef.current.clear();
@@ -1271,6 +1308,55 @@ export function EntityNotebookLive({
     totalCount: blockSummary?.blockCount,
     paginationStatus: blocksPagination.status,
   });
+
+  useEffect(() => {
+    if (
+      !pendingCaptureFocusRef.current ||
+      isReadMode ||
+      !canEditProp ||
+      !canEdit ||
+      blocks === undefined ||
+      snapshot === undefined ||
+      !notebookLoadState.fullyLoaded
+    ) {
+      return;
+    }
+
+    const firstEditableBlock = blocks.find(
+      (block) => (block.accessMode ?? "edit") === "edit",
+    );
+    if (firstEditableBlock) {
+      pendingCaptureFocusRef.current = false;
+      warmBlock(firstEditableBlock._id);
+      setFocusedBlockId(firstEditableBlock._id);
+      return focusBlockHandleWithRetry(firstEditableBlock._id);
+    }
+
+    if (blocks.length > 0) {
+      pendingCaptureFocusRef.current = false;
+      notifyReadOnly("edit");
+      return;
+    }
+
+    if (hasDerivedNotebookSeed) return;
+
+    void openFirstBlock().finally(() => {
+      pendingCaptureFocusRef.current = false;
+    });
+  }, [
+    blocks,
+    canEdit,
+    canEditProp,
+    focusBlockHandleWithRetry,
+    hasDerivedNotebookSeed,
+    isReadMode,
+    notebookLoadState.fullyLoaded,
+    notifyReadOnly,
+    openFirstBlock,
+    snapshot,
+    warmBlock,
+  ]);
+
   const latestRunCheckpoint = latestScratchpadRun?.checkpoints?.at(-1);
   const isNotebookRunActive =
     latestScratchpadRun?.status === "streaming" ||

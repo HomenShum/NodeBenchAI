@@ -1,0 +1,103 @@
+{
+  "schemaVersion": "nodekit.score-receipt/v1",
+  "receiptId": "score-nodebench-entity-notebook-after-single-accent-inline",
+  "ruleId": "rule-single-accent-inline",
+  "subject": {
+    "id": "nodebench-entity-notebook-after",
+    "name": "NodeBench AI entity notebook surface — after note-surface DNA application",
+    "kind": "platform-surface",
+    "surface": "apps/web/src/features/entities/components/EntityNotebookView.tsx and EntityNoteEditor.tsx after the feat/note-surface-dna diff",
+    "evidenceBasis": "recorded-observation",
+    "evidenceRef": "source in worktree feat/note-surface-dna (branched from 24a09f36) after the diff, 2026-07-29; accent-primary occurrences in EntityNotebookView.tsx fell 28 to 15, hardcoded #d97757 literals in EntityNoteEditor.tsx fell 2 to 0",
+    "observedAt": "2026-07-29"
+  },
+  "derivedFrom": {
+    "collectionId": "note-surface",
+    "observationIds": ["obs-mew-tokens", "obs-mew-stream"],
+    "factIds": [
+      "obs-mew-tokens/f1",
+      "obs-mew-tokens/f3",
+      "obs-mew-tokens/f5",
+      "obs-mew-stream/f2"
+    ]
+  },
+  "ruleApplicability": {
+    "applies": true,
+    "appliesWhenSatisfied": [
+      "text-dominant surface where inline metadata must be scannable — unchanged by the diff",
+      "dark-first product where saturation fatigues quickly — unchanged by the diff"
+    ],
+    "doesNotApplyWhenChecked": [
+      {
+        "clause": "data visualization surfaces needing categorical palettes (dataviz skill governs there)",
+        "fires": false,
+        "note": "Unchanged: no chart renders on this surface."
+      },
+      {
+        "clause": "status-heavy dashboards where semantic red/amber/green carry meaning the accent cannot",
+        "fires": false,
+        "note": "Unchanged: a reading notebook. The semantic confidence/status tints remain indicators; the amber cost chip was demoted to gray because cost is metadata, not a warning."
+      }
+    ]
+  },
+  "scale": {
+    "min": 0,
+    "max": 4,
+    "anchors": {
+      "0": "multiple accent hues washed across containers, headers and body text with no reserved meaning",
+      "1": "one accent hue exists and inline meaning carriers use it, but the same hue also decorates chrome broadly — panel badges, decorative icons, container tints — so color cannot function as a retrieval signal",
+      "2": "accent on inline carriers; chrome accent reduced to a small number of control states",
+      "3": "accent only on inline meaning carriers plus the primary capture affordance; all other chrome achromatic",
+      "4": "accent exclusively on inline meaningful elements (tags, links, live indicators), chrome achromatic and hue-linked to the accent, elevation under 8px blur at low alpha — obs-mew-tokens/f1 and f3, obs-mew-stream/f2"
+    }
+  },
+  "criteria": [
+    {
+      "id": "c1-accent-only-inline-meaning",
+      "question": "Is the single accent hue carried only by meaningful inline elements (tags, links, live indicators), with the rest of the chrome achromatic?",
+      "score": 3,
+      "citations": [
+        {
+          "observationId": "obs-mew-stream",
+          "factIds": ["f2"],
+          "relation": "meets",
+          "withinRuleDerivation": true,
+          "note": "Every surviving accent site is a meaning carrier: inline citation chips, the evidence link icon, linked-entity tokens (now accent inline text, the hashtag pattern, instead of bordered pills), the agent-author dot, the running-step live indicator, the callout's authored emphasis border, and the Open Live capture affordance. The chrome accents — routing pill, mode badge, plan-trace tool names, parallel badges, Network/Sparkles decoration, model-name chips — all went achromatic in the diff."
+        },
+        {
+          "observationId": "obs-mew-tokens",
+          "factIds": ["f1"],
+          "relation": "meets",
+          "withinRuleDerivation": true,
+          "note": "One hue, and it is NodeBench's own: the rule's semantics were adopted without Mew's teal. The two hardcoded #d97757 literals on the editor mode toggle were removed and the toggle's selected state is now achromatic, so nothing bypasses --accent-primary on this surface."
+        },
+        {
+          "observationId": "obs-mew-tokens",
+          "factIds": ["f3"],
+          "relation": "falls-short-of",
+          "withinRuleDerivation": true,
+          "note": "Unchanged and honestly still short: chrome grays remain stock neutral Tailwind grays, not hue-linked to the accent. Retinting the gray ramp is a token-system change deliberately excluded from this pass, and it is the citation that blocks anchor 4."
+        },
+        {
+          "observationId": "obs-mew-tokens",
+          "factIds": ["f5"],
+          "relation": "meets",
+          "withinRuleDerivation": true,
+          "note": "Elevation is now stricter than baseline: the header card's shadow-sm was removed with the card itself, leaving zero shadows on the surface — inside Mew's under-8px-blur low-alpha envelope trivially."
+        }
+      ],
+      "finding": "Anchor 3 earned by the diff: accent occurrences fell 28 to 15 and every survivor encodes meaning (citation, link, tag-token, live indicator, capture affordance). Blocked from 4 by the unchanged neutral gray ramp (obs-mew-tokens/f3) and by the absence of a computed-style audit."
+    }
+  ],
+  "score": 3,
+  "scoreBasis": "Single criterion, so the receipt score is the criterion score. Chrome achromatic with accent reserved for inline meaning clears anchors 1 and 2; the non-hue-linked grays hold it below anchor 4.",
+  "notScored": [
+    "The emerald/red confidence and status tints — still treated as semantic indicators under the rule's own allowance; the amber cost chip was demoted to gray in the diff, and whether the remaining semantic tints belong on a reading surface at all is left open.",
+    "EntityNotebookLive.tsx and the wider app shell — accent discipline outside the named files is still ungraded.",
+    "Hue-linking the gray ramp (obs-mew-tokens/f3) — measured, cited, and deliberately not fixed in this pass.",
+    "Runtime color rendering — no computed-style audit was run; counts are from class strings in source."
+  ],
+  "boundary": "Scored from the post-diff component source in the same worktree, method identical to the baseline receipt so the delta is attributable to the diff alone. The criterion that did not move (hue-linked grays) is cited at the same relation as baseline rather than quietly upgraded.",
+  "scoredBy": "note-surface DNA application pass, feat/note-surface-dna, scored against rule-single-accent-inline unmodified",
+  "scoredAt": "2026-07-29"
+}
