@@ -57,12 +57,6 @@ Server Error) for an unknown slug.
 
 ## Active claims (who is editing what RIGHT NOW)
 
-- **2026-07-29 · Codex `/root` →** `backend/convex/domains/operations/taskManager/nodeKitRunEvents.ts`,
-  `nodeKitRunExport.ts`, adjacent tests/schema, and NodeKit integration docs · add the stage-local
-  execution-graph/edge/frontier/review-context trace bindings and persistent session identity
-  references without replacing Caseflow authority · branch `codex/nodekit-stage-local-integration`.
-  No out-of-band Convex deploy.
-
 > **STANDARD-TREE MIGRATION (2026-07-19, feat/standard-tree-migration): repo paths moved.**
 > `convex/` → `backend/convex/` (convex.json `functions` added; function identifiers unchanged),
 > `src/` + `index.html` → `apps/web/` (`@convex` alias replaces relative `../convex` imports),
@@ -84,7 +78,7 @@ Server Error) for an unknown slug.
 ## Hand-offs (built + ready for the other agent to call)
 
 - **2026-07-29 - Codex `/root` -> execution-trace and MCP consumers** -
-  Candidate on `codex/nodekit-stage-local-integration`, not deployed:
+  Shipped through PR #603 at `1e034f5fd3bf109f6283669c2c24774c78962b86`:
   `mcpStartExecutionRun({ ..., nativeIdentity?: {agentId, workspaceId,
 nativeSessionId, nativeSessionGeneration, peerId?} })` returns the immutable
   `nodekit.native-agent-session-identity/v1` snapshot plus continuity
@@ -95,8 +89,10 @@ nodeRunId, ...eventSpecificFields})` appends one exact graph event and returns
   service owner. Shared schema additions are optional. Caseflow remains
   authoritative; the runtime records NodeKit-generated graph/frontier/binding
   evidence and never derives approval or stage advancement. No out-of-band
-  Convex deploy. Local verification: root typecheck, 74 focused scenarios,
-  root production build, and MCP-local package build pass.
+  Convex deploy. Production verification: main CI and Convex deploy passed;
+  the owner-scoped gateway verified create/reconnect/rotate and stale-generation
+  rejection; the graph lifecycle stored exact frontier, edge, artifact, barrier,
+  and review-context evidence in one valid terminal hash chain.
 
 - **2026-07-28 - Codex `/root/activegraph_final_audit` -> `/root`** -
   Release-hardening audit complete on the uncommitted
@@ -299,6 +295,14 @@ attemptKey, userId, reason? })`, retaining the full reservation maximum rather
   actually enters a room. The live counter + share moment both honor this.
 
 ## Recently shipped (this ScratchNode session)
+
+- **2026-07-29 · Codex `/root`** — Stage-local NodeKit execution-graph and
+  persistent native-agent identity contracts merged through PR #603 at
+  `1e034f5f`. Main CI, Convex deploy, Vercel deployment
+  `dpl_BhEFBRrSuUg2MszCZLwa9fbkMQqW`, raw production HTML, and secret-gated
+  production identity/graph lifecycle probes passed. The service-user binding
+  was restored before the live gateway proof; every proof trace was
+  terminalized.
 
 - **2026-07-29 · Codex `/root`** — Live notebook capture and its Mobbin/Mew/Roam evidence chain
   merged through PR #601 at `8416106a`. Cmd/Ctrl+E now preserves underlying write authority,

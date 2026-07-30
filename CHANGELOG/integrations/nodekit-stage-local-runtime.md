@@ -6,7 +6,7 @@ first.
 
 ## 2026-07-29 — Bind NodeBench traces to NodeKit's current-stage graph
 
-The pending candidate adds an owner/workspace-scoped native-agent session
+The shipped integration adds an owner/workspace-scoped native-agent session
 identity, records NodeKit's exact stage-local graph, frontier, edge-binding,
 artifact, barrier, and separated-review evidence, and exports the immutable
 identity snapshot with the terminal run chain. The MCP gateway exposes a
@@ -17,15 +17,15 @@ representative graph-and-identity corpus.
 Caseflow remains canonical. NodeBench does not compile a second graph, infer
 readiness from exit codes, approve review findings, or advance stages.
 
-**PR / canonical main commit**: #603 / PENDING MAIN SHA / FINAL QA.
+**PR / canonical main commit**: #603 / `1e034f5fd3bf109f6283669c2c24774c78962b86`.
 
 **Evidence state**:
 
-- Source: pending in PR #603 from `feat/nodekit-stage-local-integration`.
-- Checks: root typecheck passed; 74 focused contract, database, export, retention, MCP, and ActiveGraph scenarios passed; the root production build and MCP-local package build passed. CI remains pending.
+- Source: merged to `main` through PR #603 from `feat/nodekit-stage-local-integration`.
+- Checks: root typecheck passed; 74 focused contract, database, export, retention, MCP, and ActiveGraph scenarios passed; the 370-scenario runtime smoke pack, root production build, MCP-local package build, and required main-branch CI passed.
 - Visual proof: not applicable; this slice changes backend and tool contracts.
-- Preview: not recorded.
-- Production live: not recorded.
+- Preview: PR preview and post-deploy verification passed.
+- Production live: Vercel deployment `dpl_BhEFBRrSuUg2MszCZLwa9fbkMQqW` reached `READY` from commit `1e034f5`; `https://www.nodebenchai.com/` returned HTTP 200 with the production app shell. Convex Deploy run `30509168208` passed. The secret-gated production gateway verified native identity `created`, `reconnect`, and `rotate`, rejected a stale generation, stored an eight-event graph lifecycle with a valid hash chain, bound the current frontier and review context, exercised blocked/opened barriers plus an exact edge binding, and terminalized every proof trace. Production configuration now includes the required owner-scoped `MCP_SERVICE_USER_ID`.
 
 **Author**: Homen Shum + Codex.
 **Touches**: [`../../docs/architecture/NODEKIT_STAGE_LOCAL_RUNTIME_INTEGRATION.md`](../../docs/architecture/NODEKIT_STAGE_LOCAL_RUNTIME_INTEGRATION.md) and [`../../docs/architecture/NODEKIT_ACTIVEGRAPH_CANARY.md`](../../docs/architecture/NODEKIT_ACTIVEGRAPH_CANARY.md).

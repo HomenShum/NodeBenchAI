@@ -1,0 +1,81 @@
+{
+  "schemaVersion": "nodebench.production-proof/v1",
+  "recordedAt": "2026-07-30T03:05:13Z",
+  "source": {
+    "repository": "https://github.com/HomenShum/NodeBenchAI",
+    "pullRequest": 603,
+    "commitSha": "1e034f5fd3bf109f6283669c2c24774c78962b86"
+  },
+  "deployment": {
+    "provider": "vercel",
+    "deploymentId": "dpl_BhEFBRrSuUg2MszCZLwa9fbkMQqW",
+    "deploymentUrl": "https://nodebench-iqpmgy3lv-hshum2018-gmailcoms-projects.vercel.app",
+    "canonicalUrl": "https://www.nodebenchai.com/",
+    "state": "READY",
+    "buildCommitPrefix": "1e034f5",
+    "rawHtml": {
+      "status": 200,
+      "title": "NodeBench AI — Entity Intelligence for Any Company, Market, or Question",
+      "rootElementPresent": true,
+      "productionAssetPresent": true
+    }
+  },
+  "ci": {
+    "mainCiRun": 30509168252,
+    "convexDeployRun": 30509168208,
+    "postDeployVerifyRun": 30509288895,
+    "mainCiPassed": true,
+    "convexDeployPassed": true,
+    "postDeployVerifyPassed": true
+  },
+  "productionConfiguration": {
+    "ownerScopedServiceUserConfigured": true,
+    "serviceUserIdentifierRecorded": false
+  },
+  "nativeIdentityScenarios": {
+    "created": "passed",
+    "reconnect": "passed",
+    "rotate": "passed",
+    "staleGenerationRejected": true,
+    "staleGenerationHttpStatus": 500,
+    "snapshotHashesPresent": true,
+    "identityRefStableAcrossReconnectAndRotation": true,
+    "successfulProofTracesTerminalized": true
+  },
+  "graphLifecycleScenario": {
+    "recordedGraphEventCount": 6,
+    "storedChainEventCount": 8,
+    "eventContentHashesPresent": true,
+    "hashChainValid": true,
+    "eventTypes": [
+      "run.started",
+      "node.started",
+      "artifact.produced",
+      "edge.consumed",
+      "barrier.blocked",
+      "barrier.opened",
+      "node.completed",
+      "run.completed"
+    ],
+    "frontierHashBound": true,
+    "edgeBindingBound": true,
+    "artifactContentHashBound": true,
+    "reviewContextBound": true,
+    "reviewSeparation": "fresh-context",
+    "protectedEvaluator": false,
+    "traceStatus": "completed",
+    "sessionStatus": "completed"
+  },
+  "authority": {
+    "caseflowRemainsCanonical": true,
+    "graphIsProjectionOnly": true,
+    "callerSuppliedStageAdvancementAccepted": false,
+    "reviewerIssuedNodeProofVerdict": false
+  },
+  "redaction": {
+    "secretsStored": false,
+    "serviceUserIdStored": false,
+    "sessionIdsStored": false,
+    "traceIdsStored": false
+  }
+}
