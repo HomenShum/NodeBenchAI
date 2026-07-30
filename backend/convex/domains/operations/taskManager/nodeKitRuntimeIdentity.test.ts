@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  NodeKitRuntimeIdentityError,
   buildNodeKitNativeIdentityRef,
   buildNodeKitNativeSessionIdentity,
   compareNodeKitNativeSessionIdentity,
@@ -88,7 +87,7 @@ describe("NodeKit native agent session identity", () => {
     },
   ])("rejects $label before persistence", ({ input, code }) => {
     expect(() => validateNodeKitNativeSessionIdentityInput(input)).toThrowError(
-      expect.objectContaining<NodeKitRuntimeIdentityError>({ code }),
+      expect.objectContaining({ code }),
     );
   });
 
@@ -120,7 +119,7 @@ describe("NodeKit native agent session identity", () => {
     expect(() =>
       compareNodeKitNativeSessionIdentity(previous, candidate),
     ).toThrowError(
-      expect.objectContaining<NodeKitRuntimeIdentityError>({ code }),
+      expect.objectContaining({ code }),
     );
   });
 });

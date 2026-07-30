@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   NODEKIT_RUN_GENESIS_HASH,
-  NodeKitRunContractError,
   buildNodeKitRunEvent,
   verifyNodeKitRunEventChain,
   type NodeKitRunEvent,
@@ -113,7 +112,7 @@ describe("NodeKit graph-aware run events", () => {
     events[4] = terminal;
 
     await expect(verifyNodeKitRunEventChain(events, RUN_ID)).rejects.toEqual(
-      expect.objectContaining<NodeKitRunContractError>({
+      expect.objectContaining({
         code: "graph_node_lifecycle_incomplete",
       }),
     );
@@ -145,7 +144,7 @@ describe("NodeKit graph-aware run events", () => {
     await append(events, "run.failed", { status: "error" });
 
     await expect(verifyNodeKitRunEventChain(events, RUN_ID)).rejects.toEqual(
-      expect.objectContaining<NodeKitRunContractError>({
+      expect.objectContaining({
         code: "graph_node_not_running",
       }),
     );
