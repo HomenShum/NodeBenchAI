@@ -66,8 +66,9 @@ Server Error) for an unknown slug.
   `scripts/nodekit/*ActiveGraph*` · migrate the obsolete combined
   native-session snapshot/generation contract to Caseflow-canonical
   workspace/session/checkpoint artifact refs and digests while preserving the
-  offline, non-authoritative ActiveGraph boundary · branch
-  `codex/nodekit-native-canonical-artifacts`.
+  offline, non-authoritative ActiveGraph boundary; phase-one migration is
+  production-verified at zero legacy matches and phase two is retiring the
+  emptied schema fields · branch `refactor/nodekit-retire-native-identity`.
 
 - **2026-07-29 · Codex `/root` →** `backend/convex/domains/operations/taskManager/nodeKitRunExport.ts`,
   `backend/convex/domains/mcp/mcpExecutionTraceEndpoints.ts`,

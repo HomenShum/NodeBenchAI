@@ -18,6 +18,17 @@ and native lifecycle fields before their schema fields are retired. ActiveGraph
 remains a disposable offline observer and receives only the verified terminal
 export.
 
+**Phase-one production evidence**:
+
+- PR #609 merged as `0819733518e6ea2aaa0208ea15229fb2c24b64f8`.
+- Convex Deploy run `30540283599` passed for that exact merge commit.
+- The full production dry-run scanned 152 sessions, 37 traces, and 22 identity
+  rows; it matched 24, 24, and 22 legacy records respectively.
+- Apply patched those same 70 records without deleting rows.
+- A complete post-apply scan returned zero matches in all three tables.
+- Phase two removes the now-empty legacy schema fields; the internal migration
+  remains non-public maintenance code.
+
 ## 2026-07-29 — Bind NodeBench traces to NodeKit's current-stage graph
 
 The shipped integration adds an owner/workspace-scoped native-agent session
