@@ -57,26 +57,6 @@ Server Error) for an unknown slug.
 
 ## Active claims (who is editing what RIGHT NOW)
 
-- **2026-07-30 · Codex `/root` →** `backend/convex/schema.ts`,
-  `backend/convex/domains/operations/taskManager/nodeKitRuntimeIdentity.ts`,
-  `backend/convex/domains/operations/taskManager/nodeKitRunEvents.ts`,
-  `backend/convex/domains/operations/taskManager/nodeKitRunExport.ts`,
-  `backend/convex/domains/mcp/mcpExecutionTraceEndpoints.ts`,
-  `packages/mcp-local/src/tools/executionTraceTools.ts`, and
-  `scripts/nodekit/*ActiveGraph*` · migrate the obsolete combined
-  native-session snapshot/generation contract to Caseflow-canonical
-  workspace/session/checkpoint artifact refs and digests while preserving the
-  offline, non-authoritative ActiveGraph boundary; phase-one migration is
-  production-verified at zero legacy matches and phase two is retiring the
-  emptied schema fields · branch `refactor/nodekit-retire-native-identity`.
-
-- **2026-07-29 · Codex `/root` →** `backend/convex/domains/operations/taskManager/nodeKitRunExport.ts`,
-  `backend/convex/domains/mcp/mcpExecutionTraceEndpoints.ts`,
-  `backend/convex/domains/mcp/mcpGatewayDispatcher.ts`, and
-  `scripts/nodekit/*ActiveGraph*` · close Gate 3b with a bounded owner-scoped
-  export/corpus path while keeping ActiveGraph offline and non-authoritative ·
-  branch `codex/activegraph-nodekit-exports`.
-
 > **STANDARD-TREE MIGRATION (2026-07-19, feat/standard-tree-migration): repo paths moved.**
 > `convex/` → `backend/convex/` (convex.json `functions` added; function identifiers unchanged),
 > `src/` + `index.html` → `apps/web/` (`@convex` alias replaces relative `../convex` imports),
@@ -118,9 +98,13 @@ nodeRunId, ...eventSpecificFields})` appends one exact graph event and returns
   service owner. Shared schema additions are optional. Caseflow remains
   authoritative; the runtime records NodeKit-generated graph/frontier/binding
   evidence and never derives approval or stage advancement. No out-of-band
-  Convex deploy. The old `nativeIdentity` fields remain only for the bounded
-  phase-one migration and must be removed in a phase-two PR after production
-  dry-run/apply/zero-match verification.
+  Convex deploy. PR #609 migrated production in bounded pages: 24 session
+  snapshots, 24 trace snapshots, and 22 identity lifecycle rows were patched
+  in place, followed by a zero-match verification across all three tables.
+  PR #610 then removed the retired schema fields at
+  `54f698852dd74a9cfba7c2b79ea68829390beabe`; Convex Deploy run
+  `30541443617` accepted the stricter schema, the final scan remained zero, and
+  the live web bundle rotated to `assets/index-Du9AcOw6.js`.
 
 - **2026-07-28 - Codex `/root/activegraph_final_audit` -> `/root`** -
   Release-hardening audit complete on the uncommitted
