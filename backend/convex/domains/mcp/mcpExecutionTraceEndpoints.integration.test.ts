@@ -55,6 +55,12 @@ describe("NodeKit execution trace gateway contract", () => {
     expect(source).not.toMatch(
       /PUBLIC_RESEARCH_GATEWAY_FNS[\s\S]*?recordExecutionGraphEvent/,
     );
+    expect(source).toMatch(
+      /exportNodeKitRun:\s*\{[\s\S]*?mcpExportNodeKitRun,[\s\S]*?type:\s*"query",[\s\S]*?injectUserId:\s*true,[\s\S]*?\}/,
+    );
+    expect(source).not.toMatch(
+      /PUBLIC_RESEARCH_GATEWAY_FNS[\s\S]*?exportNodeKitRun/,
+    );
   });
 });
 

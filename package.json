@@ -25,6 +25,8 @@
     "start:voice": "node dist/workers/node/index.js",
     "lint": "node scripts/ui/agentNativeUiLinter.mjs && tsc -p backend/convex -noEmit --pretty false && tsc -p . -noEmit --pretty false && convex dev --once --typecheck=enable && vite build",
     "notebook:health": "node scripts/ops/hourlyHealthCheck.mjs",
+    "nodekit:activegraph:collect": "node scripts/nodekit/collectActiveGraphCorpus.mjs",
+    "nodekit:activegraph:corpus": "node scripts/nodekit/runActiveGraphCorpus.mjs",
     "repo:augment:check": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/repo/checkAugmentUploadScope.ps1",
     "repo:history:map": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/repo/mapReduceLocalHistory.ps1",
     "repo:housekeeping": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/repo/runWorkspaceHousekeeping.ps1",
