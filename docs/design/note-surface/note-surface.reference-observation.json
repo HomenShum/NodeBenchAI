@@ -1,0 +1,246 @@
+{
+  "schemaVersion": "nodekit.reference-observation/v1",
+  "collectionId": "note-surface",
+  "problemStatement": "Keep note capture immediately reachable while allowing retrieval, linking, and editing without turning every note into a separate chrome-heavy card.",
+  "whyThisProblem": "The entity notebook must support a fast transition from reading to writing and must keep provenance links distinguishable from controls.",
+  "licenceMode": "live-inspection-attributed",
+  "licenceNote": "Mobbin pixels remain remote and uncached. This record stores only dated atomic observations and canonical source locators. Mew facts are source-inspected at an immutable commit. Roam facts are limited to its public first-party product page.",
+  "capturedAt": "2026-07-29",
+  "capturedVia": "authenticated Mobbin MCP live inspection, immutable Mew source inspection, and Roam first-party public page inspection",
+  "observations": [
+    {
+      "id": "obs-mew-stream",
+      "app": "Mew",
+      "platform": "web",
+      "mobbinUrl": "https://github.com/IdeaFlowCo/mew/tree/3013c596eb464dff07f2e22b7a5d85670459c1c4",
+      "surface": "outline, quick-capture entry, and editor content",
+      "stance": "positive",
+      "facts": [
+        {
+          "id": "f1",
+          "kind": "measurement",
+          "subject": "child-group separator",
+          "property": "top border",
+          "value": 1,
+          "unit": "px dashed gray-5",
+          "locatorDescription": "src/app/components/RelatedObject/styles/ChildGroups.module.css, the child-group rule declaring border-top"
+        },
+        {
+          "id": "f2",
+          "kind": "relationship",
+          "subject": "editor mentions and hyperlinks",
+          "property": "shared semantic color token",
+          "value": "teal-11",
+          "locatorDescription": "src/app/editor/Editor.module.css, the MentionNode and LinkNode declarations"
+        },
+        {
+          "id": "f3",
+          "kind": "relationship",
+          "subject": "quick-capture keyboard event",
+          "property": "result",
+          "value": "openQuickCapture(true)",
+          "locatorDescription": "src/app/App.tsx, the document keydown handler after isQuickCaptureHotkey(event)"
+        },
+        {
+          "id": "f4",
+          "kind": "relationship",
+          "subject": "quick-capture command",
+          "property": "keyboard binding",
+          "value": "mod+opt+k",
+          "locatorDescription": "src/app/hotkeys.tsx, isQuickCaptureHotkey"
+        },
+        {
+          "id": "f5",
+          "kind": "count",
+          "subject": "primary outline surfaces mounting QuickCapture",
+          "property": "source components",
+          "value": 2,
+          "unit": "components",
+          "locatorDescription": "src/app/components/OutlineView.tsx and src/app/components/AllNodesView.tsx, each rendering QuickCapture"
+        },
+        {
+          "id": "f6",
+          "kind": "measurement",
+          "subject": "floating capture control",
+          "property": "width and height",
+          "value": 56,
+          "unit": "px",
+          "locatorDescription": "src/app/components/OutlineView.module.css, FloatingActionButton width and height"
+        }
+      ],
+      "observedTension": "Mew provides both a global keyboard route and an on-screen floating route, but the exact runtime visibility of each route was not exercised in this source-only inspection.",
+      "boundary": "Source inspection establishes declared behavior and tokens at commit 3013c596eb464dff07f2e22b7a5d85670459c1c4. It does not establish production runtime availability, latency, focus success, or mobile viewport behavior."
+    },
+    {
+      "id": "obs-mew-tokens",
+      "app": "Mew",
+      "platform": "web",
+      "mobbinUrl": "https://github.com/IdeaFlowCo/mew/tree/3013c596eb464dff07f2e22b7a5d85670459c1c4",
+      "surface": "editor semantic tokens",
+      "stance": "positive",
+      "facts": [
+        {
+          "id": "f1",
+          "kind": "count",
+          "subject": "editor semantic element classes using teal-11",
+          "property": "class declarations",
+          "value": 2,
+          "unit": "classes",
+          "locatorDescription": "src/app/editor/Editor.module.css, MentionNode and LinkNode"
+        },
+        {
+          "id": "f2",
+          "kind": "relationship",
+          "subject": "mention hover",
+          "property": "color token",
+          "value": "teal-10",
+          "locatorDescription": "src/app/editor/Editor.module.css, MentionNode:hover"
+        },
+        {
+          "id": "f3",
+          "kind": "relationship",
+          "subject": "link hover",
+          "property": "decoration",
+          "value": "underline",
+          "locatorDescription": "src/app/editor/Editor.module.css, LinkNode:hover"
+        },
+        {
+          "id": "f4",
+          "kind": "count",
+          "subject": "declared light-theme teal steps",
+          "property": "numbered tokens",
+          "value": 12,
+          "unit": "tokens",
+          "locatorDescription": "src/app/global.css, teal-1 through teal-12 in the light-theme token block"
+        },
+        {
+          "id": "f5",
+          "kind": "relationship",
+          "subject": "floating capture control",
+          "property": "background token",
+          "value": "teal-9",
+          "locatorDescription": "src/app/components/OutlineView.module.css, FloatingActionButton background-color"
+        }
+      ],
+      "observedTension": "The same hue family appears in editor meaning carriers and a capture action, so the source does not support a whole-application rule that accent may appear only inline.",
+      "boundary": "These facts support an editor-body rule for links and mentions. They do not license recoloring all navigation, status, selection, or action controls."
+    },
+    {
+      "id": "obs-evernote-contrast",
+      "app": "Evernote",
+      "platform": "web",
+      "mobbinUrl": "https://mobbin.com/screens/2aab3f65-690e-4fe7-9e42-a00a98d0eabc",
+      "surface": "desktop notebook, note list, editor, and mobile creation surface",
+      "stance": "counterexample",
+      "facts": [
+        {
+          "id": "f1",
+          "kind": "count",
+          "subject": "desktop note workspace",
+          "property": "persistent vertical regions",
+          "value": 3,
+          "unit": "regions",
+          "locatorDescription": "Mobbin screen 2aab3f65-690e-4fe7-9e42-a00a98d0eabc: left navigation, middle note list, and right editor"
+        },
+        {
+          "id": "f2",
+          "kind": "relationship",
+          "subject": "selected note summary",
+          "property": "boundary treatment",
+          "value": "rounded outline inside a separate list region",
+          "locatorDescription": "Mobbin screen 2aab3f65-690e-4fe7-9e42-a00a98d0eabc: first item under My Notebook"
+        },
+        {
+          "id": "f3",
+          "kind": "relationship",
+          "subject": "editor controls",
+          "property": "placement",
+          "value": "toolbar above note body",
+          "locatorDescription": "Mobbin screen 2aab3f65-690e-4fe7-9e42-a00a98d0eabc: row beginning Insert above the document"
+        },
+        {
+          "id": "f4",
+          "kind": "count",
+          "subject": "mobile Create surface typed launch controls",
+          "property": "visible destinations",
+          "value": 6,
+          "unit": "controls",
+          "locatorDescription": "Mobbin screen e1b81139-13cf-465a-8dee-cc29ce6a33c1: New note, New task, Event, Notebook, Audio, and Camera"
+        },
+        {
+          "id": "f5",
+          "kind": "count",
+          "subject": "mobile bottom navigation",
+          "property": "destinations",
+          "value": 5,
+          "unit": "tabs",
+          "locatorDescription": "Mobbin screen e1b81139-13cf-465a-8dee-cc29ce6a33c1: Create, Notes, Notebooks, Tasks, and Calendar"
+        },
+        {
+          "id": "f6",
+          "kind": "relationship",
+          "subject": "mobile Scratch Pad",
+          "property": "entry affordance",
+          "value": "visible text field on the Create surface",
+          "locatorDescription": "Mobbin screen e1b81139-13cf-465a-8dee-cc29ce6a33c1: yellow field labelled Start writing"
+        }
+      ],
+      "observedTension": "The Create surface asks users to choose among six typed destinations, while the same surface also exposes a Scratch Pad text field.",
+      "boundary": "The authenticated Mobbin inspection is static and dated. It does not establish tap sequences, focus behavior, saved destination, keyboard shortcuts, or accessibility semantics."
+    },
+    {
+      "id": "obs-roam-networked-notes",
+      "app": "Roam Research",
+      "platform": "web",
+      "mobbinUrl": "https://roamresearch.com/",
+      "surface": "first-party public product proposition and platform availability",
+      "stance": "positive",
+      "facts": [
+        {
+          "id": "f1",
+          "kind": "count",
+          "subject": "product proposition",
+          "property": "named interaction models",
+          "value": 2,
+          "unit": "models",
+          "locatorDescription": "roamresearch.com hero: document use and graph-database power are named together"
+        },
+        {
+          "id": "f2",
+          "kind": "count",
+          "subject": "first-party download section",
+          "property": "desktop operating systems",
+          "value": 4,
+          "unit": "platforms",
+          "locatorDescription": "roamresearch.com Downloads: macOS, Windows, Linux deb, and Linux ARM deb"
+        },
+        {
+          "id": "f3",
+          "kind": "count",
+          "subject": "first-party download section",
+          "property": "mobile operating systems",
+          "value": 2,
+          "unit": "platforms",
+          "locatorDescription": "roamresearch.com Downloads: iOS and Android"
+        },
+        {
+          "id": "f4",
+          "kind": "count",
+          "subject": "first-party download section",
+          "property": "browser extensions",
+          "value": 1,
+          "unit": "extension",
+          "locatorDescription": "roamresearch.com Downloads: Chrome browser extension"
+        }
+      ],
+      "observedTension": "The public page names the document-plus-graph model but does not expose enough authenticated product UI to measure block, backlink, or capture interactions.",
+      "boundary": "This M1 first-party observation establishes product framing and supported clients only. It does not establish live editor layout, block mechanics, backlinks, daily notes, keyboard behavior, or production responsiveness."
+    }
+  ],
+  "notRun": [
+    "No Mobbin pixels, source payloads, OCR text, embeddings, or training data were stored.",
+    "Mew production runtime was not opened, so source declarations are not runtime proof.",
+    "Roam authenticated product UI was not available in this pass.",
+    "No reference source was used to approve the NodeBench candidate."
+  ]
+}

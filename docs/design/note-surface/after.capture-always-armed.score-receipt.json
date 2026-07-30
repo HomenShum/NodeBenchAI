@@ -4,31 +4,28 @@
   "ruleId": "rule-capture-always-armed",
   "subject": {
     "id": "nodebench-entity-notebook-after",
-    "name": "NodeBench AI entity notebook surface — after note-surface DNA application",
+    "name": "NodeBench AI entity notebook surface - after note-surface completion",
     "kind": "platform-surface",
-    "surface": "the capture path into the entity notebook after the feat/note-surface-dna diff: EntityNotebookView.tsx empty/read state, EntityNotebookSurface.tsx mode selection, EntityNoteEditor.tsx first-keystroke readiness, ViewModeToggle.tsx (Cmd/Ctrl+E)",
+    "surface": "the capture path into the entity notebook after the note-surface completion diff: EntityNotebookSurface.tsx authority propagation and EntityNotebookLive.tsx read-to-edit focus orchestration (Cmd/Ctrl+E)",
     "evidenceBasis": "recorded-observation",
-    "evidenceRef": "source in worktree feat/note-surface-dna (branched from 24a09f36) after the diff, 2026-07-29; git diff confirms no edit touched the capture path — the diff was boundary treatment and accent demotion only",
+    "evidenceRef": "source plus scenario execution in worktree codex/note-surface-complete, 2026-07-29; evidence/note-surface-live-capture/before.txt records 3 expected failures, while after.txt records 15/15 passing scenarios across the Live component and its authority-propagation boundary",
     "observedAt": "2026-07-29"
   },
   "derivedFrom": {
     "collectionId": "note-surface",
     "observationIds": ["obs-mew-stream", "obs-evernote-contrast"],
-    "factIds": [
-      "obs-mew-stream/f4",
-      "obs-evernote-contrast/f4"
-    ]
+    "factIds": ["obs-mew-stream/f4", "obs-evernote-contrast/f4"]
   },
   "ruleApplicability": {
     "applies": true,
     "appliesWhenSatisfied": [
-      "the surface's value depends on catching transient input — unchanged by the diff"
+      "the surface's value depends on catching transient input"
     ],
     "doesNotApplyWhenChecked": [
       {
         "clause": "compliance-bound intake where classification is legally prior (the trust-surfaces contract governs those forms)",
         "fires": false,
-        "note": "Unchanged: no compliance intake on this surface."
+        "note": "No compliance intake is present on this notebook surface."
       }
     ]
   },
@@ -36,46 +33,45 @@
     "min": 0,
     "max": 4,
     "anchors": {
-      "0": "capture gated behind a destination-type choice before text is accepted — obs-evernote-contrast/f4's Note/Task/Event buttons",
+      "0": "capture gated behind a destination-type choice before text is accepted - obs-evernote-contrast/f4's Note/Task/Event buttons",
       "1": "capture requires navigating structure and creating a container before a first keystroke, though no type question is asked",
       "2": "capture is one mode change away from the reading state, with no classification question once inside; a global keystroke exists but toggles a mode rather than arming an input",
       "3": "one global keystroke lands the user in a focused, armed editor from any state; a residual mode concept remains visible",
-      "4": "capture is armed in every state — one keystroke on desktop, persistent floating control on mobile, zero classification — obs-mew-stream/f4"
+      "4": "capture is armed in every state - one keystroke on desktop, persistent floating control on mobile, zero classification - obs-mew-stream/f4"
     }
   },
   "criteria": [
     {
       "id": "c1-capture-without-mode-change",
       "question": "Is the capture affordance reachable from every state without a mode change, and does it accept text without asking a classification question first?",
-      "score": 2,
+      "score": 3,
       "citations": [
         {
           "observationId": "obs-evernote-contrast",
           "factIds": ["f4"],
           "relation": "exceeds",
           "withinRuleDerivation": true,
-          "note": "Unchanged from baseline: no classification question exists on the path, so the subject still clears the Evernote counterexample."
+          "note": "No classification question exists on the path, and the shortcut now transitions directly from reading to the inherited notebook destination."
         },
         {
           "observationId": "obs-mew-stream",
           "factIds": ["f4"],
-          "relation": "falls-short-of",
+          "relation": "meets",
           "withinRuleDerivation": true,
-          "note": "Unchanged from baseline: one mode change (Open Live / Cmd+E) still sits between reading and the first keystroke, and Cmd+E still toggles a view mode rather than arming an input. The diff did not touch this mechanism, so the score does not move. An always-armed capture keystroke that lands focus in an editable block would be the fix, and it was refused in this pass as beyond the smallest-change budget for the five named files."
+          "note": "Cmd/Ctrl+E now preserves underlying write authority, enters edit mode, and focuses the first editable block. On an empty notebook it creates exactly one first block. Active inputs, shared routes, and read-only blocks remain fail-closed."
         }
       ],
-      "finding": "Score held at 2 — deltas must be earned by the diff, and no line of this diff touched the capture path. Boundary chrome getting quieter does not make capture more armed."
+      "finding": "Score moves from 2 to 3: one global desktop shortcut now lands in an armed editor from read mode, while the visible mobile capture route remains unverified."
     }
   ],
-  "score": 2,
-  "scoreBasis": "Single criterion, so the receipt score is the criterion score. Identical to the baseline receipt because the diff contains no capture-path change; recording the non-movement is the point of re-scoring.",
+  "score": 3,
+  "scoreBasis": "Single criterion, so the receipt score is the criterion score. The desktop path satisfies anchor 3 through scenario-proven focus and exact-once creation. Anchor 4 remains unearned because a persistent mobile control was not verified.",
   "notScored": [
-    "Zero-to-first-keystroke timing — still a runtime property; no live instance was launched in this environment.",
-    "Whether focus arrives in an editable block after 'Open Live' or Cmd+E — still unobserved; EntityNotebookLive's conditional autoFocus was not exercised.",
-    "Mobile capture — still not swept beyond the five target files.",
-    "The design of an always-armed capture keystroke — named as the next fix, not scored as if it existed."
+    "Production browser timing and focus latency - the signed-in preview journey still requires an authenticated Chrome session.",
+    "Mobile capture - no persistent touch control was verified, so anchor 4 is not claimed.",
+    "Cross-device persistence after the initial capture - outside this criterion and not exercised by the focused scenario pack."
   ],
-  "boundary": "Scored from the post-diff component source, method identical to the baseline receipt. This receipt exists to state a non-delta honestly: the lowest-scoring criteria were the other two rules, this one was not touched, and its number therefore stays where the baseline put it.",
-  "scoredBy": "note-surface DNA application pass, feat/note-surface-dna, scored against rule-capture-always-armed unmodified",
+  "boundary": "Scored from the post-diff source and scenario evidence. The receipt claims only desktop shortcut readiness. It does not substitute component tests for signed-in production browser proof or claim a mobile capture control.",
+  "scoredBy": "note-surface completion pass, codex/note-surface-complete, scored against rule-capture-always-armed unmodified",
   "scoredAt": "2026-07-29"
 }

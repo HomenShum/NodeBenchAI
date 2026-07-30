@@ -8,9 +8,11 @@ const EntityNotebookView = lazy(() =>
 );
 
 const EntityNotebookLiveMount = lazy(() =>
-  import("@/features/entities/components/notebook/EntityNotebookLiveMount").then((mod) => ({
-    default: mod.EntityNotebookLiveMount,
-  })),
+  import("@/features/entities/components/notebook/EntityNotebookLiveMount").then(
+    (mod) => ({
+      default: mod.EntityNotebookLiveMount,
+    }),
+  ),
 );
 
 type EntityNotebookSurfaceProps = {
@@ -45,7 +47,7 @@ function EntityNotebookSurfaceBase({
   shareToken,
   entityViewMode,
   showViewModeToggle: _showViewModeToggle,
-  isReadMode,
+  isReadMode: _isReadMode,
   liveNotebookEnabled,
   materializingLiveWorkspace,
   hasLiveEntity,
@@ -70,7 +72,6 @@ function EntityNotebookSurfaceBase({
   const renderUnifiedNotebook = liveNotebookEnabled && hasLiveEntity;
   const shouldRenderFallbackNotebook =
     !renderUnifiedNotebook && entityViewMode !== "classic";
-  const canEditLiveNotebook = canEditNotebook && !isReadMode;
 
   return (
     <>
@@ -79,7 +80,9 @@ function EntityNotebookSurfaceBase({
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium">Live notebook ahead</span>
             {notebookDriftUpdatedLabel ? (
-              <span className="text-xs opacity-80">{notebookDriftUpdatedLabel}</span>
+              <span className="text-xs opacity-80">
+                {notebookDriftUpdatedLabel}
+              </span>
             ) : null}
           </div>
           <p className="mt-1.5 leading-6">{notebookDriftMessage}</p>
@@ -88,7 +91,13 @@ function EntityNotebookSurfaceBase({
 
       {shouldRenderFallbackNotebook ? (
         <ErrorBoundary section="Entity notebook">
-          <Suspense fallback={<div className="py-12 text-center text-sm text-gray-500">Loading notebook...</div>}>
+          <Suspense
+            fallback={
+              <div className="py-12 text-center text-sm text-gray-500">
+                Loading notebook...
+              </div>
+            }
+          >
             <article className="notebook-sheet mt-4">
               <EntityNotebookView
                 entitySlug={entitySlug}
@@ -104,12 +113,18 @@ function EntityNotebookSurfaceBase({
 
       {renderUnifiedNotebook ? (
         <ErrorBoundary section="Live notebook">
-          <Suspense fallback={<div className="py-12 text-center text-sm text-gray-500">Loading live notebook...</div>}>
+          <Suspense
+            fallback={
+              <div className="py-12 text-center text-sm text-gray-500">
+                Loading live notebook...
+              </div>
+            }
+          >
             <article className="notebook-sheet notebook-sheet-live mt-4">
               <EntityNotebookLiveMount
                 entitySlug={entitySlug}
                 shareToken={shareToken}
-                canEdit={canEditLiveNotebook}
+                canEdit={canEditNotebook}
                 showReferenceNotebookToggle={false}
                 onOpenReferenceNotebook={undefined}
                 viewerOwnerKey={viewerOwnerKey}

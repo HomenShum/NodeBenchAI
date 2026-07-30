@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "nodekit.design-rule/v1",
+  "ruleId": "rule-capture-always-armed",
+  "derivedFrom": {
+    "collectionId": "note-surface",
+    "observationIds": ["obs-mew-stream", "obs-evernote-contrast"],
+    "factIds": [
+      "obs-mew-stream/f3",
+      "obs-mew-stream/f4",
+      "obs-mew-stream/f6",
+      "obs-evernote-contrast/f4",
+      "obs-evernote-contrast/f6"
+    ]
+  },
+  "statement": "Provide at least one capture route that accepts text without first requiring a destination-type decision, and keep a discoverable on-screen route when keyboard input is unavailable.",
+  "mechanismHypothesis": "A direct text route shortens the transition from recall to externalized note, while a visible route covers touch and shortcut-discovery cases.",
+  "confidence": "medium",
+  "confidenceBasis": "Mew declares both a global shortcut and a 56px floating control. Evernote's mobile Create surface demonstrates the tension between six typed destinations and a direct Scratch Pad field. Runtime focus and save behavior were not exercised.",
+  "appliesWhen": [
+    "The user is viewing a note or entity context where a new note can inherit its destination.",
+    "A safe default destination exists or can be derived without a destructive choice."
+  ],
+  "doesNotApplyWhen": [
+    "Creating the item has legal, financial, medical, or external side effects.",
+    "The destination changes authorization, retention, or sharing boundaries.",
+    "The current surface is read-only or the user's write authority is unresolved."
+  ],
+  "counterexampleNote": "Evernote exposes six typed launch controls but also provides a Scratch Pad field, so it is a mixed case rather than a pure failure.",
+  "problemTags": [
+    "capture-latency",
+    "shortcut-discovery",
+    "destination-choice"
+  ],
+  "intentTags": ["capture-note", "resume-writing"],
+  "firstSeenAt": "2026-07-29",
+  "lastVerifiedAt": "2026-07-29",
+  "reVerifyAfterDays": 30,
+  "reVerifyReason": "Mew runtime behavior and Evernote interaction sequences were not exercised; both require reinspection before a release gate.",
+  "evidenceTier": "M2",
+  "tierLadder": "M2 combines immutable shipped-source inspection and authenticated shipped-product inspection; no M3 audience-task timing evidence was collected."
+}
