@@ -17,7 +17,7 @@ gracefully instead of clobbering each other. This is the **single source of trut
    ScratchNode e2e specs. Scan **Active claims** below.
 2. **Claim your region** before editing: append a bullet to **Active claims** —
    `agent · file:region · intent · branch/PR`. Region matters: `home-v5.html#directory`
-   and `home-v5.html#share-moment` can run in parallel; the *same* region cannot.
+   and `home-v5.html#share-moment` can run in parallel; the _same_ region cannot.
 3. **Don't deploy backend out-of-band.** Never `npx convex deploy`/`deploy:prod` from a
    worktree to the shared prod deployment — it pushes un-reviewed schema/functions and
    breaks the other agent's next deploy. Ship via PR (CI runs `convex deploy`). If you
@@ -57,10 +57,11 @@ Server Error) for an unknown slug.
 
 ## Active claims (who is editing what RIGHT NOW)
 
-- **2026-07-29 · Codex `/root` →** `apps/web/src/features/entities/components/notebook/EntityNotebookLive.tsx`,
-  its mount/tests, and `docs/design/note-surface/*` · complete the actual Live notebook
-  Cmd/Ctrl+E capture path and rebuild the Mobbin/Mew/Roam evidence chain · branch
-  `codex/note-surface-complete` / PR #601. No backend or Convex deploy.
+- **2026-07-29 · Codex `/root` →** `backend/convex/domains/operations/taskManager/nodeKitRunEvents.ts`,
+  `nodeKitRunExport.ts`, adjacent tests/schema, and NodeKit integration docs · add the stage-local
+  execution-graph/edge/frontier/review-context trace bindings and persistent session identity
+  references without replacing Caseflow authority · branch `codex/nodekit-stage-local-integration`.
+  No out-of-band Convex deploy.
 
 > **STANDARD-TREE MIGRATION (2026-07-19, feat/standard-tree-migration): repo paths moved.**
 > `convex/` → `backend/convex/` (convex.json `functions` added; function identifiers unchanged),
@@ -81,6 +82,21 @@ Server Error) for an unknown slug.
   that re-deploys the #494 functions the incident note describes → heals prod.
 
 ## Hand-offs (built + ready for the other agent to call)
+
+- **2026-07-29 - Codex `/root` -> execution-trace and MCP consumers** -
+  Candidate on `codex/nodekit-stage-local-integration`, not deployed:
+  `mcpStartExecutionRun({ ..., nativeIdentity?: {agentId, workspaceId,
+nativeSessionId, nativeSessionGeneration, peerId?} })` returns the immutable
+  `nodekit.native-agent-session-identity/v1` snapshot plus continuity
+  `created | reconnect | rotate`. `recordExecutionGraphEvent({traceId,
+eventType, graphId, graphHash, caseId, stageId, caseContentHash, nodeId,
+nodeRunId, ...eventSpecificFields})` appends one exact graph event and returns
+  its SHA-256 content hash. The gateway entry is secret-gated and injects the
+  service owner. Shared schema additions are optional. Caseflow remains
+  authoritative; the runtime records NodeKit-generated graph/frontier/binding
+  evidence and never derives approval or stage advancement. No out-of-band
+  Convex deploy. Local verification: root typecheck, 74 focused scenarios,
+  root production build, and MCP-local package build pass.
 
 - **2026-07-28 - Codex `/root/activegraph_final_audit` -> `/root`** -
   Release-hardening audit complete on the uncommitted
@@ -195,17 +211,17 @@ Server Error) for an unknown slug.
   `c4035256` / `fa397589`)** - authenticated
   FastAgent runs reserve budget atomically through internal
   `domains/billing/rateLimiting:reserveLlmRequestInternal({ reservationKey,
-  attemptKey, userId, model, estimatedInputTokens, estimatedOutputTokens,
-  reserveMaximumTierAllowance?, agentThreadId?, runId?, workerId? })`; the mutation
+attemptKey, userId, model, estimatedInputTokens, estimatedOutputTokens,
+reserveMaximumTierAllowance?, agentThreadId?, runId?, workerId? })`; the mutation
   atomically rechecks durable cancellation and the queue lease when those optional
   fence arguments are supplied. Keyed reconciliation is
   `recordLlmUsageInternal({ reservationKey, attemptKey, userId, ...usage })` and
   pre-provider release is `releaseLlmReservationInternal({ reservationKey,
-  attemptKey, userId, reason? })`; it releases only the exact `admitted` attempt
+attemptKey, userId, reason? })`; it releases only the exact `admitted` attempt
   and preserves any earlier settled spend. The provider boundary is closed by
   `markLlmReservationAttemptEndedInternal`, and ambiguous terminal spend is
   finalized by `finalizeAmbiguousLlmReservationInternal({ reservationKey,
-  attemptKey, userId, reason? })`, retaining the full reservation maximum rather
+attemptKey, userId, reason? })`, retaining the full reservation maximum rather
   than admitting an unreserved fallback. A scheduled exact-attempt
   `reapExpiredLlmReservationInternal` applies the same conservative rule to
   crash-stranded work. `llmUsageLog`
@@ -264,7 +280,7 @@ Server Error) for an unknown slug.
     with `e.data.code === 'join_requires_approval'` (and `e.data.requestStatus`) for
     non-approved non-members. **Open rooms are unchanged.** Handle this code in the room
     boot to show a "request to join" prompt instead of a generic error.
-  - **The LLM is ADVISORY only** — it never admits/denies. Render `llm*` as host *hints*,
+  - **The LLM is ADVISORY only** — it never admits/denies. Render `llm*` as host _hints_,
     never as an action. The host's approve/deny is the only thing that admits a guest.
 - **2026-06-03 · Claude →** PUBLIC wiki read (PR #486, additive). Frontend `/wiki/<slug>`
   reader calls:
@@ -283,6 +299,12 @@ Server Error) for an unknown slug.
   actually enters a room. The live counter + share moment both honor this.
 
 ## Recently shipped (this ScratchNode session)
+
+- **2026-07-29 · Codex `/root`** — Live notebook capture and its Mobbin/Mew/Roam evidence chain
+  merged through PR #601 at `8416106a`. Cmd/Ctrl+E now preserves underlying write authority,
+  focuses the first editable block, creates one empty block at most once, and fails closed for
+  shared/read-only/input-focused cases. CI and preview gates passed; authenticated production
+  journey proof remains separately tracked.
 
 - **2026-07-16 Codex - reproducible receipt continuation (#557 `6dd180c9`)** -
   separated fresh reruns from live-chat continuation, restored the receipt prompt,
@@ -370,8 +392,8 @@ Server Error) for an unknown slug.
   token path (`/events/:slug/private` and token consumption). Keep it gated and reviewed;
   do not expose session ids, private notes, anchors, or tokens in public links.
 - **Claude** — directory viral slice (`home-v5.html#directory`): flyer cards + "● N inside" presence cue + policy-aware action (open → "Join now"; request → "Request to join" `<button>` wired to `events:requestJoinEvent`, watching `getMyJoinRequest` for approval, on the **same `sn_session_id`** so approval carries through the `joinEvent` door gate). 18/18 chromium honesty suite; desktop + mobile verified. (This consumes the Codex 8c3a0cc9 "Request to join" label hand-off.)
-- **#481 Claude** — post-create viral *share moment* (home-v5.html landing): invite card + QR + copy + Text/Email + "Enter your room →".
-- **#480 Claude** — door-policy *backend* (`backend/convex/events.ts` + `eventsSchema.ts`): request table, gate, request/approve/deny, advisory LLM bouncer. 6/6 scenario tests.
+- **#481 Claude** — post-create viral _share moment_ (home-v5.html landing): invite card + QR + copy + Text/Email + "Enter your room →".
+- **#480 Claude** — door-policy _backend_ (`backend/convex/events.ts` + `eventsSchema.ts`): request table, gate, request/approve/deny, advisory LLM bouncer. 6/6 scenario tests.
 - **#477 Claude** — schema-drift hotfix: tolerate `lastActivityAt` so Convex deploy passed.
 - **#476 Claude** — synthesized landing (live counter + Create-first), cherry-picking Codex's index-backed "active now" + chrome-leak fix.
 - **8c3a0cc9 Codex** — public room discovery (directory + `joinPolicy` field + `listPublicRooms` + the "Request to join" label, not yet wired).

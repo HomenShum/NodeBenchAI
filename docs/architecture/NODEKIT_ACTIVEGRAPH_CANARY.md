@@ -58,7 +58,9 @@ append:
 - `decision.recorded`;
 - `verification.recorded`;
 - `evidence.attached`;
-- trace-bound `approval.requested`; and
+- trace-bound `approval.requested`;
+- `node.started`, `edge.consumed`, and `artifact.produced`;
+- `node.completed`, `node.failed`, `barrier.opened`, and `barrier.blocked`; and
 - exactly one `run.completed` or `run.failed`.
 
 Each event commits to:
@@ -80,10 +82,13 @@ structural scalars plus the redacted source digest and byte count. Raw
 metadata are excluded. A redacted source is capped at 32 KiB, a stored
 projection at 2 KiB, and a run at 256 events.
 
-Explicit `span.started` and `span.completed` events form a checked lifecycle:
-duplicate starts, completion without a start, and terminal runs with open spans
-fail the owning transaction. Every nonterminal append must leave enough bounded
-slots for all currently open span completions plus one terminal event.
+Explicit spans and graph nodes form checked lifecycles: duplicate starts,
+completion without a start, and terminal runs with open spans or graph nodes
+fail the owning transaction. Graph events remain bound to one current-stage
+graph, Caseflow case, and stage. Edge consumption requires the exact NodeKit
+edge-binding and artifact hashes for the currently running node. Every
+nonterminal append must leave enough bounded slots for all currently open span
+and node failures plus one terminal event.
 `run.completed` requires payload status `completed`; `run.failed` requires
 payload status `error`. `step.recorded` remains a self-contained completed step
 and is not misrepresented as an open explicit span.
@@ -239,11 +244,11 @@ The canary installs exact direct pins:
 - `pytest==9.1.1`
 - `rfc8785==0.1.4`
 
-| Reference                     | Revision                                   | Use                                      |
-| ----------------------------- | ------------------------------------------ | ---------------------------------------- |
+| Reference                      | Revision                                   | Use                                      |
+| ------------------------------ | ------------------------------------------ | ---------------------------------------- |
 | `v1.10.0` annotated tag object | `3fbcd8fc56a45ae68622d4e2b18a6d5844180527` | Release-tag provenance                   |
-| `v1.10.0` release commit      | `148e12c2969f18fa12a1a3c2e75f3affd9aa0616` | Executable dependency contract           |
-| Audited upstream `main`       | `8aedb1866cf5dce056af97529152ffd6f468a1ed` | Repository and issue inspection boundary |
+| `v1.10.0` release commit       | `148e12c2969f18fa12a1a3c2e75f3affd9aa0616` | Executable dependency contract           |
+| Audited upstream `main`        | `8aedb1866cf5dce056af97529152ffd6f468a1ed` | Repository and issue inspection boundary |
 
 The audited `main` revision and any features discussed upstream are provenance
 and research data only; they confer no NodeBench authority. The evaluator does
@@ -309,7 +314,18 @@ exact build/replay commands are in `evals/activegraph/README.md`.
 This gate does not backfill legacy traces and does not authorize production
 adoption.
 
-### Gate 3 — representative corpus: deferred
+### Gate 3a — representative graph-and-identity fixture: implemented
+
+The TypeScript boundary suite now uses a representative stage-local export
+containing an immutable native-session identity snapshot, frontier-bound node
+start, exact edge consumption, artifact production, node completion, and run
+completion. All canary tamper and isolation tests therefore exercise the new
+graph and identity fields rather than the former two-event trace fixture.
+
+This proves the boundary on one deterministic representative corpus. It does
+not satisfy the owner-authorized multi-run adoption experiment.
+
+### Gate 3b — representative owner-authorized corpus: deferred
 
 Replay roughly 20 representative owner-authorized exports. Stop if:
 

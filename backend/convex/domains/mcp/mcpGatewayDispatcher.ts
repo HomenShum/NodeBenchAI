@@ -304,6 +304,11 @@ const ALLOWLIST: Record<string, AllowlistEntry> = {
     type: "mutation",
     injectUserId: true,
   },
+  recordExecutionGraphEvent: {
+    ref: internal.domains.mcp.mcpExecutionTraceEndpoints.recordExecutionGraphEvent,
+    type: "mutation",
+    injectUserId: true,
+  },
 
   // ── GROUP C: Document internal endpoints — already accept userId ─────────
 

@@ -153,6 +153,42 @@ async function closeStaleTrace(
     now,
     storedEvents[storedEvents.length - 1].recordedAt,
   );
+  for (const nodeRunId of prefix.openNodeRunIds) {
+    const startedEvent = [...storedEvents]
+      .reverse()
+      .find(
+        (event: Record<string, any>) =>
+          event.eventType === "node.started" &&
+          event.payload?.fields?.nodeRunId === nodeRunId,
+      );
+    if (!startedEvent) {
+      throw new NodeKitRunContractError(
+        "graph_node_start_missing",
+        `Open graph node ${nodeRunId} has no start event.`,
+      );
+    }
+    const fields = startedEvent.payload.fields;
+    await appendNodeKitRunEvent(ctx as never, {
+      sessionId: session._id,
+      traceId: trace._id,
+      userId: session.userId,
+      runId: trace.traceId,
+      eventType: "node.failed",
+      recordedAt,
+      payload: {
+        graphId: fields.graphId,
+        graphHash: fields.graphHash,
+        caseId: fields.caseId,
+        stageId: fields.stageId,
+        caseContentHash: fields.caseContentHash,
+        nodeId: fields.nodeId,
+        nodeRunId,
+        status: "error",
+        reasonCode: "stale_run_timeout",
+      },
+      allowLegacySkip: false,
+    });
+  }
   for (const spanId of prefix.openSpanIds) {
     const span = await ctx.db.get(spanId as Id<"agentTaskSpans">);
     const durationMs =

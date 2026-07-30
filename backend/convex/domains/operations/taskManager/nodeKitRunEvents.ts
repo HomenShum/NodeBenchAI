@@ -20,6 +20,13 @@ export const NODEKIT_RUN_EVENT_TYPES = [
   "verification.recorded",
   "evidence.attached",
   "approval.requested",
+  "node.started",
+  "edge.consumed",
+  "artifact.produced",
+  "node.completed",
+  "node.failed",
+  "barrier.opened",
+  "barrier.blocked",
   "run.completed",
   "run.failed",
 ] as const;
@@ -72,6 +79,13 @@ const SAFE_FIELDS_BY_EVENT: Readonly<
     "goalId",
     "sessionType",
     "sessionStartedAt",
+    "identityRef",
+    "workspaceId",
+    "agentId",
+    "nativeSessionId",
+    "nativeSessionGeneration",
+    "peerId",
+    "identitySnapshotHash",
   ],
   "span.started": [
     "spanId",
@@ -94,6 +108,95 @@ const SAFE_FIELDS_BY_EVENT: Readonly<
   "verification.recorded": ["status"],
   "evidence.attached": [],
   "approval.requested": ["approvalId", "toolName", "riskLevel"],
+  "node.started": [
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "nodeKind",
+    "frontierHash",
+    "reviewContextRef",
+  ],
+  "edge.consumed": [
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "edgeId",
+    "bindingId",
+    "bindingHash",
+    "artifactId",
+    "artifactSchemaVersion",
+    "artifactContentHash",
+    "authorityKind",
+  ],
+  "artifact.produced": [
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "artifactId",
+    "artifactSchemaVersion",
+    "artifactContentHash",
+    "authorityKind",
+  ],
+  "node.completed": [
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "status",
+    "reviewContextRef",
+    "reviewSeparation",
+    "protectedEvaluator",
+  ],
+  "node.failed": [
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "status",
+    "reasonCode",
+  ],
+  "barrier.opened": [
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "frontierHash",
+    "status",
+  ],
+  "barrier.blocked": [
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "frontierHash",
+    "status",
+    "reasonCode",
+    "blockingEdgeCount",
+  ],
   "run.completed": [
     "status",
     "totalDurationMs",
@@ -114,6 +217,84 @@ const REQUIRED_FIELDS_BY_EVENT: Partial<
   "run.started": ["workflowName", "sessionType", "sessionStartedAt"],
   "span.started": ["spanId"],
   "span.completed": ["spanId"],
+  "node.started": [
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+  ],
+  "edge.consumed": [
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "edgeId",
+    "bindingId",
+    "bindingHash",
+    "artifactId",
+    "artifactSchemaVersion",
+    "artifactContentHash",
+    "authorityKind",
+  ],
+  "artifact.produced": [
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "artifactId",
+    "artifactSchemaVersion",
+    "artifactContentHash",
+    "authorityKind",
+  ],
+  "node.completed": [
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "status",
+  ],
+  "node.failed": [
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "status",
+  ],
+  "barrier.opened": [
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "frontierHash",
+  ],
+  "barrier.blocked": [
+    "graphId",
+    "graphHash",
+    "caseId",
+    "stageId",
+    "caseContentHash",
+    "nodeId",
+    "nodeRunId",
+    "frontierHash",
+  ],
   "run.completed": ["status"],
   "run.failed": ["status"],
 };
@@ -133,6 +314,151 @@ function assertTerminalPayloadStatus(
     fail(
       "terminal_status_mismatch",
       `${label} requires status ${expectedStatus}.`,
+    );
+  }
+}
+
+const GRAPH_EVENT_TYPES = new Set<NodeKitRunEventType>([
+  "node.started",
+  "edge.consumed",
+  "artifact.produced",
+  "node.completed",
+  "node.failed",
+  "barrier.opened",
+  "barrier.blocked",
+]);
+
+function assertRawSha256(value: unknown, field: string): void {
+  if (typeof value !== "string" || !/^[a-f0-9]{64}$/.test(value)) {
+    fail("graph_hash_invalid", `${field} must be a lowercase SHA-256 digest.`);
+  }
+}
+
+function assertGraphPayloadFields(
+  eventType: NodeKitRunEventType,
+  fields: Readonly<Record<string, unknown>>,
+  label: string,
+): void {
+  if (eventType === "run.started") {
+    const identityFields = [
+      "identityRef",
+      "workspaceId",
+      "agentId",
+      "nativeSessionId",
+      "nativeSessionGeneration",
+      "identitySnapshotHash",
+    ] as const;
+    const presentCount = identityFields.filter(
+      (field) => field in fields,
+    ).length;
+    if (presentCount !== 0 && presentCount !== identityFields.length) {
+      fail(
+        "native_identity_incomplete",
+        `${label} must bind the complete native identity snapshot.`,
+      );
+    }
+    if (presentCount === identityFields.length) {
+      if (
+        !Number.isSafeInteger(fields.nativeSessionGeneration) ||
+        (fields.nativeSessionGeneration as number) < 0
+      ) {
+        fail(
+          "native_session_generation_invalid",
+          `${label} nativeSessionGeneration must be a non-negative safe integer.`,
+        );
+      }
+      assertHash(
+        String(fields.identitySnapshotHash),
+        `${label}.identitySnapshotHash`,
+      );
+    }
+    return;
+  }
+  if (!GRAPH_EVENT_TYPES.has(eventType)) return;
+
+  if (
+    typeof fields.graphId !== "string" ||
+    !/^execution-graph:sha256:[a-f0-9]{64}$/.test(fields.graphId)
+  ) {
+    fail(
+      "graph_id_invalid",
+      `${label}.graphId is not a NodeKit execution graph ID.`,
+    );
+  }
+  assertRawSha256(fields.graphHash, `${label}.graphHash`);
+  assertRawSha256(fields.caseContentHash, `${label}.caseContentHash`);
+  if ("frontierHash" in fields) {
+    assertRawSha256(fields.frontierHash, `${label}.frontierHash`);
+  }
+  if ("bindingHash" in fields) {
+    assertRawSha256(fields.bindingHash, `${label}.bindingHash`);
+  }
+  if ("artifactContentHash" in fields) {
+    assertRawSha256(fields.artifactContentHash, `${label}.artifactContentHash`);
+  }
+  if (
+    "bindingId" in fields &&
+    (typeof fields.bindingId !== "string" ||
+      !/^execution-edge-binding:sha256:[a-f0-9]{64}$/.test(fields.bindingId))
+  ) {
+    fail(
+      "edge_binding_id_invalid",
+      `${label}.bindingId is not a NodeKit execution edge binding ID.`,
+    );
+  }
+  if (
+    "authorityKind" in fields &&
+    ![
+      "agent-produced",
+      "deterministic",
+      "human-attested",
+      "nodeproof-verified",
+    ].includes(String(fields.authorityKind))
+  ) {
+    fail("authority_kind_invalid", `${label}.authorityKind is unsupported.`);
+  }
+  if (
+    eventType === "node.started" &&
+    "nodeKind" in fields &&
+    !["task", "review", "barrier"].includes(String(fields.nodeKind))
+  ) {
+    fail("node_kind_invalid", `${label}.nodeKind is unsupported.`);
+  }
+  if (eventType === "node.completed" && fields.status !== "completed") {
+    fail("graph_status_mismatch", `${label} requires status completed.`);
+  }
+  if (
+    eventType === "node.failed" &&
+    !["failed", "error"].includes(String(fields.status))
+  ) {
+    fail("graph_status_mismatch", `${label} requires a failure status.`);
+  }
+  if (
+    eventType === "barrier.opened" &&
+    "status" in fields &&
+    fields.status !== "opened"
+  ) {
+    fail("graph_status_mismatch", `${label} requires status opened.`);
+  }
+  if (
+    eventType === "barrier.blocked" &&
+    "status" in fields &&
+    fields.status !== "blocked"
+  ) {
+    fail("graph_status_mismatch", `${label} requires status blocked.`);
+  }
+  if (
+    "reviewSeparation" in fields &&
+    ![
+      "same-context",
+      "fresh-context",
+      "independent-model",
+      "independent-human",
+    ].includes(String(fields.reviewSeparation))
+  ) {
+    fail(
+      "review_separation_invalid",
+      `${label}.reviewSeparation is unsupported.`,
     );
   }
 }
@@ -297,6 +623,7 @@ export async function projectNodeKitRunEventPayload(
     }
   }
   assertTerminalPayloadStatus(eventType, fields, eventType);
+  assertGraphPayloadFields(eventType, fields, eventType);
 
   const projection: NodeKitSafeEventPayload = {
     projectionVersion: NODEKIT_SAFE_EVENT_PAYLOAD_VERSION,
@@ -433,6 +760,7 @@ function assertSafeEventPayload(
     }
   }
   assertTerminalPayloadStatus(eventType, fields, `Event ${index}`);
+  assertGraphPayloadFields(eventType, fields, `Event ${index}`);
   if (
     new TextEncoder().encode(canonicalNodeKitJson(payload)).byteLength >
     NODEKIT_RUN_MAX_STORED_PAYLOAD_BYTES
@@ -606,6 +934,82 @@ function assertNodeKitSpanLifecycle(
   return openSpans;
 }
 
+function assertNodeKitGraphLifecycle(
+  events: readonly NodeKitRunEvent[],
+  requireClosed: boolean,
+): ReadonlySet<string> {
+  const openNodes = new Map<string, string>();
+  const closedNodeRuns = new Set<string>();
+  let graphScope:
+    | {
+        graphId: string;
+        graphHash: string;
+        caseId: string;
+        stageId: string;
+        caseContentHash: string;
+      }
+    | undefined;
+
+  for (const event of events) {
+    if (!GRAPH_EVENT_TYPES.has(event.eventType)) continue;
+    const currentScope = {
+      graphId: String(eventField(event, "graphId")),
+      graphHash: String(eventField(event, "graphHash")),
+      caseId: String(eventField(event, "caseId")),
+      stageId: String(eventField(event, "stageId")),
+      caseContentHash: String(eventField(event, "caseContentHash")),
+    };
+    if (graphScope === undefined) {
+      graphScope = currentScope;
+    } else if (
+      Object.keys(graphScope).some(
+        (key) =>
+          graphScope?.[key as keyof typeof graphScope] !==
+          currentScope[key as keyof typeof currentScope],
+      )
+    ) {
+      fail(
+        "graph_scope_mismatch",
+        "One run-event chain cannot mix execution graphs, cases, or stages.",
+      );
+    }
+
+    const nodeId = String(eventField(event, "nodeId"));
+    const nodeRunId = String(eventField(event, "nodeRunId"));
+    if (event.eventType === "node.started") {
+      if (openNodes.has(nodeRunId) || closedNodeRuns.has(nodeRunId)) {
+        fail(
+          "graph_node_duplicate_start",
+          `Node run ${nodeRunId} was started twice.`,
+        );
+      }
+      openNodes.set(nodeRunId, nodeId);
+      continue;
+    }
+    if (openNodes.get(nodeRunId) !== nodeId) {
+      fail(
+        "graph_node_not_running",
+        `${event.eventType} is not bound to the currently running node ${nodeRunId}.`,
+      );
+    }
+    if (
+      event.eventType === "node.completed" ||
+      event.eventType === "node.failed"
+    ) {
+      openNodes.delete(nodeRunId);
+      closedNodeRuns.add(nodeRunId);
+    }
+  }
+
+  if (requireClosed && openNodes.size > 0) {
+    fail(
+      "graph_node_lifecycle_incomplete",
+      `Terminal runs cannot retain ${openNodes.size} open graph node(s).`,
+    );
+  }
+  return new Set(openNodes.keys());
+}
+
 export async function verifyNodeKitRunEventPrefix(
   inputEvents: readonly NodeKitRunEvent[],
   expectedRunId: string,
@@ -614,6 +1018,7 @@ export async function verifyNodeKitRunEventPrefix(
   chainHead: string;
   terminalEventType: "run.completed" | "run.failed" | null;
   openSpanIds: readonly string[];
+  openNodeRunIds: readonly string[];
 }> {
   if (!Array.isArray(inputEvents) || inputEvents.length === 0) {
     fail("start_event_missing", "A run prefix requires run.started.");
@@ -698,6 +1103,10 @@ export async function verifyNodeKitRunEventPrefix(
     inputEvents,
     terminalEventType !== null,
   );
+  const openNodeRuns = assertNodeKitGraphLifecycle(
+    inputEvents,
+    terminalEventType !== null,
+  );
 
   const last = inputEvents[inputEvents.length - 1];
   return {
@@ -705,6 +1114,7 @@ export async function verifyNodeKitRunEventPrefix(
     chainHead: last.contentHash,
     terminalEventType,
     openSpanIds: [...openSpans].sort(),
+    openNodeRunIds: [...openNodeRuns].sort(),
   };
 }
 
@@ -838,11 +1248,12 @@ export async function appendNodeKitRunEvent(
   const prefix = await verifyNodeKitRunEventPrefix(candidateChain, args.runId);
   if (prefix.terminalEventType === null) {
     const remainingSlots = NODEKIT_RUN_MAX_EVENTS - prefix.eventCount;
-    const requiredSlots = prefix.openSpanIds.length + 1;
+    const requiredSlots =
+      prefix.openSpanIds.length + prefix.openNodeRunIds.length + 1;
     if (remainingSlots < requiredSlots) {
       fail(
         "event_capacity_reserved",
-        `The remaining ${remainingSlots} event slot(s) cannot close ${prefix.openSpanIds.length} open span(s) and terminate the run.`,
+        `The remaining ${remainingSlots} event slot(s) cannot close ${prefix.openSpanIds.length} open span(s), ${prefix.openNodeRunIds.length} open graph node(s), and terminate the run.`,
       );
     }
   }

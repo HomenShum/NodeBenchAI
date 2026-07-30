@@ -27,6 +27,7 @@ import {
   canonicalNodeKitJson,
 } from "../../backend/convex/domains/operations/taskManager/nodeKitRunEvents";
 import { buildCanonicalNodeKitRunExport } from "../../backend/convex/domains/operations/taskManager/nodeKitRunExport";
+import { buildNodeKitNativeSessionIdentity } from "../../backend/convex/domains/operations/taskManager/nodeKitRuntimeIdentity";
 
 const hashBytes = (value: Buffer) =>
   createHash("sha256").update(value).digest("hex");
@@ -80,6 +81,14 @@ function listTypeScriptSources(directory: string): string[] {
 
 async function writeValidExport(path: string) {
   const runId = "trace_disposable_copy_test";
+  const nativeIdentity = await buildNodeKitNativeSessionIdentity({
+    identityRef: "nodebench:agent-identity:fixture-agent",
+    agentId: "codex.fixture",
+    workspaceId: "workspace:activegraph-canary",
+    nativeSessionId: "session:representative-stage-local-run",
+    nativeSessionGeneration: 1,
+    peerId: "peer:runner:fixture",
+  });
   const started = await buildNodeKitRunEvent({
     runId,
     sequence: 0,
@@ -89,21 +98,95 @@ async function writeValidExport(path: string) {
       workflowName: "offline-copy-test",
       sessionType: "agent",
       sessionStartedAt: 5,
+      identityRef: nativeIdentity.identityRef,
+      workspaceId: nativeIdentity.workspaceId,
+      agentId: nativeIdentity.agentId,
+      nativeSessionId: nativeIdentity.nativeSessionId,
+      nativeSessionGeneration: nativeIdentity.nativeSessionGeneration,
+      peerId: nativeIdentity.peerId,
+      identitySnapshotHash: nativeIdentity.snapshotHash,
     },
     previousHash: NODEKIT_RUN_GENESIS_HASH,
   });
-  const completed = await buildNodeKitRunEvent({
+  const graph = {
+    graphId: `execution-graph:sha256:${"a".repeat(64)}`,
+    graphHash: "b".repeat(64),
+    caseId: "case:representative-canary",
+    stageId: "build",
+    caseContentHash: "c".repeat(64),
+    nodeId: "node:build-candidate",
+    nodeRunId: "node-run:build-candidate:1",
+  };
+  const nodeStarted = await buildNodeKitRunEvent({
     runId,
     sequence: 1,
+    eventType: "node.started",
+    recordedAt: 11,
+    payload: {
+      ...graph,
+      nodeKind: "task",
+      frontierHash: "d".repeat(64),
+    },
+    previousHash: started.contentHash,
+  });
+  const edgeConsumed = await buildNodeKitRunEvent({
+    runId,
+    sequence: 2,
+    eventType: "edge.consumed",
+    recordedAt: 12,
+    payload: {
+      ...graph,
+      edgeId: "edge:research-to-build",
+      bindingId: `execution-edge-binding:sha256:${"e".repeat(64)}`,
+      bindingHash: "f".repeat(64),
+      artifactId: "artifact:research-pack",
+      artifactSchemaVersion: "nodekit.research-pack/v1",
+      artifactContentHash: "1".repeat(64),
+      authorityKind: "deterministic",
+    },
+    previousHash: nodeStarted.contentHash,
+  });
+  const artifactProduced = await buildNodeKitRunEvent({
+    runId,
+    sequence: 3,
+    eventType: "artifact.produced",
+    recordedAt: 13,
+    payload: {
+      ...graph,
+      artifactId: "artifact:build-candidate",
+      artifactSchemaVersion: "nodekit.build-candidate/v1",
+      artifactContentHash: "2".repeat(64),
+      authorityKind: "agent-produced",
+    },
+    previousHash: edgeConsumed.contentHash,
+  });
+  const nodeCompleted = await buildNodeKitRunEvent({
+    runId,
+    sequence: 4,
+    eventType: "node.completed",
+    recordedAt: 14,
+    payload: { ...graph, status: "completed" },
+    previousHash: artifactProduced.contentHash,
+  });
+  const completed = await buildNodeKitRunEvent({
+    runId,
+    sequence: 5,
     eventType: "run.completed",
     recordedAt: 20,
     payload: { status: "completed" },
-    previousHash: started.contentHash,
+    previousHash: nodeCompleted.contentHash,
   });
   const exportDoc = await buildCanonicalNodeKitRunExport({
     sessionId: "session-copy-test",
     traceId: "trace-record-copy-test",
-    events: [started, completed],
+    events: [
+      started,
+      nodeStarted,
+      edgeConsumed,
+      artifactProduced,
+      nodeCompleted,
+      completed,
+    ],
   });
   writeFileSync(path, `${JSON.stringify(exportDoc)}\n`, "utf8");
   return exportDoc;
