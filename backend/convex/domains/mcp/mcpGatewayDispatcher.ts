@@ -309,6 +309,11 @@ const ALLOWLIST: Record<string, AllowlistEntry> = {
     type: "mutation",
     injectUserId: true,
   },
+  exportNodeKitRun: {
+    ref: internal.domains.operations.taskManager.nodeKitRunExport.mcpExportNodeKitRun,
+    type: "query",
+    injectUserId: true,
+  },
 
   // ── GROUP C: Document internal endpoints — already accept userId ─────────
 

@@ -131,6 +131,13 @@ reconstructs events from mutable trace metadata. Boundary errors use Convex's
 structured error protocol, while not-found and unauthorized traces remain
 deliberately indistinguishable.
 
+The secret-gated MCP dispatcher also exposes `exportNodeKitRun` through the
+internal `mcpExportNodeKitRun` query. The dispatcher injects the configured
+service owner; the request cannot supply or override `userId`. This read-only
+path exists to collect an owner-scoped offline evaluation corpus. It is not in
+the anonymous public-research function set and does not grant ActiveGraph any
+application authority.
+
 ## Offline process boundary
 
 The supported evaluator entrypoint is:
@@ -325,16 +332,45 @@ graph and identity fields rather than the former two-event trace fixture.
 This proves the boundary on one deterministic representative corpus. It does
 not satisfy the owner-authorized multi-run adoption experiment.
 
-### Gate 3b — representative owner-authorized corpus: deferred
+### Gate 3b — representative owner-authorized corpus: implemented, live result required
 
-Replay roughly 20 representative owner-authorized exports. Stop if:
+The repository now provides a fixed 20-scenario collector and bounded corpus
+runner:
+
+```powershell
+$env:NODEBENCH_MCP_GATEWAY_URL = "https://<deployment>.convex.site/api/mcpGateway"
+$env:MCP_SECRET = "<secret>"
+npm run nodekit:activegraph:collect -- .tmp/activegraph-owner-corpus
+
+npm run nodekit:activegraph:corpus -- `
+  --manifest .tmp/activegraph-owner-corpus/manifest.json `
+  --evidence-root .tmp/activegraph-owner-corpus-evidence `
+  --sandbox-image $SandboxImage `
+  --image-attestation $ImageAttestation
+```
+
+The collector creates private service-owner traces spanning context, decision,
+build, check, review, browser, agent-eval, aggregate, repair, delivery, human
+gate, barrier recovery, and fail-safe behavior. It terminalizes partial runs
+on failure, exports only through the gateway-injected owner boundary, validates
+every canonical export before writing, and emits no owner identifier or secret
+in the manifest.
+
+The runner requires 20–24 unique complete exports, rejects path escape,
+symlinks, oversized files, duplicate run/export identities, or a false source
+claim, and launches the existing locked offline canary once per export. It
+writes one content-addressed corpus report and applies the original stop rules.
+
+Stop and record `adoptionVerdict: "reject"` if:
 
 - any export is incomplete or cannot be represented without reconstruction;
 - persistence/reload parity differs;
 - median end-to-end latency exceeds 2× the equivalent existing harness; or
 - the resulting graph/diff evidence adds no material explanatory value.
 
-Passing Gate 3 authorizes only a separate adoption-or-rejection ADR.
+Passing all stop rules yields only `eligible-for-adr`; it does not adopt
+ActiveGraph. A reject result closes this adoption experiment while preserving
+the offline diagnostic canary.
 
 ### Gate 4 — production bridge: not authorized
 

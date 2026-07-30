@@ -57,6 +57,13 @@ Server Error) for an unknown slug.
 
 ## Active claims (who is editing what RIGHT NOW)
 
+- **2026-07-29 · Codex `/root` →** `backend/convex/domains/operations/taskManager/nodeKitRunExport.ts`,
+  `backend/convex/domains/mcp/mcpExecutionTraceEndpoints.ts`,
+  `backend/convex/domains/mcp/mcpGatewayDispatcher.ts`, and
+  `scripts/nodekit/*ActiveGraph*` · close Gate 3b with a bounded owner-scoped
+  export/corpus path while keeping ActiveGraph offline and non-authoritative ·
+  branch `codex/activegraph-nodekit-exports`.
+
 > **STANDARD-TREE MIGRATION (2026-07-19, feat/standard-tree-migration): repo paths moved.**
 > `convex/` → `backend/convex/` (convex.json `functions` added; function identifiers unchanged),
 > `src/` + `index.html` → `apps/web/` (`@convex` alias replaces relative `../convex` imports),

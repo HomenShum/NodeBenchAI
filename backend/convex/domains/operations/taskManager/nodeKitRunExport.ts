@@ -2,7 +2,11 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 
 import type { Id } from "../../../_generated/dataModel";
-import { query } from "../../../_generated/server";
+import {
+  internalQuery,
+  query,
+  type QueryCtx,
+} from "../../../_generated/server";
 import {
   NODEKIT_RUN_EVENT_CONTRACT_VERSION,
   NODEKIT_RUN_MAX_EVENTS,
@@ -486,6 +490,74 @@ function throwConvexBoundaryError(error: unknown): never {
   throw error;
 }
 
+async function exportNodeKitRunForOwner(
+  ctx: Pick<QueryCtx, "db">,
+  traceId: Id<"agentTaskTraces">,
+  ownerId: Id<"users">,
+): Promise<CanonicalNodeKitRunExport> {
+  const trace = await ctx.db.get(traceId);
+  if (!trace) fail("trace_not_found", "Trace not found or unauthorized.");
+  const session = await ctx.db.get(trace.sessionId);
+  if (!session || session.userId !== ownerId) {
+    fail("trace_not_found", "Trace not found or unauthorized.");
+  }
+  if (trace.status === "running") {
+    fail("run_not_terminal", "A running trace cannot be exported.");
+  }
+  const storedEvents = await ctx.db
+    .query("nodeKitRunEvents")
+    .withIndex("by_trace_sequence", (q) => q.eq("traceId", traceId))
+    .order("asc")
+    .take(NODEKIT_RUN_MAX_EVENTS + 1);
+  if (storedEvents.length === 0) {
+    fail(
+      "run_history_unavailable",
+      "Canonical run history is unavailable because it is legacy, expired, or deleted.",
+    );
+  }
+  if (storedEvents.length > NODEKIT_RUN_MAX_EVENTS) {
+    fail(
+      "event_limit_exceeded",
+      `Run exceeds the ${NODEKIT_RUN_MAX_EVENTS}-event export bound.`,
+    );
+  }
+  if (
+    storedEvents.some(
+      (event) =>
+        event.userId !== ownerId ||
+        event.sessionId !== session._id ||
+        event.runId !== trace.traceId,
+    )
+  ) {
+    fail(
+      "event_ownership_mismatch",
+      "Stored event ownership does not match the trace.",
+    );
+  }
+
+  const exportDoc = await buildCanonicalNodeKitRunExport({
+    sessionId: String(session._id),
+    traceId: String(trace._id),
+    events: storedEvents.map((event) => ({
+      contractVersion: event.contractVersion,
+      runId: event.runId,
+      sequence: event.sequence,
+      eventType: event.eventType,
+      recordedAt: event.recordedAt,
+      payload: event.payload as NodeKitSafeEventPayload,
+      previousHash: event.previousHash,
+      contentHash: event.contentHash,
+    })),
+  });
+  if (trace.status !== exportDoc.trace.status) {
+    fail(
+      "trace_state_mismatch",
+      "Stored trace status differs from the terminal event snapshot.",
+    );
+  }
+  return exportDoc;
+}
+
 export const exportNodeKitRun = query({
   args: {
     traceId: v.id("agentTaskTraces"),
@@ -493,67 +565,27 @@ export const exportNodeKitRun = query({
   handler: async (ctx, args) => {
     try {
       const ownerId = await requireOwnerId(ctx);
-      const trace = await ctx.db.get(args.traceId);
-      if (!trace) fail("trace_not_found", "Trace not found or unauthorized.");
-      const session = await ctx.db.get(trace.sessionId);
-      if (!session || session.userId !== ownerId) {
-        fail("trace_not_found", "Trace not found or unauthorized.");
-      }
-      if (trace.status === "running") {
-        fail("run_not_terminal", "A running trace cannot be exported.");
-      }
-      const storedEvents = await ctx.db
-        .query("nodeKitRunEvents")
-        .withIndex("by_trace_sequence", (q) => q.eq("traceId", args.traceId))
-        .order("asc")
-        .take(NODEKIT_RUN_MAX_EVENTS + 1);
-      if (storedEvents.length === 0) {
-        fail(
-          "run_history_unavailable",
-          "Canonical run history is unavailable because it is legacy, expired, or deleted.",
-        );
-      }
-      if (storedEvents.length > NODEKIT_RUN_MAX_EVENTS) {
-        fail(
-          "event_limit_exceeded",
-          `Run exceeds the ${NODEKIT_RUN_MAX_EVENTS}-event export bound.`,
-        );
-      }
-      if (
-        storedEvents.some(
-          (event) =>
-            event.userId !== ownerId ||
-            event.sessionId !== session._id ||
-            event.runId !== trace.traceId,
-        )
-      ) {
-        fail(
-          "event_ownership_mismatch",
-          "Stored event ownership does not match the trace.",
-        );
-      }
+      return await exportNodeKitRunForOwner(ctx, args.traceId, ownerId);
+    } catch (error) {
+      throwConvexBoundaryError(error);
+    }
+  },
+});
 
-      const exportDoc = await buildCanonicalNodeKitRunExport({
-        sessionId: String(session._id),
-        traceId: String(trace._id),
-        events: storedEvents.map((event) => ({
-          contractVersion: event.contractVersion,
-          runId: event.runId,
-          sequence: event.sequence,
-          eventType: event.eventType,
-          recordedAt: event.recordedAt,
-          payload: event.payload as NodeKitSafeEventPayload,
-          previousHash: event.previousHash,
-          contentHash: event.contentHash,
-        })),
-      });
-      if (trace.status !== exportDoc.trace.status) {
-        fail(
-          "trace_state_mismatch",
-          "Stored trace status differs from the terminal event snapshot.",
-        );
-      }
-      return exportDoc;
+// Secret-gated callers receive their owner from the MCP dispatcher. The public
+// API never accepts a caller-controlled owner identifier.
+export const mcpExportNodeKitRun = internalQuery({
+  args: {
+    userId: v.string(),
+    traceId: v.id("agentTaskTraces"),
+  },
+  handler: async (ctx, args) => {
+    try {
+      return await exportNodeKitRunForOwner(
+        ctx,
+        args.traceId,
+        args.userId as Id<"users">,
+      );
     } catch (error) {
       throwConvexBoundaryError(error);
     }

@@ -5,7 +5,7 @@ import {
   buildNodeKitRunEvent,
   type NodeKitRunEvent,
 } from "./nodeKitRunEvents";
-import { exportNodeKitRun } from "./nodeKitRunExport";
+import { exportNodeKitRun, mcpExportNodeKitRun } from "./nodeKitRunExport";
 import {
   deleteOwnedNodeKitRunHistory,
   purgeExpiredNodeKitRunEvents,
@@ -176,6 +176,57 @@ function terminalHistory(overrides: Partial<Row> = {}): Tables {
   };
 }
 
+async function exportableTerminalHistory(): Promise<Tables> {
+  const started = await buildNodeKitRunEvent({
+    runId: "run-a",
+    sequence: 0,
+    eventType: "run.started",
+    recordedAt: 1,
+    payload: {
+      workflowName: "Owner workflow",
+      sessionType: "agent",
+      sessionStartedAt: 1,
+    },
+    previousHash: NODEKIT_RUN_GENESIS_HASH,
+  });
+  const completed = await buildNodeKitRunEvent({
+    runId: "run-a",
+    sequence: 1,
+    eventType: "run.completed",
+    recordedAt: 2,
+    payload: { status: "completed" },
+    previousHash: started.contentHash,
+  });
+  return {
+    agentTaskSessions: [
+      {
+        _id: "session-a",
+        userId: "owner-a",
+        type: "agent",
+        startedAt: 1,
+      },
+    ],
+    agentTaskTraces: [
+      {
+        _id: "trace-a",
+        sessionId: "session-a",
+        traceId: "run-a",
+        workflowName: "Owner workflow",
+        status: "completed",
+        startedAt: 1,
+        endedAt: 2,
+      },
+    ],
+    nodeKitRunEvents: [started, completed].map((event, index) => ({
+      _id: `event-a-${index}`,
+      traceId: "trace-a",
+      sessionId: "session-a",
+      userId: "owner-a",
+      ...event,
+    })),
+  };
+}
+
 describe("NodeKit owner-scoped deletion", () => {
   it("rejects anonymous and cross-owner deletion without removing rows", async () => {
     for (const [subject, code] of [
@@ -227,6 +278,31 @@ describe("NodeKit owner-scoped deletion", () => {
       (exportNodeKitRun as any)._handler(ctx, { traceId: "trace-a" }),
     ).rejects.toMatchObject({
       data: { code: "run_history_unavailable" },
+    });
+  });
+});
+
+describe("NodeKit secret-gated service export", () => {
+  it("exports only a terminal canonical chain owned by the gateway-injected user", async () => {
+    const tables = await exportableTerminalHistory();
+    const ownerCtx = createCtx(tables, null);
+    const exported = await (mcpExportNodeKitRun as any)._handler(ownerCtx, {
+      userId: "owner-a",
+      traceId: "trace-a",
+    });
+
+    expect(exported.runId).toBe("run-a");
+    expect(exported.completeness.eventCount).toBe(2);
+    expect(exported.hashes.exportHash).toMatch(/^sha256:[a-f0-9]{64}$/);
+
+    const otherOwnerCtx = createCtx(tables, null);
+    await expect(
+      (mcpExportNodeKitRun as any)._handler(otherOwnerCtx, {
+        userId: "owner-b",
+        traceId: "trace-a",
+      }),
+    ).rejects.toMatchObject({
+      data: { code: "trace_not_found" },
     });
   });
 });
