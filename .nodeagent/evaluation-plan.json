@@ -1,0 +1,9 @@
+{
+  "required": [
+    "nodebench-conformance",
+    "nodebench-smoke",
+    "nodebench-entity-intelligence",
+    "nodebench-production"
+  ],
+  "schemaVersion": "nodeagent.evaluation-plan/v1"
+}

@@ -1,0 +1,75 @@
+{
+  "application": {
+    "id": "nodebench-entity-intelligence",
+    "name": "NodeBench Entity Intelligence",
+    "purpose": "Produce source-grounded company, market, and research intelligence through the existing durable NodeBench application and its entity-intelligence pack."
+  },
+  "backend": {
+    "adapter": "convex",
+    "config": {
+      "functionsDirectory": "./convex",
+      "layoutStatus": "legacy-root"
+    }
+  },
+  "configHash": "287705fe19059bf7d9184b83085d33dfb6765d7c1211f733b96a5407e6d9d4ad",
+  "contracts": {
+    "event": "nodeagent.event/v1",
+    "trace": "nodeagent.trace/v1"
+  },
+  "discovered": {
+    "evals": [
+      "evals/nodebench-conformance.json",
+      "evals/nodebench-entity-intelligence.json",
+      "evals/nodebench-production.json",
+      "evals/nodebench-smoke.json"
+    ],
+    "integrations": [],
+    "packs": [
+      "packs/entity-intelligence/pack.yaml"
+    ],
+    "policies": [
+      "agent/policies/approvals.yaml",
+      "agent/policies/budgets.yaml",
+      "agent/policies/egress.yaml"
+    ],
+    "skills": [
+      "packs/entity-intelligence/SKILL.md"
+    ],
+    "subagents": [],
+    "tools": [
+      "agent/tools/README.md"
+    ]
+  },
+  "fileCount": 13,
+  "manifestDigest": "d368ec7da0ff9cbd81421558f3ad3ab45db45413ca4fecec24c2fc8fde21dcad",
+  "orchestration": {
+    "planner": "orchestrator-workers",
+    "implementationSources": [
+      "./convex/domains/redesign/chatRuns.ts",
+      "./convex/domains/agents",
+      "./server/pipeline"
+    ],
+    "maxConcurrentSubagents": 10,
+    "migrationTarget": "nodeagent-native"
+  },
+  "policies": {
+    "directory": "./agent/policies",
+    "enforcement": "legacy-code-and-ci"
+  },
+  "provider": {
+    "adapter": "repo-local-google-gemini-rest",
+    "model": {
+      "provider": "google",
+      "id": "gemini-3.5-flash"
+    },
+    "package": null
+  },
+  "runtime": {
+    "engine": "repo-local-nodebench",
+    "profile": "production"
+  },
+  "schemaVersion": "nodeagent.resolved/v1",
+  "secretRefs": [
+    "GEMINI_API_KEY"
+  ]
+}

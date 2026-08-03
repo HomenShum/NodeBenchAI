@@ -1,0 +1,70 @@
+{
+  "files": [
+    {
+      "bytes": 1581,
+      "digest": "e210f8a7d0ce017993fd7cc29a0e4971ae60d5a8c472ca510290c57ffc180f86",
+      "path": "agent/instructions.md"
+    },
+    {
+      "bytes": 827,
+      "digest": "0b93465b4085c7e8473c700856c1ea6fbd757f189a5acf13ecf2d78dab367d78",
+      "path": "agent/policies/approvals.yaml"
+    },
+    {
+      "bytes": 797,
+      "digest": "80bf566a7e55d2c73ee615fbcfa729c014d9983d2c83c43ccd277f093968d773",
+      "path": "agent/policies/budgets.yaml"
+    },
+    {
+      "bytes": 683,
+      "digest": "ffb697ae8315ebe7b6631d38ff1de58c1ee84ee48eaa2359c559a562334fca76",
+      "path": "agent/policies/egress.yaml"
+    },
+    {
+      "bytes": 1530,
+      "digest": "a139bf45e65f03e8cf6326f36c660d408cdcd5e077437d520b0711d8f18b0320",
+      "path": "agent/README.md"
+    },
+    {
+      "bytes": 666,
+      "digest": "d4d6bd1774b87d997f18ec8fe7e324a43737a60996bbec3b383c453f55fc4a9d",
+      "path": "agent/subagents/README.md"
+    },
+    {
+      "bytes": 992,
+      "digest": "0c352b6a492d62711a785e0e287313de662814e862cc2028bfb6f98087442a56",
+      "path": "agent/tools/README.md"
+    },
+    {
+      "bytes": 326,
+      "digest": "bfae090df083c1149453c3c8aad53a923a3add9dcc224e1e7e9a7c5ef2f6f044",
+      "path": "evals/nodebench-conformance.json"
+    },
+    {
+      "bytes": 287,
+      "digest": "6cb546bcbab6b346297e99104ec7673696f66493237287cdda2e39d32e9a8c17",
+      "path": "evals/nodebench-entity-intelligence.json"
+    },
+    {
+      "bytes": 239,
+      "digest": "188f7105af1355083349bfda73f0bedfc2c65d41afec172ed0ddac69f0bd3cb8",
+      "path": "evals/nodebench-production.json"
+    },
+    {
+      "bytes": 225,
+      "digest": "18478cd81e394b3f9aec7ca0fcbc3dd9a479d3c90b410b893414af94cbced53a",
+      "path": "evals/nodebench-smoke.json"
+    },
+    {
+      "bytes": 1364,
+      "digest": "fc227f15c9d99939c813ee0e5bcd42103537597296247b3a8fc2ff2c5f94b6fc",
+      "path": "packs/entity-intelligence/pack.yaml"
+    },
+    {
+      "bytes": 1364,
+      "digest": "4d9b982ba94f4661af392083d58fcb15070ed50ccb380cc9e10a6102b6b0ea33",
+      "path": "packs/entity-intelligence/SKILL.md"
+    }
+  ],
+  "schemaVersion": "nodeagent.discovery/v1"
+}

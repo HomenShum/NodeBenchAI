@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "nodeagent.evaluation-binding/v1",
+  "id": "nodebench-production",
+  "status": "legacy-mapped",
+  "command": "npm run verify-live",
+  "sources": [
+    "scripts/verify-live.ts",
+    "tests/e2e/live-smoke.spec.ts"
+  ]
+}
