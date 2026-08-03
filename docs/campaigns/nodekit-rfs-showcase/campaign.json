@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "nodekit.rfs-showcase-campaign/v1",
+  "campaignId": "nodekit-rfs-summer-2026",
+  "source": {
+    "label": "YC Requests for Startups, Summer 2026",
+    "url": "https://www.ycombinator.com/rfs",
+    "verifiedAt": "2026-07-22"
+  },
+  "defaultTarget": "personal",
+  "defaultPersona": "FOUNDER",
+  "requiresHumanApproval": true,
+  "posts": [
+    {
+      "id": "00-launch",
+      "sequence": 0,
+      "rfsId": null,
+      "title": "The 16-app NodeKit benchmark",
+      "file": "00-launch.md",
+      "postType": "nodekit_rfs_showcase_launch",
+      "claimStatus": "planned",
+      "priority": 95
+    },
+    {
+      "id": "13-software-for-agents-blueprint",
+      "sequence": 1,
+      "rfsId": "13",
+      "title": "Software for Agents blueprint",
+      "file": "13-software-for-agents-blueprint.md",
+      "postType": "nodekit_rfs_showcase_blueprint",
+      "claimStatus": "planned",
+      "priority": 94
+    },
+    {
+      "id": "03-ai-native-services-blueprint",
+      "sequence": 2,
+      "rfsId": "03",
+      "title": "AI-Native Service Companies blueprint",
+      "file": "03-ai-native-services-blueprint.md",
+      "postType": "nodekit_rfs_showcase_blueprint",
+      "claimStatus": "planned",
+      "priority": 93
+    },
+    {
+      "id": "07-dynamic-interfaces-blueprint",
+      "sequence": 3,
+      "rfsId": "07",
+      "title": "Dynamic Software Interfaces blueprint",
+      "file": "07-dynamic-interfaces-blueprint.md",
+      "postType": "nodekit_rfs_showcase_blueprint",
+      "claimStatus": "planned",
+      "priority": 92
+    }
+  ]
+}

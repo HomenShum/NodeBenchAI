@@ -1,5 +1,46 @@
 # Oracle State
 
+## 2026-07-22 NodeKit RFS benchmark P0 receipt and runner slice
+
+### Completed work
+
+- Added the canonical `nodekit.rfs-benchmark-run/v1` JSON Schema at `proof/contracts/nodekit-rfs-benchmark-run-v1.schema.json`.
+- Added strict runtime types and semantic validation at `packages/mcp-local/src/contracts/nodekitRfsBenchmark.ts`.
+- Preserved unavailable time, token, model cost, non-model cost, intervention, proof, trace, and publication values as `{ value: null, unavailableReason: <non-empty reason> }`; the validator rejects silent nulls, false zeroes, and unknown receipt fields.
+- Added seal-time fail-closed gates for all standard lifecycle stages, source/local/dogfood/taste/deployment/production-browser proof, trace IDs, clean immutable revisions, release readiness, deployment revision, and receipt integrity.
+- Added model-route honesty: completed or provider-started calls cannot seal without `resolvedModel`, and `fullTokenAccounting` cannot be true while any token category is unavailable.
+- Added the canonical `nodekit.rfs-proofloop-runner/v1` runner-contract JSON Schema and a compiler to NodeProof's native `proofloop-runner-plan-v1` format.
+- Every standard runner stage is followed by a receipt checkpoint; the final seal checkpoint invokes strict seal validation. NodeProof remains responsible for append-only state, budget, locks, and resume.
+- Reused the existing execution-trace plane through exact bindings to `start_execution_run`, `record_execution_step`, `record_execution_decision`, `record_execution_verification`, `attach_execution_evidence`, `request_execution_approval`, and `complete_execution_run`. No parallel trace system or Convex table was introduced.
+- Added `scripts/nodekit-rfs/benchmark-contract.mts` for receipt validation, runner-contract validation, and runner-plan generation.
+
+### Immutable revision audit
+
+- NodeBench base at slice start: `abbb23287225d31dbfebf716b4f278d7d4f1800f`.
+- Clean NodeProof candidate: `53e084ee4a9941fb205ebc66380e2fc009c4d465`.
+- Clean NodeAgent candidate: `c0ad5236d5424fca60008ed500cb565683bcd1d5`.
+- Discoverable NodeKit commit: `c701819f06c04c8be894f5f89cf5b2ae5d969675`; the inspected NodeKit worktree had 398 dirty entries and is explicitly ineligible. Run 00 must use a clean checkout at an approved immutable revision.
+
+### Verification and reality check
+
+- `node packages/mcp-local` focused Vitest lane: 12/12 new tests passed.
+- Targeted strict TypeScript check for the contract and CLI passed.
+- Root TypeScript checks passed for both `backend/convex` and the repository project.
+- `npm run build` passed and produced the production Vite/PWA bundle.
+- The broader `packages/mcp-local` build remains blocked by pre-existing dependency/type failures (`better-sqlite3` declarations, optional `read-excel-file/node` and `pdf-parse` resolution, and an existing readonly registry mutation). None originate in this slice; the focused compiler check proves the new files themselves.
+- No UI surface changed, so browser dogfood was not applicable. The artifact check is the runtime validator, JSON Schemas, plan compiler, CLI, and focused invariant suite.
+- Reality-check invariant: a receipt cannot advance through a configured checkpoint unless that stage is present and passed, and cannot seal with unavailable required proof or unresolved provider identity.
+- Main remaining risk: the runner compiler produces the resumable ProofLoop task plan and exact trace arguments, but a campaign orchestrator still has to call the trace primitives around task execution and persist the returned session/trace IDs into the receipt.
+
+### Vision alignment
+
+- `crossCheckStatus`: `aligned`.
+- `deltaFromVision`: the slice adds the required goal/vision/source/dogfood fields and observable proof boundaries without building a second harness. It stops before campaign UI or Run 00 execution, as intended for the smallest P0 contract slice.
+
+### Next quest
+
+Create a clean Run 00 workspace, select the approved immutable NodeKit revision, instantiate the runner contract, and reconstruct Founder Quest into the first validated receipt while leaving genuinely unavailable historical metrics null with reasons.
+
 ## Current milestone
 Milestone: Unified Temporal Agentic OS Phase 1 substrate plus V3 trajectory intelligence and Success Loops OS
 

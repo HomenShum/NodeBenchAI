@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nodebench.ai/schemas/nodekit.rfs-proofloop-runner-v1.json",
+  "title": "NodeKit RFS ProofLoop runner contract v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "runId", "receiptPath", "workingDirectory", "receiptValidationCommand", "budgetUsd", "candidateRevisions", "traceProtocol", "stages"],
+  "properties": {
+    "schemaVersion": { "const": "nodekit.rfs-proofloop-runner/v1" },
+    "runId": { "type": "string", "minLength": 1 },
+    "receiptPath": { "type": "string", "minLength": 1 },
+    "workingDirectory": { "type": "string", "minLength": 1 },
+    "receiptValidationCommand": { "type": "string", "minLength": 1 },
+    "budgetUsd": { "type": "number", "exclusiveMinimum": 0 },
+    "candidateRevisions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodebench", "nodekit", "nodeagent", "nodeproof"],
+      "properties": {
+        "nodebench": { "$ref": "#/$defs/revision" },
+        "nodekit": { "$ref": "#/$defs/revision" },
+        "nodeagent": { "$ref": "#/$defs/revision" },
+        "nodeproof": { "$ref": "#/$defs/revision" }
+      }
+    },
+    "traceProtocol": {
+      "const": {
+        "start": "start_execution_run",
+        "step": "record_execution_step",
+        "decision": "record_execution_decision",
+        "verification": "record_execution_verification",
+        "evidence": "attach_execution_evidence",
+        "approval": "request_execution_approval",
+        "complete": "complete_execution_run"
+      }
+    },
+    "stages": {
+      "type": "array",
+      "minItems": 11,
+      "maxItems": 11,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "command", "estimatedCostUsd", "timeoutMs"],
+        "properties": {
+          "name": { "enum": ["register", "research", "contract", "scaffold", "implement", "local_verify", "dogfood", "taste", "deploy", "production_verify", "seal"] },
+          "command": { "type": "string", "minLength": 1 },
+          "cwd": { "type": "string", "minLength": 1 },
+          "estimatedCostUsd": { "type": "number", "minimum": 0 },
+          "timeoutMs": { "type": "integer", "minimum": 1 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "revision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "commitSha", "worktreeDirty"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "commitSha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "worktreeDirty": { "const": false }
+      }
+    }
+  }
+}

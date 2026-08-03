@@ -1,0 +1,354 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nodebench.ai/schemas/nodekit.rfs-benchmark-run-v1.json",
+  "title": "NodeKit RFS benchmark run receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "runId",
+    "status",
+    "request",
+    "oracle",
+    "productContract",
+    "environment",
+    "trace",
+    "stages",
+    "modelUsage",
+    "accounting",
+    "nonModelCosts",
+    "humanInterventions",
+    "proofs",
+    "result",
+    "publication",
+    "integrity"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "nodekit.rfs-benchmark-run/v1" },
+    "runId": { "$ref": "#/$defs/nonEmptyString" },
+    "status": {
+      "enum": [
+        "registered",
+        "researched",
+        "contracted",
+        "scaffolded",
+        "implemented",
+        "locally_verified",
+        "dogfood_verified",
+        "taste_evaluated",
+        "deployed",
+        "production_verified",
+        "sealed",
+        "publication_approved",
+        "published",
+        "distribution_verified",
+        "engagement_observed",
+        "failed"
+      ]
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["season", "requestId", "title", "sourceUrl", "retrievedAt", "sourceSnapshotSha256", "briefSha256"],
+      "properties": {
+        "season": { "$ref": "#/$defs/nonEmptyString" },
+        "requestId": { "type": "string", "pattern": "^(0[1-9]|1[0-6])$" },
+        "title": { "$ref": "#/$defs/nonEmptyString" },
+        "sourceUrl": { "$ref": "#/$defs/nonEmptyString" },
+        "retrievedAt": { "type": "string", "format": "date-time" },
+        "sourceSnapshotSha256": { "$ref": "#/$defs/sha256" },
+        "briefSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "oracle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["goalId", "visionSnapshot", "successCriteria", "sourceRefs", "crossCheckStatus", "deltaFromVision", "dogfoodRunId"],
+      "properties": {
+        "goalId": { "$ref": "#/$defs/nonEmptyString" },
+        "visionSnapshot": { "$ref": "#/$defs/nonEmptyString" },
+        "successCriteria": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/nonEmptyString" } },
+        "sourceRefs": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/nonEmptyString" } },
+        "crossCheckStatus": { "enum": ["pending", "aligned", "drifting", "violated"] },
+        "deltaFromVision": { "type": "string" },
+        "dogfoodRunId": { "$ref": "#/$defs/availableString" }
+      }
+    },
+    "productContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targetUser", "primaryJob", "canonicalArtifact", "nonGoals", "contractSha256", "designIntentSha256"],
+      "properties": {
+        "targetUser": { "$ref": "#/$defs/nonEmptyString" },
+        "primaryJob": { "$ref": "#/$defs/nonEmptyString" },
+        "canonicalArtifact": { "$ref": "#/$defs/nonEmptyString" },
+        "nonGoals": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/nonEmptyString" } },
+        "contractSha256": { "$ref": "#/$defs/sha256" },
+        "designIntentSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodebench", "nodekit", "nodeagent", "nodeproof", "runnerPlanSha256"],
+      "properties": {
+        "nodebench": { "$ref": "#/$defs/candidateRevision" },
+        "nodekit": { "$ref": "#/$defs/candidateRevision" },
+        "nodeagent": { "$ref": "#/$defs/candidateRevision" },
+        "nodeproof": { "$ref": "#/$defs/candidateRevision" },
+        "runnerPlanSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "trace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sessionId", "traceId", "publicTraceId"],
+      "properties": {
+        "sessionId": { "$ref": "#/$defs/availableString" },
+        "traceId": { "$ref": "#/$defs/availableString" },
+        "publicTraceId": { "$ref": "#/$defs/availableString" }
+      }
+    },
+    "stages": { "type": "array", "items": { "$ref": "#/$defs/stage" } },
+    "modelUsage": { "type": "array", "items": { "$ref": "#/$defs/modelUsage" } },
+    "accounting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fullTokenAccounting", "totalModelCostUsd", "totalNonModelCostUsd", "totalCostUsd", "totalWallClockMs", "totalAgentActiveMs", "totalHumanAttentionMs"],
+      "properties": {
+        "fullTokenAccounting": { "type": "boolean" },
+        "totalModelCostUsd": { "$ref": "#/$defs/availableNumber" },
+        "totalNonModelCostUsd": { "$ref": "#/$defs/availableNumber" },
+        "totalCostUsd": { "$ref": "#/$defs/availableNumber" },
+        "totalWallClockMs": { "$ref": "#/$defs/availableNumber" },
+        "totalAgentActiveMs": { "$ref": "#/$defs/availableNumber" },
+        "totalHumanAttentionMs": { "$ref": "#/$defs/availableNumber" }
+      }
+    },
+    "nonModelCosts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "amountUsd", "costKind", "source", "evidenceSha256"],
+        "properties": {
+          "kind": { "enum": ["search", "browser", "ci", "deployment", "human_panel", "other"] },
+          "amountUsd": { "$ref": "#/$defs/availableNumber" },
+          "costKind": { "enum": ["metered", "estimated", "unavailable"] },
+          "source": { "$ref": "#/$defs/availableString" },
+          "evidenceSha256": { "$ref": "#/$defs/availableSha" }
+        }
+      }
+    },
+    "humanInterventions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "startedAt", "completedAt", "activeMs", "reason", "decisionId"],
+        "properties": {
+          "kind": { "enum": ["approval", "credential", "review", "manual_repair"] },
+          "startedAt": { "type": "string", "format": "date-time" },
+          "completedAt": { "$ref": "#/$defs/availableString" },
+          "activeMs": { "$ref": "#/$defs/availableNumber" },
+          "reason": { "$ref": "#/$defs/nonEmptyString" },
+          "decisionId": { "$ref": "#/$defs/availableString" }
+        }
+      }
+    },
+    "proofs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "local", "dogfood", "taste", "deployment", "productionBrowser"],
+      "properties": {
+        "source": { "$ref": "#/$defs/availableEvidence" },
+        "local": { "$ref": "#/$defs/availableEvidence" },
+        "dogfood": { "$ref": "#/$defs/availableEvidence" },
+        "taste": { "$ref": "#/$defs/availableEvidence" },
+        "deployment": { "$ref": "#/$defs/availableEvidence" },
+        "productionBrowser": { "$ref": "#/$defs/availableEvidence" }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidateCommit", "applicationSha256", "deploymentUrl", "deploymentRevision", "releaseReady", "limitations"],
+      "properties": {
+        "candidateCommit": { "$ref": "#/$defs/availableCommit" },
+        "applicationSha256": { "$ref": "#/$defs/availableSha" },
+        "deploymentUrl": { "$ref": "#/$defs/availableString" },
+        "deploymentRevision": { "$ref": "#/$defs/availableCommit" },
+        "releaseReady": { "type": "boolean" },
+        "limitations": { "type": "array", "items": { "$ref": "#/$defs/nonEmptyString" } }
+      }
+    },
+    "publication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claimPacketSha256", "approvalId", "distributionReceiptSha256"],
+      "properties": {
+        "claimPacketSha256": { "$ref": "#/$defs/availableSha" },
+        "approvalId": { "$ref": "#/$defs/availableString" },
+        "distributionReceiptSha256": { "$ref": "#/$defs/availableSha" }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["receiptSha256", "digestExcludes"],
+      "properties": {
+        "receiptSha256": { "$ref": "#/$defs/availableSha" },
+        "digestExcludes": {
+          "type": "array",
+          "prefixItems": [{ "const": "integrity.receiptSha256.value" }],
+          "minItems": 1,
+          "maxItems": 1
+        }
+      }
+    }
+  },
+  "$defs": {
+    "nonEmptyString": { "type": "string", "minLength": 1 },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "commitSha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "nonnegativeNumber": { "type": "number", "minimum": 0 },
+    "availableString": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "unavailableReason"],
+          "properties": { "value": { "$ref": "#/$defs/nonEmptyString" }, "unavailableReason": { "type": "null" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "unavailableReason"],
+          "properties": { "value": { "type": "null" }, "unavailableReason": { "$ref": "#/$defs/nonEmptyString" } }
+        }
+      ]
+    },
+    "availableNumber": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "unavailableReason"],
+          "properties": { "value": { "$ref": "#/$defs/nonnegativeNumber" }, "unavailableReason": { "type": "null" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "unavailableReason"],
+          "properties": { "value": { "type": "null" }, "unavailableReason": { "$ref": "#/$defs/nonEmptyString" } }
+        }
+      ]
+    },
+    "availableSha": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "unavailableReason"],
+          "properties": { "value": { "$ref": "#/$defs/sha256" }, "unavailableReason": { "type": "null" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "unavailableReason"],
+          "properties": { "value": { "type": "null" }, "unavailableReason": { "$ref": "#/$defs/nonEmptyString" } }
+        }
+      ]
+    },
+    "availableCommit": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "unavailableReason"],
+          "properties": { "value": { "$ref": "#/$defs/commitSha" }, "unavailableReason": { "type": "null" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "unavailableReason"],
+          "properties": { "value": { "type": "null" }, "unavailableReason": { "$ref": "#/$defs/nonEmptyString" } }
+        }
+      ]
+    },
+    "candidateRevision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "commitSha", "worktreeDirty"],
+      "properties": {
+        "repository": { "$ref": "#/$defs/nonEmptyString" },
+        "commitSha": { "$ref": "#/$defs/commitSha" },
+        "worktreeDirty": { "type": "boolean" }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "uri", "sha256"],
+      "properties": {
+        "kind": { "$ref": "#/$defs/nonEmptyString" },
+        "uri": { "$ref": "#/$defs/nonEmptyString" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "availableEvidence": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "unavailableReason"],
+          "properties": { "value": { "$ref": "#/$defs/evidence" }, "unavailableReason": { "type": "null" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "unavailableReason"],
+          "properties": { "value": { "type": "null" }, "unavailableReason": { "$ref": "#/$defs/nonEmptyString" } }
+        }
+      ]
+    },
+    "stageName": {
+      "enum": ["register", "research", "contract", "scaffold", "implement", "local_verify", "dogfood", "taste", "deploy", "production_verify", "seal"]
+    },
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "attempt", "startedAt", "completedAt", "wallClockMs", "agentActiveMs", "waitMs"],
+      "properties": {
+        "name": { "$ref": "#/$defs/stageName" },
+        "status": { "enum": ["queued", "running", "passed", "failed"] },
+        "attempt": { "type": "integer", "minimum": 1 },
+        "startedAt": { "$ref": "#/$defs/availableString" },
+        "completedAt": { "$ref": "#/$defs/availableString" },
+        "wallClockMs": { "$ref": "#/$defs/availableNumber" },
+        "agentActiveMs": { "$ref": "#/$defs/availableNumber" },
+        "waitMs": { "$ref": "#/$defs/availableNumber" }
+      }
+    },
+    "modelUsage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage", "provider", "requestedModel", "resolvedModel", "generationId", "outcome", "inputTokens", "outputTokens", "reasoningTokens", "cacheReadTokens", "cacheWriteTokens", "costUsd", "costKind"],
+      "properties": {
+        "stage": { "$ref": "#/$defs/stageName" },
+        "provider": { "$ref": "#/$defs/nonEmptyString" },
+        "requestedModel": { "$ref": "#/$defs/nonEmptyString" },
+        "resolvedModel": { "$ref": "#/$defs/availableString" },
+        "generationId": { "$ref": "#/$defs/availableString" },
+        "outcome": { "enum": ["completed", "failed_before_provider", "failed_after_provider"] },
+        "inputTokens": { "$ref": "#/$defs/availableNumber" },
+        "outputTokens": { "$ref": "#/$defs/availableNumber" },
+        "reasoningTokens": { "$ref": "#/$defs/availableNumber" },
+        "cacheReadTokens": { "$ref": "#/$defs/availableNumber" },
+        "cacheWriteTokens": { "$ref": "#/$defs/availableNumber" },
+        "costUsd": { "$ref": "#/$defs/availableNumber" },
+        "costKind": { "enum": ["provider_reported", "estimated", "unavailable"] }
+      }
+    }
+  }
+}
