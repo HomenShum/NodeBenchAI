@@ -93,9 +93,20 @@
       "command": "npx tsx scripts/eval-harness/runner.ts --list (.github/workflows/convex-mcp-eval-gate.yml; nightly cron 0 4 * * * runs the full suite with real agent invocation)"
     },
     "canary": {
-      "trafficPercent": 1,
+      "trafficPercent": 10,
       "rollbackOn": [
-        { "metric": "tool-call-error-rate", "comparator": "above", "value": 0.05 }
+        {
+          "metric": "tool-call-error-rate",
+          "comparator": "above",
+          "value": 0.05,
+          "rationale": "convex-deploy.yml post-deploy smoke runs getGoldenMetrics against the fresh deployment and redeploys HEAD^ backend when the rate exceeds 0.05 (smoke+rollback, not a traffic split — Convex is a single shared deployment)"
+        },
+        {
+          "metric": "p99-latency-ms",
+          "comparator": "above",
+          "value": 30000,
+          "rationale": "worker-deploy.yml Cloud Run canary: new revision gets 10% traffic behind a tag, scripts/worker-health-check.sh gates /mcp/health p99-latency-ms <= 30000 before and after the bake; failure routes the tag back to 0% automatically. Vercel frontend has no traffic split (Vite SPA, all-or-nothing git deploys) — post-deploy-verify.yml verifies production and runs vercel rollback on failure"
+        }
       ],
       "rollbackMode": "automatic"
     },

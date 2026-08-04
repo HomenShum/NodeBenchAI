@@ -72,6 +72,28 @@ jobs:
           ALLOW_PROTECTED_PREVIEW_SKIP: ${{ steps.url.outputs.allow_preview_skip }}
         run: node scripts/post-deploy-verify.mjs --url=${{ steps.url.outputs.url }} --json > post-deploy-result.json
 
+      # Automatic rollback: when verification of a PRODUCTION deployment_status
+      # event fails, roll Vercel back to the previous production deployment.
+      # Scheduled/manual runs verify but never roll back (the failure may be
+      # unrelated to a fresh deploy). Fails loudly if the token is missing.
+      - name: Roll back Vercel production deploy
+        if: >-
+          failure() &&
+          github.event_name == 'deployment_status' &&
+          (github.event.deployment.environment == 'Production' || github.event.deployment.environment == 'production')
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_TEAM_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "::error::Production verification FAILED and VERCEL_TOKEN / VERCEL_PROJECT_ID secrets are missing — CANNOT roll back automatically. Roll back in the Vercel dashboard now."
+            exit 1
+          fi
+          npx vercel@latest rollback --yes --token "$VERCEL_TOKEN"
+          echo "::error::Production verification FAILED — rolled back to the previous Vercel production deployment."
+
       - name: Upload result
         if: always()
         uses: actions/upload-artifact@v7

@@ -25,12 +25,28 @@ declared at truthful minimal values because the guard is not built.
 | tracing field `traceId` | `workers/node/routes/search.ts` (generated via `genId("trace")`, propagated through run/packet/outcome ids) |
 | toolContract.fewShotForComplexParams = false | honest: `agentRunner.ts` `getToolSchemas()` emits simplified empty parameter schemas |
 
+## release.canary — what is real, per deploy surface (2026-08-04)
+
+The repo has three production deploy paths. `trafficPercent: 10` describes
+the ONE surface where a true traffic canary is architecturally honest;
+the other two get post-deploy smoke + automatic rollback, not a split.
+
+| Surface | Deploy path | Guard |
+|---|---|---|
+| Node worker (Cloud Run `nodebench-server`) | `.github/workflows/worker-deploy.yml` (workflow_dispatch — there was NO automated deploy before; this adds one WITHOUT enabling auto-deploys) | **True traffic canary.** New revision deploys with `--no-traffic` + tag, `scripts/worker-health-check.sh` gates `/mcp/health` (readiness, `status: healthy` + `p99-latency-ms` content signal, p99 ≤ 30000ms), then the tag takes 10% traffic, bakes (default 300s), re-checks, promotes to 100%. Any failure routes the tag to 0% — previous revision keeps/regains all traffic. Needs repo secrets `GCP_SA_KEY`, `GCP_PROJECT_ID`. |
+| Convex backend | `convex-deploy.yml` (push to main) | **Smoke + rollback, NOT a canary.** Convex is a single shared deployment — a traffic split is impossible, and claiming one would be a lie. Post-deploy, `convex run …goldenMetrics:getGoldenMetrics` must answer with the exact metric keys and `tool-call-error-rate ≤ 0.05`; on failure the workflow redeploys `HEAD^`'s `backend/convex` + `shared` and fails loudly. |
+| Vercel frontend (www.nodebenchai.com) | Vercel git integration; verified by `post-deploy-verify.yml` on `deployment_status` | **Smoke + rollback, NOT a canary.** The app is a Vite SPA (no Next middleware to do cookie-sticky splits) and Vercel git deploys are all-or-nothing, so a plan-free traffic canary is not meaningful here. On failed verification of a Production deployment, the workflow runs `vercel rollback` to the previous production deployment (secrets `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, `VERCEL_PROJECT_ID`); scheduled/manual runs verify but never roll back. |
+
+Honesty caveats that remain:
+- The worker canary only runs when someone dispatches `worker-deploy.yml`;
+  manual `gcloud builds submit` (workers/node/cloudbuild.yaml) still bypasses it.
+- Convex rollback assumes `HEAD^` was green; it is the parent commit, not a
+  recorded last-good marker.
+- The `tool-call-error-rate` clause is enforced on the Convex surface, the
+  `p99-latency-ms` clause on the worker surface — no single guard sees both.
+
 ## Aspirational (declared at truthful minimal values — NOT built)
 
-- **release.canary** — there is NO deploy canary. The schema requires the
-  block; `trafficPercent: 1` and the rollback clause describe the intended
-  guard, not a live one. Deploys go through `convex-deploy.yml` /
-  `vercel-preflight.yml` without traffic splitting or automatic rollback.
 - **Global cost fuse** — only the voice lane has a dollars-per-day cap. LLM
   spend in the main agent loops has no global fuse; the declared
   `maxSpendUsdPerDay: 5` governs voice sessions only.

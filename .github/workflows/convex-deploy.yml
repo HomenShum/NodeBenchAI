@@ -45,6 +45,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
+        with:
+          # fetch-depth 2 so the rollback step can restore HEAD^'s backend
+          fetch-depth: 2
 
       - uses: actions/setup-node@v6
         with:
@@ -66,6 +69,52 @@ jobs:
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
         run: npx convex deploy --yes --typecheck=enable
+
+      # Post-deploy smoke: run the golden-metrics query against the deployment
+      # just pushed. Verifies (a) functions answer at all, (b) the response
+      # carries the exact metric names (content signal), (c) tool-call-error-rate
+      # is under the 0.05 critical threshold (HEALTH_CONFIG.errorRateCritical).
+      - name: Smoke-check deployed functions
+        id: smoke
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          OUT=$(npx convex run domains/operations/observability/goldenMetrics:getGoldenMetrics '{}')
+          echo "$OUT"
+          echo "$OUT" | node -e '
+            let raw = "";
+            process.stdin.on("data", (c) => (raw += c));
+            process.stdin.on("end", () => {
+              const m = JSON.parse(raw);
+              if (!("tool-call-error-rate" in m) || !("p99-latency-ms" in m)) {
+                console.error("::error::goldenMetrics response missing expected metric keys");
+                process.exit(1);
+              }
+              if (m["tool-call-error-rate"] > 0.05) {
+                console.error(`::error::tool-call-error-rate ${m["tool-call-error-rate"]} exceeds 0.05 critical threshold post-deploy`);
+                process.exit(1);
+              }
+              console.log("Smoke OK: tool-call-error-rate =", m["tool-call-error-rate"]);
+            });
+          '
+
+      # Rollback: Convex has no revision pinning, so rollback = redeploy the
+      # previous commit's backend. Loud failure either way.
+      - name: Roll back to previous backend
+        if: failure() && steps.smoke.outcome == 'failure'
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          echo "::error::Post-deploy smoke check FAILED — redeploying HEAD^ backend"
+          git checkout HEAD^ -- backend/convex shared || {
+            echo "::error::Could not restore HEAD^ backend sources — MANUAL ROLLBACK REQUIRED (npx convex deploy from last green commit)"
+            exit 1
+          }
+          npx convex deploy --yes --typecheck=disable
+          echo "Rolled back Convex backend to HEAD^ sources."
+          exit 1
 
       - name: Summary
         if: always()
