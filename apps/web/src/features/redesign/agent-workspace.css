@@ -188,6 +188,10 @@
   border-radius: 50%;
   display: inline-grid;
   place-items: center;
+  /* .rd-btn transitions `all`, which includes transform; this button is a
+     motion.dev PressButton whose spring owns transform, so narrow the
+     transitioned properties to keep CSS off that channel. */
+  transition-property: color, background-color, border-color, box-shadow, opacity;
 }
 
 [data-redesign] .rd-launch-context {

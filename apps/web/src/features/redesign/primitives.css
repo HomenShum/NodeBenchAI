@@ -8215,12 +8215,15 @@ body[data-redesign-focus-mode="on"] [data-redesign] [data-focus-mode="on"] main 
   border-radius: 12px;
   text-align: left;
   cursor: pointer;
-  transition: border-color 100ms ease, transform 100ms ease, box-shadow 100ms ease;
+  /* transform intentionally NOT transitioned/hovered here: the chip is a
+     motion.dev PressButton (motionPrims) whose spring owns transform; a CSS
+     transition or :hover transform on the same property fights the inline
+     animated value. (Previously: transform 100ms ease + hover translateY(-1px).) */
+  transition: border-color 100ms ease, box-shadow 100ms ease;
   font-family: inherit;
 }
 [data-redesign] .rd-chat-empty__chip:hover {
   border-color: var(--rd-accent-ring);
-  transform: translateY(-1px);
   box-shadow: var(--rd-shadow-sm);
 }
 [data-redesign] .rd-chat-empty__chip-icon {

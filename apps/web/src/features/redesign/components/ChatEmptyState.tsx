@@ -11,6 +11,8 @@
 
 import type { ReactNode } from "react";
 
+import { PressButton, Rise } from "./motionPrims";
+
 interface ChatEmptyStateProps {
   onPick: (prompt: string) => void;
   starters?: Array<{ icon: ReactNode; title: string; prompt: string }>;
@@ -145,15 +147,19 @@ export function ChatEmptyState({ onPick, starters = STARTERS }: ChatEmptyStatePr
     <div className="rd-chat-empty">
       <EmberThreads />
       <div className="rd-chat-empty__hero">
-        <h2 className="rd-chat-empty__h">What do you need to know?</h2>
-        <p className="rd-chat-empty__tag">
-          Answers with <em>receipts</em>.
-        </p>
+        <Rise delay={0}>
+          <h2 className="rd-chat-empty__h">What do you need to know?</h2>
+        </Rise>
+        <Rise delay={60}>
+          <p className="rd-chat-empty__tag">
+            Answers with <em>receipts</em>.
+          </p>
+        </Rise>
       </div>
 
-      <div className="rd-chat-empty__chips">
+      <Rise delay={140} className="rd-chat-empty__chips">
         {starters.slice(0, 3).map((s) => (
-          <button
+          <PressButton
             key={s.title}
             type="button"
             className="rd-chat-empty__chip"
@@ -163,9 +169,9 @@ export function ChatEmptyState({ onPick, starters = STARTERS }: ChatEmptyStatePr
             <span>
               <span className="rd-chat-empty__chip-title">{s.title}</span>
             </span>
-          </button>
+          </PressButton>
         ))}
-      </div>
+      </Rise>
 
       {/* Value before identity: a real, persisted production answer — prompt,
           evidence rows, model, cost, deterministic hash — reachable in one
@@ -174,9 +180,11 @@ export function ChatEmptyState({ onPick, starters = STARTERS }: ChatEmptyStatePr
           This receipt was minted through the real pipeline via
           chatRuns:mintShowcaseRun (deep tier, founder-owned); re-mint and
           swap the hash here when the example ages. */}
-      <a className="rd-chat-empty__example" href="/redesign/chat/r/42c0i81fzxr0">
-        See a real answered example, receipts included →
-      </a>
+      <Rise delay={220}>
+        <a className="rd-chat-empty__example" href="/redesign/chat/r/42c0i81fzxr0">
+          See a real answered example, receipts included →
+        </a>
+      </Rise>
 
     </div>
   );

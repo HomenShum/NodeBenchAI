@@ -13,6 +13,7 @@ import "./tokens.css";
 import "./primitives.css";
 import "./agent-workspace.css";
 
+import { MotionRoot } from "./components/motionPrims";
 import { TopNav } from "./components/TopNav";
 import { ChatSurface } from "./surfaces/ChatSurface";
 import { parseChatLaunchParams } from "./lib/chatContinuation";
@@ -53,6 +54,7 @@ export default function RedesignShell() {
   }, [theme]);
 
   return (
+    <MotionRoot>
     <div
       data-redesign
       data-redesign-theme={theme}
@@ -100,5 +102,6 @@ export default function RedesignShell() {
         NodeBench decision workspace · /redesign/chat
       </div>
     </div>
+    </MotionRoot>
   );
 }

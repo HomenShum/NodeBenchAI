@@ -18,6 +18,7 @@
 
 import { useState, useRef, useEffect, type CSSProperties } from "react";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
+import { PressButton } from "./motionPrims";
 
 export type RouterTier = "auto" | "answer" | "deep" | "compare";
 
@@ -761,7 +762,7 @@ export function UniversalComposer({
               Stop
             </button>
           ) : null}
-          <button
+          <PressButton
             type="button"
             onClick={() => handleSubmit("research")}
             disabled={!text.trim() || streaming}
@@ -776,7 +777,7 @@ export function UniversalComposer({
             <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.1} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M12 19V5M5 12l7-7 7 7" />
             </svg>
-          </button>
+          </PressButton>
           {onRunOnList && batchTargets.length > 0 && (
             <button
               type="button"
