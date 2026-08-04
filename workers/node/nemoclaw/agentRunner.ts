@@ -10,6 +10,40 @@ import { desktopTools } from './desktopControl.js';
 import { videoTools } from './videoCapture.js';
 import { processTools } from './processControl.js';
 import { codebaseTools } from './codebaseContext.js';
+import { classifyError } from '../pipeline/retryPolicy.js';
+
+// ── Error sanitization ─────────────────────────────────────────────
+// Raw provider/tool errors must never enter conversationHistory (agent
+// reasoning) or propagate to callers verbatim: provider messages can echo
+// API keys, auth headers, or stack traces. Same intent as
+// auditLog.sanitizeArgs; stable code comes from retryPolicy.classifyError.
+
+const SECRET_PATTERNS: RegExp[] = [
+  /sk-[A-Za-z0-9_-]{8,}/g, // OpenAI / Anthropic style keys (incl. sk-ant-)
+  /AIza[0-9A-Za-z_-]{10,}/g, // Google API keys
+  /Bearer\s+[A-Za-z0-9._~+/=-]+/gi, // Authorization headers
+  /[?&]key=[^&\s"']+/gi, // key= query params (Gemini URLs)
+  /\b(api[_-]?key|token|secret|password|credential)\b["']?\s*[:=]\s*["']?[^\s"',;]+/gi,
+];
+const MAX_ERROR_CHARS = 240;
+
+/**
+ * Normalize an error into a bounded, secret-free, single-line message with a
+ * stable error class prefix, e.g. "[transient_network] fetch failed".
+ */
+export function sanitizeErrorMessage(e: unknown): string {
+  const err = e instanceof Error ? e : new Error(String(e));
+  const code = classifyError({ kind: 'thrown', name: err.name, message: err.message || '' });
+  let msg = (err.message || 'unknown error').split('\n')[0]; // no stack traces
+  for (const pattern of SECRET_PATTERNS) msg = msg.replace(pattern, '[REDACTED]');
+  if (msg.length > MAX_ERROR_CHARS) msg = msg.slice(0, MAX_ERROR_CHARS) + '…';
+  return `[${code}] ${msg}`;
+}
+
+/** Build a sanitized Error for provider failures — safe to rethrow to callers. */
+function providerError(provider: string, rawMessage: unknown): Error {
+  return new Error(sanitizeErrorMessage(new Error(`${provider}: ${String(rawMessage ?? 'unknown error')}`)));
+}
 
 // Model configuration — multi-provider with adaptive tier selection
 interface ModelConfig {
@@ -338,7 +372,7 @@ tier_key`
             this.conversationHistory.push({
               role: 'tool',
               tool_call_id: toolCall.id,
-              content: `Error executing ${toolName}: ${e.message}`,
+              content: `Error executing ${toolName}: ${sanitizeErrorMessage(e)}`,
             });
           }
         }
@@ -422,7 +456,7 @@ tier_key`
       }),
     });
     const data = await response.json() as any;
-    if (data.error) throw new Error(`Anthropic: ${data.error.message}`);
+    if (data.error) throw providerError('Anthropic', data.error.message);
     return data.content?.[0]?.text || '';
   }
 
@@ -439,7 +473,7 @@ tier_key`
       }),
     });
     const data = await response.json() as any;
-    if (data.error) throw new Error(`Anthropic: ${data.error.message}`);
+    if (data.error) throw providerError('Anthropic', data.error.message);
     const textBlocks = data.content?.filter((b: any) => b.type === 'text') || [];
     const toolBlocks = data.content?.filter((b: any) => b.type === 'tool_use') || [];
     return {
@@ -458,7 +492,7 @@ tier_key`
       body: JSON.stringify({ model, max_tokens: maxTokens, messages: messages.map(m => ({ role: m.role, content: m.content })) }),
     });
     const data = await response.json() as any;
-    if (data.error) throw new Error(`${this.config.provider}: ${data.error.message}`);
+    if (data.error) throw providerError(this.config.provider, data.error.message);
     return data.choices?.[0]?.message?.content || '';
   }
 
@@ -470,7 +504,7 @@ tier_key`
       body: JSON.stringify({ model, messages: messages.map(m => ({ role: m.role, content: m.content })), tools }),
     });
     const data = await response.json() as any;
-    if (data.error) throw new Error(`${this.config.provider}: ${data.error.message}`);
+    if (data.error) throw providerError(this.config.provider, data.error.message);
     const choice = data.choices?.[0];
     return { text: choice?.message?.content || '', toolCalls: choice?.message?.tool_calls };
   }
@@ -497,7 +531,7 @@ tier_key`
       }
     );
     const data = await response.json() as any;
-    if (data.error) throw new Error(`Gemini: ${data.error.message}`);
+    if (data.error) throw providerError('Gemini', data.error.message);
     return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
   }
 
@@ -522,7 +556,7 @@ tier_key`
       }
     );
     const data = await response.json() as any;
-    if (data.error) throw new Error(`Gemini: ${data.error.message}`);
+    if (data.error) throw providerError('Gemini', data.error.message);
     const parts = data.candidates?.[0]?.content?.parts || [];
     const textParts = parts.filter((p: any) => p.text);
     const fnParts = parts.filter((p: any) => p.functionCall);

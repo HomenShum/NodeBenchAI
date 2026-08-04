@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/HomenShum/2026-senior-agent-engineering-checklist/blob/main/schema/production-agent.v1.schema.json",
+  "type": "object",
+  "required": ["schemaVersion", "application", "declaredAt", "goalTranslation", "hitl", "toolFaultTolerance", "context", "slos", "runtimeGuards", "release"],
+  "properties": {
+    "schemaVersion": { "const": "production-agent/v1" },
+    "application": { "$ref": "#/$defs/id" },
+    "declaredAt": { "$ref": "#/$defs/text" },
+    "goalTranslation": {
+      "description": "A business goal in the stakeholder's words, translated into a quantified target. 'Lower support cost' is a wish; 'deflection-rate at-least 0.4' is an engineering input. Long-horizon goals also declare their subtask decomposition, because a model pointed at a month-sized goal without named waypoints guesses.",
+      "type": "object",
+      "required": ["businessGoal", "quantifiedTarget"],
+      "properties": {
+        "businessGoal": { "$ref": "#/$defs/text" },
+        "quantifiedTarget": { "$ref": "#/$defs/clause" },
+        "decomposition": { "$ref": "#/$defs/strings" }
+      },
+      "additionalProperties": false
+    },
+    "hitl": {
+      "description": "Which actions the agent takes alone and which suspend for a human. A tier with mode suspend-approve pauses the run, files the pending action where a human will see it, and resumes only after approval.",
+      "type": "object",
+      "required": ["tiers"],
+      "properties": {
+        "tiers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["action", "risk", "mode"],
+            "properties": {
+              "action": { "$ref": "#/$defs/text" },
+              "risk": { "enum": ["low", "high"] },
+              "mode": { "enum": ["auto", "suspend-approve"] },
+              "resumeAfterApproval": { "type": "boolean" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "noHighRiskActions": {
+          "type": "object",
+          "required": ["value", "rationale"],
+          "properties": { "value": { "const": true }, "rationale": { "$ref": "#/$defs/text" } },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "toolFaultTolerance": {
+      "type": "object",
+      "required": ["interception", "retry", "fallback", "toolContract"],
+      "properties": {
+        "interception": {
+          "description": "Raw provider/tool errors never travel to the user or into the agent's own reasoning as fact.",
+          "type": "object",
+          "required": ["rawErrorsReachUser"],
+          "properties": { "rawErrorsReachUser": { "const": false }, "how": { "$ref": "#/$defs/text" } },
+          "additionalProperties": false
+        },
+        "retry": {
+          "type": "object",
+          "required": ["maxAttempts", "backoff", "baseDelayMs", "maxDelayMs"],
+          "properties": {
+            "maxAttempts": { "type": "integer", "minimum": 1, "maximum": 10 },
+            "backoff": { "const": "exponential" },
+            "baseDelayMs": { "type": "number", "exclusiveMinimum": 0 },
+            "maxDelayMs": { "type": "number", "exclusiveMinimum": 0 },
+            "jitter": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        },
+        "fallback": {
+          "description": "What the user gets when retries are exhausted. 'An error' is not a fallback.",
+          "type": "object",
+          "required": ["kind", "description"],
+          "properties": {
+            "kind": { "enum": ["local-rules", "cached-answer", "degraded-ui", "queue-for-human"] },
+            "description": { "$ref": "#/$defs/text" }
+          },
+          "additionalProperties": false
+        },
+        "toolContract": {
+          "type": "object",
+          "required": ["descriptionsUnambiguous", "fewShotForComplexParams"],
+          "properties": {
+            "descriptionsUnambiguous": { "type": "boolean" },
+            "fewShotForComplexParams": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "context": {
+      "type": "object",
+      "required": ["strategies", "tokenBudgetPerRun"],
+      "properties": {
+        "strategies": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "enum": ["retrieval-extraction", "sliding-window", "summarization", "none"] },
+          "uniqueItems": true
+        },
+        "tokenBudgetPerRun": { "type": "number", "exclusiveMinimum": 0 },
+        "noneRationale": { "$ref": "#/$defs/text" }
+      },
+      "additionalProperties": false
+    },
+    "slos": {
+      "description": "Structured clauses. The three golden metrics — task-completion-rate, tool-call-error-rate, p99-latency-ms — are the floor; the check refuses a declaration missing any of them.",
+      "type": "array",
+      "minItems": 3,
+      "items": { "$ref": "#/$defs/clause" }
+    },
+    "runtimeGuards": {
+      "type": "object",
+      "required": ["loopBreaker", "circuitBreaker", "costFuse"],
+      "properties": {
+        "loopBreaker": {
+          "type": "object",
+          "required": ["maxIterations", "maxDepth"],
+          "properties": {
+            "maxIterations": { "type": "integer", "minimum": 1 },
+            "maxDepth": { "type": "integer", "minimum": 1 }
+          },
+          "additionalProperties": false
+        },
+        "circuitBreaker": {
+          "type": "object",
+          "required": ["errorRateThreshold", "onTrip"],
+          "properties": {
+            "errorRateThreshold": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+            "windowSeconds": { "type": "number", "exclusiveMinimum": 0 },
+            "onTrip": { "$ref": "#/$defs/text" }
+          },
+          "additionalProperties": false
+        },
+        "costFuse": {
+          "type": "object",
+          "required": ["onTrip"],
+          "properties": {
+            "maxTokensPerRun": { "type": "number", "exclusiveMinimum": 0 },
+            "maxSpendUsdPerDay": { "type": "number", "exclusiveMinimum": 0 },
+            "onTrip": { "$ref": "#/$defs/text" }
+          },
+          "anyOf": [{ "required": ["maxTokensPerRun"] }, { "required": ["maxSpendUsdPerDay"] }],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "release": {
+      "type": "object",
+      "required": ["judgeRegression", "canary", "modelMigration", "tracing"],
+      "properties": {
+        "judgeRegression": {
+          "type": "object",
+          "required": ["trigger", "command"],
+          "properties": {
+            "trigger": { "enum": ["on-commit", "on-pr", "pre-deploy"] },
+            "command": { "$ref": "#/$defs/text" }
+          },
+          "additionalProperties": false
+        },
+        "canary": {
+          "type": "object",
+          "required": ["trafficPercent", "rollbackOn", "rollbackMode"],
+          "properties": {
+            "trafficPercent": { "type": "number", "exclusiveMinimum": 0, "maximum": 50 },
+            "rollbackOn": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/clause" } },
+            "rollbackMode": { "const": "automatic" }
+          },
+          "additionalProperties": false
+        },
+        "modelMigration": {
+          "type": "object",
+          "required": ["pinnedModel", "migrationEvalCommand"],
+          "properties": {
+            "pinnedModel": { "$ref": "#/$defs/text" },
+            "migrationEvalCommand": { "$ref": "#/$defs/text" }
+          },
+          "additionalProperties": false
+        },
+        "tracing": {
+          "type": "object",
+          "required": ["traceIdPropagated", "field"],
+          "properties": {
+            "traceIdPropagated": { "const": true },
+            "field": { "$ref": "#/$defs/text" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "orchestration": {
+      "description": "Optional: present when more than one agent runs. Routes to the sessions contract for file ownership; this block records only the dispatch split.",
+      "type": "object",
+      "required": ["dispatcher", "specialists"],
+      "properties": {
+        "dispatcher": { "$ref": "#/$defs/text" },
+        "specialists": { "$ref": "#/$defs/strings" },
+        "sessionContract": { "$ref": "#/$defs/text" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9._:-]+$" },
+    "text": { "type": "string", "minLength": 1 },
+    "strings": { "type": "array", "items": { "$ref": "#/$defs/text" }, "uniqueItems": true },
+    "clause": {
+      "type": "object",
+      "required": ["metric", "comparator", "value"],
+      "properties": {
+        "metric": { "$ref": "#/$defs/text" },
+        "comparator": { "enum": ["below", "above", "at-most", "at-least", "equals"] },
+        "value": { "type": "number" },
+        "rationale": { "$ref": "#/$defs/text" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

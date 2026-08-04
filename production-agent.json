@@ -1,0 +1,111 @@
+{
+  "schemaVersion": "production-agent/v1",
+  "application": "nodebench-ai:agent-platform",
+  "declaredAt": "2026-08-04",
+  "goalTranslation": {
+    "businessGoal": "User-delegated research, chat, and desktop tasks complete autonomously without unbounded loops, unsafe writes, or silent tool failures",
+    "quantifiedTarget": {
+      "metric": "tool-call-error-rate",
+      "comparator": "below",
+      "value": 0.05,
+      "rationale": "HEALTH_CONFIG.errorRateCritical in backend/convex/config/autonomousConfig.ts — 5% error rate marks a component critical"
+    },
+    "decomposition": [
+      "route intent and model tier (workers/node/nemoclaw/agentRunner.ts classifyIntent)",
+      "tool-calling loop bounded by maxTurns with per-tool circuit breaker",
+      "synthesis nudge near turn limit, forced synthesis at limit",
+      "sensitive tools suspend for human approval (backend/convex/domains/agents/hitl/config.ts)"
+    ]
+  },
+  "hitl": {
+    "tiers": [
+      { "action": "read-only tools (screenshot, read_file, search_code, git_status, project_structure)", "risk": "low", "mode": "auto" },
+      { "action": "deleteEvent", "risk": "high", "mode": "suspend-approve", "resumeAfterApproval": true },
+      { "action": "deleteTask", "risk": "high", "mode": "suspend-approve", "resumeAfterApproval": true },
+      { "action": "bulkUpdate", "risk": "high", "mode": "suspend-approve", "resumeAfterApproval": true },
+      { "action": "executeSQL", "risk": "high", "mode": "suspend-approve", "resumeAfterApproval": true },
+      { "action": "writeFile", "risk": "high", "mode": "suspend-approve", "resumeAfterApproval": true }
+    ]
+  },
+  "toolFaultTolerance": {
+    "interception": {
+      "rawErrorsReachUser": false,
+      "how": "sanitizeErrorMessage in workers/node/nemoclaw/agentRunner.ts — stable error class from retryPolicy.classifyError, secret redaction, stack stripping, 240-char bound — applied before errors enter conversationHistory or are rethrown; auditLog.sanitizeArgs redacts secrets in audit trail"
+    },
+    "retry": {
+      "maxAttempts": 3,
+      "backoff": "exponential",
+      "baseDelayMs": 2000,
+      "maxDelayMs": 18000,
+      "jitter": true
+    },
+    "fallback": {
+      "kind": "queue-for-human",
+      "description": "retryPolicy.ts returns a dead_letter verdict with deterministic fingerprint after exhausted retries; DLQ groups identical failures for human review"
+    },
+    "toolContract": {
+      "descriptionsUnambiguous": true,
+      "fewShotForComplexParams": false
+    }
+  },
+  "context": {
+    "strategies": ["sliding-window", "summarization", "retrieval-extraction"],
+    "tokenBudgetPerRun": 16000
+  },
+  "slos": [
+    {
+      "metric": "task-completion-rate",
+      "comparator": "at-least",
+      "value": 0,
+      "rationale": "ASPIRATIONAL — no enforced completion-rate target exists in code yet; declared at the vacuous floor rather than inventing a number. See production-agent.notes.md"
+    },
+    {
+      "metric": "tool-call-error-rate",
+      "comparator": "below",
+      "value": 0.05,
+      "rationale": "HEALTH_CONFIG.errorRateCritical = 0.05 in backend/convex/config/autonomousConfig.ts"
+    },
+    {
+      "metric": "p99-latency-ms",
+      "comparator": "at-most",
+      "value": 30000,
+      "rationale": "HEALTH_CONFIG.latencyP99Critical = 30_000 in backend/convex/config/autonomousConfig.ts"
+    }
+  ],
+  "runtimeGuards": {
+    "loopBreaker": {
+      "maxIterations": 50,
+      "maxDepth": 1
+    },
+    "circuitBreaker": {
+      "errorRateThreshold": 0.05,
+      "windowSeconds": 300,
+      "onTrip": "health monitor marks component critical (autonomousConfig.ts, 5-min health-check cadence); in-loop breaker in agentRunner.ts force-synthesizes a final answer after any single tool is called 3 times"
+    },
+    "costFuse": {
+      "maxSpendUsdPerDay": 5,
+      "onTrip": "voice session refused when dailyCostUsd >= dailyCapUsd (workers/node/agents/realtimeVoicePolicy.ts, DEFAULT_VOICE_DAILY_CAP_USD = 5). VOICE LANE ONLY — there is no global cost fuse; see production-agent.notes.md"
+    }
+  },
+  "release": {
+    "judgeRegression": {
+      "trigger": "on-pr",
+      "command": "npx tsx scripts/eval-harness/runner.ts --list (.github/workflows/convex-mcp-eval-gate.yml; nightly cron 0 4 * * * runs the full suite with real agent invocation)"
+    },
+    "canary": {
+      "trafficPercent": 1,
+      "rollbackOn": [
+        { "metric": "tool-call-error-rate", "comparator": "above", "value": 0.05 }
+      ],
+      "rollbackMode": "automatic"
+    },
+    "modelMigration": {
+      "pinnedModel": "gemini-3.5-flash (nodeagent.yaml provider.model.id)",
+      "migrationEvalCommand": "npx tsx scripts/eval-harness/runner.ts --task tier1 --seeds 3"
+    },
+    "tracing": {
+      "traceIdPropagated": true,
+      "field": "traceId"
+    }
+  }
+}
