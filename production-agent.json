@@ -57,19 +57,19 @@
       "metric": "task-completion-rate",
       "comparator": "at-least",
       "value": 0,
-      "rationale": "ASPIRATIONAL — no enforced completion-rate target exists in code yet; declared at the vacuous floor rather than inventing a number. See production-agent.notes.md"
+      "rationale": "MEASURED, NOT ENFORCED — exposed by getGoldenMetrics (backend/convex/domains/operations/observability/goldenMetrics.ts) from the latest swarm_evolution actionItemQuality.completionRate; no code enforces a completion-rate floor, so declared at the vacuous floor rather than inventing a number. See production-agent.notes.md"
     },
     {
       "metric": "tool-call-error-rate",
       "comparator": "below",
       "value": 0.05,
-      "rationale": "HEALTH_CONFIG.errorRateCritical = 0.05 in backend/convex/config/autonomousConfig.ts"
+      "rationale": "HEALTH_CONFIG.errorRateCritical = 0.05 in backend/convex/config/autonomousConfig.ts; exposed by getGoldenMetrics (model-call errors over the 24h modelRouterCalls window — the closest true tool-call error measure this runtime records)"
     },
     {
       "metric": "p99-latency-ms",
       "comparator": "at-most",
       "value": 30000,
-      "rationale": "HEALTH_CONFIG.latencyP99Critical = 30_000 in backend/convex/config/autonomousConfig.ts"
+      "rationale": "HEALTH_CONFIG.latencyP99Critical = 30_000 in backend/convex/config/autonomousConfig.ts; exposed as p99-latency-ms on the worker /mcp/health surface (workers/node/mcpGateway.ts healthHandler, from McpSession.getLatencyPercentiles)"
     }
   ],
   "runtimeGuards": {

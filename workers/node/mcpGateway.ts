@@ -566,6 +566,12 @@ export function createMcpGateway(config: McpGatewayConfig) {
         count: toolMap.size,
       },
       latency: { p50: Math.round(p50), p99: Math.round(p99) },
+      // Golden metric, exact name: p99 tool-call latency from
+      // McpSession.getLatencyPercentiles (aggregated across active sessions).
+      // Its Convex siblings (task-completion-rate, tool-call-error-rate) live
+      // in backend/convex/domains/operations/observability/goldenMetrics.ts —
+      // separate runtime, so each surface exposes what it can see.
+      "p99-latency-ms": Math.round(p99),
       uptime: process.uptime(),
     });
   }

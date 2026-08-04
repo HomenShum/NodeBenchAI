@@ -34,6 +34,21 @@ declared at truthful minimal values because the guard is not built.
 - **Global cost fuse** — only the voice lane has a dollars-per-day cap. LLM
   spend in the main agent loops has no global fuse; the declared
   `maxSpendUsdPerDay: 5` governs voice sessions only.
-- **slos[task-completion-rate]** — declared `at-least 0` (vacuous floor)
-  because no completion-rate target is measured or enforced in code. The
-  nightly eval suite is the path to making this real.
+- **slos[task-completion-rate]** — declared `at-least 0` (vacuous floor).
+  The metric is now *measured* (see below) but no code enforces a floor; the
+  nightly eval suite is the path to a real threshold.
+
+## Golden metrics — where the exact names are queryable
+
+The three SLO metrics are exposed by exact name. The sources live in two
+runtimes that cannot see each other (Convex backend vs Node worker), so each
+runtime's existing surface exposes what it can see — no cross-runtime
+aggregator was built.
+
+| Exact name | Surface | Source |
+|---|---|---|
+| `task-completion-rate` | Convex query `getGoldenMetrics` (`backend/convex/domains/operations/observability/goldenMetrics.ts`, shim at `domains/observability/goldenMetrics.ts`) | latest `swarm_evolution` cron session `actionItemQuality.completionRate` (`autonomousCrons.ts`) |
+| `tool-call-error-rate` | same Convex query | errors / calls over 24h of `modelRouterCalls` — same computation as `getRoutingStats` in `modelRouterQueries.ts`. Scoping: counts MODEL-call errors, the closest true tool-call error measure recorded in Convex |
+| `p99-latency-ms` | worker `/mcp/health` JSON (`workers/node/mcpGateway.ts` healthHandler) | `McpSession.getLatencyPercentiles().p99`, aggregated across active sessions. Reported as `null` from the Convex query |
+
+Unit test: `backend/convex/domains/operations/observability/goldenMetrics.test.ts`.
