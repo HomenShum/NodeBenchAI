@@ -20,7 +20,6 @@
  *                             cross-runtime aggregator.
  */
 
-import { v } from "convex/values";
 import { query } from "../../../_generated/server";
 
 /** Pure computation — unit-testable without a Convex harness. */
@@ -49,11 +48,11 @@ export function computeGoldenMetrics(input: {
 /** Query the three golden metrics from live data (last 24h of model calls). */
 export const getGoldenMetrics = query({
   args: {},
-  returns: v.object({
-    "task-completion-rate": v.union(v.number(), v.null()),
-    "tool-call-error-rate": v.number(),
-    "p99-latency-ms": v.union(v.number(), v.null()),
-  }),
+  // No `returns` validator: Convex v.object identifiers cannot contain "-"
+  // ("Identifiers can only contain alphanumeric characters or underscores",
+  // rejected at push evaluation — this broke `npx convex deploy` on main).
+  // The exact hyphenated metric names are the contract, so the return shape
+  // is typed by computeGoldenMetrics and covered by goldenMetrics.test.ts.
   handler: async (ctx) => {
     const since = Date.now() - 24 * 60 * 60 * 1000;
     const calls = await ctx.db
