@@ -106,6 +106,22 @@ section can be described as shipped.
 - builder-facing Oracle, dogfood, eval, replay, and control-plane
   infrastructure
 
+## Live graph rail (recorded events)
+
+![Live graph rail replaying recorded research events](demo/graph-rail/graph-rail.png)
+
+`demo/graph-rail/` feeds the [NodeGraph Live](https://github.com/HomenShum/NodeGraph)
+renderer (vendored at `vendor/nodegraph-live/`, pending npm publish) with real
+entity-research events from a committed eval transcript
+(`benchmarks/history/archived-2026-q1/persona-episode-eval-pack-20260105-153100.json`)
+— it is a replay of recorded events, not a live agent run: every label is a
+verbatim string from that fixture, all counts render as unknown because the
+transcript holds no measured pair counts, and no assertion edges are drawn
+because no record carries a complete source receipt.
+`node scripts/capture-graph-rail.mjs` regenerates the capture and exits nonzero
+on an empty rail, any console error, or any rendered label that does not appear
+in the fixture.
+
 ## Hosted Public Research MCP
 
 NodeBench can be used as a public research memory and tool server from any

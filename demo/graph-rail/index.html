@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NodeBench — live graph rail (recorded research events)</title>
+    <style>
+      :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+      body { margin: 0; background: #0b0e12; color: #dfe5ea; }
+      main { width: min(1240px, calc(100% - 32px)); margin: 24px auto; }
+      h1 { font-size: 22px; letter-spacing: -0.02em; margin: 0 0 2px; }
+      p.sub { margin: 0 0 12px; color: #8b949d; line-height: 1.45; font-size: 13px; max-width: 980px; }
+      #stage { border: 1px solid #1d242c; border-radius: 12px; overflow: hidden; background: #0e1319; }
+      #root { display: block; width: 100%; min-height: 620px; }
+      #caption { margin: 10px 2px 0; color: #7f8992; font-size: 12.5px; line-height: 1.5; max-width: 980px; }
+      #stats { color: #55606a; font-size: 12px; margin-top: 4px; }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@19.2.0",
+          "react/jsx-runtime": "https://esm.sh/react@19.2.0/jsx-runtime",
+          "react-dom/client": "https://esm.sh/react-dom@19.2.0/client",
+          "graphology": "https://esm.sh/graphology@0.26.0",
+          "graphology-layout-forceatlas2": "https://esm.sh/graphology-layout-forceatlas2@0.10.1",
+          "graphology-layout-forceatlas2/worker.js": "https://esm.sh/graphology-layout-forceatlas2@0.10.1/worker.js",
+          "sigma": "https://esm.sh/sigma@3.0.3",
+          "@sigma/node-border": "https://esm.sh/@sigma/node-border@3.0.0?deps=sigma@3.0.3"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <main>
+      <h1>Live graph rail — replaying recorded research events</h1>
+      <p class="sub">
+        Every node below is an entity the NodeBench agent actually resolved during a committed
+        eval run (persona-episode pack, recorded 2026-01-05, model gpt-5.2). This page replays
+        that transcript through <code>session.observe()</code> — it does not invent entities,
+        counts, or relationships. All counts render as “unknown — not measured” because the
+        transcript records resolved facts, not measured conjunction counts; edges are faint
+        traversal history, never evidence. No assertion edges: no record in the fixture carries
+        the complete source receipt (source + release + two stable ids + URL) an assertion requires.
+      </p>
+      <div id="stage"><div id="root"></div></div>
+      <p id="caption"></p>
+      <p id="stats"></p>
+    </main>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

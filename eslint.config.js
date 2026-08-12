@@ -88,6 +88,7 @@ export default tseslint.config(
       "node_modules/**",
       "dist/**",
       "build/**",
+      "vendor/**",
       ".tmp/**",
       ".tmp-schema-dts/**",
       "eslint.config.js",
