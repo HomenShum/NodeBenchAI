@@ -6,6 +6,10 @@ Entity intelligence for any company, market, or question.
 **npm:** `npx nodebench-mcp` / `npx nodebench-mcp-power` / `npx nodebench-mcp-admin`  
 **GitHub:** [HomenShum/nodebench-ai](https://github.com/HomenShum/nodebench-ai)
 
+![Live graph rail replaying a committed eval transcript: 34 entities stream in, then a hover isolates one node's neighbourhood and a drag repositions it](demo/graph-rail/graph-rail-clip.gif)
+
+*Recorded from `demo/graph-rail/` replaying a committed eval transcript (persona-episode pack, 2026-01-05) through `session.observe()` — recorded events replayed, not re-verified; every label is a literal fixture substring, edges are traversal history, never evidence. Regenerate: `node scripts/record-graph-rail-clip.mjs`.*
+
 ![NodeBench AI Home surface: research prompt with Quick answer / Deep research modes, and reusable public research cards below](.qa/evidence/2026-07-15-runtime-grounded-control-focus/baseline/exact-surfaces/home-desktop-light.png)
 
 ## Product
