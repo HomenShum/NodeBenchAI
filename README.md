@@ -110,6 +110,17 @@ section can be described as shipped.
 - builder-facing Oracle, dogfood, eval, replay, and control-plane
   infrastructure
 
+## Live graph rail on a LIVE Convex backend
+
+![The rail at zero, then NodeBench's real storeEntityContext mutations landing on a live dev deployment, the rail populating reactively over WebSocket to 12 entities](demo/graph-rail-live/live-convex-rail.gif)
+
+*No replay file: `demo/graph-rail-live/` subscribes to the real
+`domains/knowledge/entityContexts:getEntityContext` query on an isolated dev
+deployment, and the repo's own seed script writes through the real mutation
+on camera. All edges traversal — research prose is not a measurement.
+Regenerate: `node demo/graph-rail-live/record-live.mjs <dev-deployment-url>`
+(see the script header for the one-time deployment setup).*
+
 ## Live graph rail (recorded events)
 
 ![Live graph rail replaying recorded research events](demo/graph-rail/graph-rail.png)
