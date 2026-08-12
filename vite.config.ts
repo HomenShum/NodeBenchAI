@@ -382,6 +382,7 @@ window.addEventListener('message', async (message) => {
     // Order matters: keep specific aliases above the generic "@/" alias.
     alias: [
       { find: "@convex", replacement: path.resolve(__dirname, "./backend/convex").replace(/\\/g, "/") },
+      { find: "@vendor", replacement: path.resolve(__dirname, "./vendor").replace(/\\/g, "/") },
       { find: "@features", replacement: path.resolve(__dirname, "./apps/web/src/features").replace(/\\/g, "/") },
       { find: "@shared", replacement: path.resolve(__dirname, "./apps/web/src/shared").replace(/\\/g, "/") },
       { find: "shared", replacement: path.resolve(__dirname, "./shared").replace(/\\/g, "/") },

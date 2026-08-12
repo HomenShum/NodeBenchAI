@@ -65,6 +65,7 @@ const ScratchnodePrivateBridge = lazy(() =>
   })),
 );
 // My Wiki — Phase 1 routes. See docs/architecture/ME_AGENT_DESIGN.md
+const EntityProfilePage = lazy(() => import("@/features/research/views/EntityProfilePage"));
 const WikiLandingRoute = lazy(() => import("@/features/me/components/wiki/WikiLandingRoute"));
 const WikiPageDetailRoute = lazy(() => import("@/features/me/components/wiki/WikiPageDetailRoute"));
 
@@ -115,6 +116,32 @@ function App() {
           <Suspense fallback={<ViewSkeleton />}>
             <div key="workspace" className="route-fade-in h-screen">
               <UniversalWorkspacePage />
+            </div>
+          </Suspense>
+        </ErrorBoundary>
+      </ThemeProvider>
+    );
+  }
+
+  // Entity research profile — the /#entity/<name> grammar that digest and
+  // ntfy links emit (see backend digestAgent entityBaseUrl) and that
+  // scripts/seed-entity-contexts.ts prints. Resolved here, BEFORE the "/"
+  // landing redirect below, which would otherwise swallow the hash and land
+  // those links on the chat workspace.
+  const entityHashMatch = /^#entity\/(.+)$/.exec(location.hash ?? "");
+  if (entityHashMatch) {
+    let hashEntityName = entityHashMatch[1];
+    try {
+      hashEntityName = decodeURIComponent(hashEntityName);
+    } catch {
+      // Malformed percent escapes: keep the raw segment rather than crash.
+    }
+    return (
+      <ThemeProvider>
+        <ErrorBoundary title="Entity profile failed to load">
+          <Suspense fallback={<ViewSkeleton />}>
+            <div key={`entity-profile-${hashEntityName}`} className="route-fade-in">
+              <EntityProfilePage entityName={hashEntityName} />
             </div>
           </Suspense>
         </ErrorBoundary>

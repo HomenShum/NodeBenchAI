@@ -12,6 +12,7 @@
       "@shared/*": ["./apps/web/src/shared/*"],
       "@shared/ui/*": ["./apps/web/src/shared/ui/*"],
       "@convex/*": ["./backend/convex/*"],
+      "@vendor/*": ["./vendor/*"],
       "shared/*": ["./shared/*"]
     }
   }

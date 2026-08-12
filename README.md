@@ -112,6 +112,23 @@ section can be described as shipped.
 
 ## Live graph rail on a LIVE Convex backend
 
+### The rail inside the product UI
+
+![EntityProfilePage at /#entity/Anthropic loading against a live Convex dev deployment: the Live Graph rail populates reactively from the page's own queries, then grows by one node on camera when a real storeEntityContext write lands](demo/graph-rail-live/product-rail-live.gif)
+
+*The rail lives in the real product page —
+`apps/web/src/features/research/components/EntityGraphRail.tsx`, mounted in
+`EntityProfilePage` (`/#entity/<name>`, the grammar digest links emit). It is
+fed by the SAME reactive queries the page already holds
+(`entityContexts.getEntityContext`, `relationshipGraph.getEntityGraph`,
+`adaptiveEntityQueries.getAdaptiveProfile`) — zero new subscriptions. Counts
+stay undefined and every edge is traversal: research prose measures nothing.
+Regenerate: `node demo/graph-rail-live/record-product-rail.mjs` (exits
+nonzero if the rail is missing, stays under 4 nodes, or fails to grow after
+the live write). See `docs/GRAPH_INTEGRATION.md` for the event taxonomy.*
+
+### The standalone live viewer
+
 ![The rail at zero, then NodeBench's real storeEntityContext mutations landing on a live dev deployment, the rail populating reactively over WebSocket to 12 entities](demo/graph-rail-live/live-convex-rail.gif)
 
 *No replay file: `demo/graph-rail-live/` subscribes to the real

@@ -50,6 +50,7 @@ import {
   CheckCircle,
   Circle,
 } from "lucide-react";
+import { EntityGraphRail } from "@/features/research/components/EntityGraphRail";
 import { TrajectorySummaryBand } from "@/features/trajectory/components/TrajectorySummaryBand";
 import { TrajectoryTimelinePanel } from "@/features/trajectory/components/TrajectoryTimelinePanel";
 import type { TrajectorySummaryData, TrajectoryTimelineItem } from "@/features/trajectory/types";
@@ -562,6 +563,18 @@ export const EntityProfilePage: React.FC<EntityProfilePageProps> = ({
                 )}
               </div>
             )}
+
+            {/* Live graph rail — fed by the reactive queries this page
+                already holds; adds no new subscriptions. All edges are
+                traversal (research prose measures nothing). */}
+            <EntityGraphRail
+              entityName={decodedEntityName}
+              entityType={entityType}
+              contextId={entityContext._id}
+              sources={entityContext.sources}
+              relationshipEdges={relationshipGraph?.edges}
+              adaptiveRelationships={adaptiveProfile?.relationships}
+            />
 
             <div className="rounded-2xl border border-edge bg-surface p-3">
               <div className="flex flex-wrap gap-2">
