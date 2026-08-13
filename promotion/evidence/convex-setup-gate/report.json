@@ -1,0 +1,71 @@
+{
+  "capturedAt": "2026-08-13T12:02:15.125Z",
+  "route": "/redesign/chat",
+  "port": 4301,
+  "envExamplePlaceholder": "https://your-project.convex.cloud",
+  "expectation": "Both an absent VITE_CONVEX_URL and the .env.example placeholder must reach the designed setup card with zero console errors and no horizontal overflow.",
+  "results": [
+    {
+      "case": "unset",
+      "label": "no VITE_CONVEX_URL (clean clone)",
+      "viewport": "1280x900",
+      "screenshot": "promotion/evidence/convex-setup-gate/unset-desktop.png",
+      "observed": {
+        "h1": "Convex backend not configured",
+        "runtimeSurface": null,
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "consoleErrors": [],
+        "pageErrors": []
+      },
+      "problems": []
+    },
+    {
+      "case": "unset",
+      "label": "no VITE_CONVEX_URL (clean clone)",
+      "viewport": "375x812",
+      "screenshot": "promotion/evidence/convex-setup-gate/unset-mobile.png",
+      "observed": {
+        "h1": "Convex backend not configured",
+        "runtimeSurface": null,
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "consoleErrors": [],
+        "pageErrors": []
+      },
+      "problems": []
+    },
+    {
+      "case": "env-example-placeholder",
+      "label": "README path: cp .env.example .env.local (https://your-project.convex.cloud)",
+      "viewport": "1280x900",
+      "screenshot": "promotion/evidence/convex-setup-gate/env-example-placeholder-desktop.png",
+      "observed": {
+        "h1": "Convex backend not configured",
+        "runtimeSurface": null,
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "consoleErrors": [],
+        "pageErrors": []
+      },
+      "problems": []
+    },
+    {
+      "case": "env-example-placeholder",
+      "label": "README path: cp .env.example .env.local (https://your-project.convex.cloud)",
+      "viewport": "375x812",
+      "screenshot": "promotion/evidence/convex-setup-gate/env-example-placeholder-mobile.png",
+      "observed": {
+        "h1": "Convex backend not configured",
+        "runtimeSurface": null,
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "consoleErrors": [],
+        "pageErrors": []
+      },
+      "problems": []
+    }
+  ],
+  "verdict": "PASS",
+  "failures": []
+}

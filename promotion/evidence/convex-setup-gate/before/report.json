@@ -1,0 +1,92 @@
+{
+  "capturedAt": "2026-08-13T11:59:06.828Z",
+  "route": "/redesign/chat",
+  "port": 4301,
+  "envExamplePlaceholder": "https://your-project.convex.cloud",
+  "expectation": "Both an absent VITE_CONVEX_URL and the .env.example placeholder must reach the designed setup card with zero console errors and no horizontal overflow.",
+  "results": [
+    {
+      "case": "unset",
+      "label": "no VITE_CONVEX_URL (clean clone)",
+      "viewport": "1280x900",
+      "screenshot": "promotion/evidence/convex-setup-gate/unset-desktop.png",
+      "observed": {
+        "h1": "Convex backend not configured",
+        "runtimeSurface": null,
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "consoleErrors": [],
+        "pageErrors": []
+      },
+      "problems": []
+    },
+    {
+      "case": "unset",
+      "label": "no VITE_CONVEX_URL (clean clone)",
+      "viewport": "375x812",
+      "screenshot": "promotion/evidence/convex-setup-gate/unset-mobile.png",
+      "observed": {
+        "h1": "Convex backend not configured",
+        "runtimeSurface": null,
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "consoleErrors": [],
+        "pageErrors": []
+      },
+      "problems": []
+    },
+    {
+      "case": "env-example-placeholder",
+      "label": "README path: cp .env.example .env.local (https://your-project.convex.cloud)",
+      "viewport": "1280x900",
+      "screenshot": "promotion/evidence/convex-setup-gate/env-example-placeholder-desktop.png",
+      "observed": {
+        "h1": null,
+        "runtimeSurface": "redesign-chat",
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "consoleErrors": [
+          "[CONVEX FATAL ERROR] Couldn't parse deployment name your-project",
+          "[NodeBench Error] Uncaught Error: [CONVEX FATAL ERROR] Couldn't parse deployment name your-project Error: [CONVEX FATAL ERROR] Couldn't parse deployment name your-project\n    at logFatalError (http://127.0.0.1:4301/@fs/C:/Users/hshum/AppData/Local/Temp/claude/D--VSCode-Projects-cheiron-ai-take-home/"
+        ],
+        "pageErrors": [
+          "[CONVEX FATAL ERROR] Couldn't parse deployment name your-project"
+        ]
+      },
+      "problems": [
+        "expected h1 \"Convex backend not configured\", got null",
+        "product surface \"redesign-chat\" mounted against an unusable backend",
+        "console/page errors: [\"[CONVEX FATAL ERROR] Couldn't parse deployment name your-project\",\"[NodeBench Error] Uncaught Error: [CONVEX FATAL ERROR] Couldn't parse deployment name your-project Error: [CONVEX FATAL ERROR] Couldn't parse deployment name your-project\\n    at logFatalError (http://127.0.0.1:4301/@fs/C:/Users/hshum/AppData/Local/Temp/claude/D--VSCode-Projects-cheiron-ai-take-home/\",\"[CONVEX FATAL ERROR] Couldn't parse deployment name your-project\"]"
+      ]
+    },
+    {
+      "case": "env-example-placeholder",
+      "label": "README path: cp .env.example .env.local (https://your-project.convex.cloud)",
+      "viewport": "375x812",
+      "screenshot": "promotion/evidence/convex-setup-gate/env-example-placeholder-mobile.png",
+      "observed": {
+        "h1": null,
+        "runtimeSurface": "redesign-chat",
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "consoleErrors": [
+          "[CONVEX FATAL ERROR] Couldn't parse deployment name your-project",
+          "[NodeBench Error] Uncaught Error: [CONVEX FATAL ERROR] Couldn't parse deployment name your-project Error: [CONVEX FATAL ERROR] Couldn't parse deployment name your-project\n    at logFatalError (http://127.0.0.1:4301/@fs/C:/Users/hshum/AppData/Local/Temp/claude/D--VSCode-Projects-cheiron-ai-take-home/"
+        ],
+        "pageErrors": [
+          "[CONVEX FATAL ERROR] Couldn't parse deployment name your-project"
+        ]
+      },
+      "problems": [
+        "expected h1 \"Convex backend not configured\", got null",
+        "product surface \"redesign-chat\" mounted against an unusable backend",
+        "console/page errors: [\"[CONVEX FATAL ERROR] Couldn't parse deployment name your-project\",\"[NodeBench Error] Uncaught Error: [CONVEX FATAL ERROR] Couldn't parse deployment name your-project Error: [CONVEX FATAL ERROR] Couldn't parse deployment name your-project\\n    at logFatalError (http://127.0.0.1:4301/@fs/C:/Users/hshum/AppData/Local/Temp/claude/D--VSCode-Projects-cheiron-ai-take-home/\",\"[CONVEX FATAL ERROR] Couldn't parse deployment name your-project\"]"
+      ]
+    }
+  ],
+  "verdict": "FAIL",
+  "failures": [
+    "env-example-placeholder @ 1280: expected h1 \"Convex backend not configured\", got null; product surface \"redesign-chat\" mounted against an unusable backend; console/page errors: [\"[CONVEX FATAL ERROR] Couldn't parse deployment name your-project\",\"[NodeBench Error] Uncaught Error: [CONVEX FATAL ERROR] Couldn't parse deployment name your-project Error: [CONVEX FATAL ERROR] Couldn't parse deployment name your-project\\n    at logFatalError (http://127.0.0.1:4301/@fs/C:/Users/hshum/AppData/Local/Temp/claude/D--VSCode-Projects-cheiron-ai-take-home/\",\"[CONVEX FATAL ERROR] Couldn't parse deployment name your-project\"]",
+    "env-example-placeholder @ 375: expected h1 \"Convex backend not configured\", got null; product surface \"redesign-chat\" mounted against an unusable backend; console/page errors: [\"[CONVEX FATAL ERROR] Couldn't parse deployment name your-project\",\"[NodeBench Error] Uncaught Error: [CONVEX FATAL ERROR] Couldn't parse deployment name your-project Error: [CONVEX FATAL ERROR] Couldn't parse deployment name your-project\\n    at logFatalError (http://127.0.0.1:4301/@fs/C:/Users/hshum/AppData/Local/Temp/claude/D--VSCode-Projects-cheiron-ai-take-home/\",\"[CONVEX FATAL ERROR] Couldn't parse deployment name your-project\"]"
+  ]
+}

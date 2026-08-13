@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ConvexHttpClient } from "convex/browser";
 import type { Id } from "@convex/_generated/dataModel";
 import { getApi } from "@/lib/convexApi";
+import { configuredConvexUrl } from "@/lib/convexUrl";
 
 export interface ConvexSearchState {
   sessionId: Id<"searchSessions"> | null;
@@ -45,7 +46,7 @@ function selectSearchApi(api: Awaited<ReturnType<typeof getApi>> | null): Search
 }
 
 export function useConvexSearch() {
-  const convexUrl = import.meta.env.VITE_CONVEX_URL as string | undefined;
+  const convexUrl = configuredConvexUrl();
   const [searchApi, setSearchApi] = useState<SearchApi | null>(null);
   const client = useMemo(
     () => (convexUrl ? new ConvexHttpClient(convexUrl) : null),

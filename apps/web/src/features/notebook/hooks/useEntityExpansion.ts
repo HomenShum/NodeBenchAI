@@ -16,6 +16,7 @@
  * See: docs/architecture/EXPANDABLE_GRAPH_NOTEBOOK.md
  */
 import { useState, useEffect, useCallback } from "react";
+import { configuredConvexUrl } from "@/lib/convexUrl";
 
 // Types matching the prototype MENTION_DATA shape
 export type EntityClaim = {
@@ -67,7 +68,7 @@ let _clientPromise: Promise<{ client: any; api: any }> | null = null;
  * Singleton: one client instance for all hooks in the session.
  */
 async function getConvexClient(): Promise<{ client: any; api: any } | null> {
-  const convexUrl = import.meta.env.VITE_CONVEX_URL;
+  const convexUrl = configuredConvexUrl();
   if (!convexUrl) return null;
 
   if (!_clientPromise) {

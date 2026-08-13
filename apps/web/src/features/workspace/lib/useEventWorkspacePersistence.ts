@@ -5,6 +5,7 @@ import { useConvex } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { inferCaptureRoute } from "@/features/product/lib/captureRouter";
 import { getAnonymousProductSessionId } from "@/features/product/lib/productIdentity";
+import { configuredConvexUrl } from "@/lib/convexUrl";
 import {
   buildLiveCaptureArgs,
   emptyMemorySnapshot,
@@ -22,7 +23,7 @@ export function useEventWorkspacePersistence(workspaceId: string): {
   const anonymousSessionId = useMemo(() => getAnonymousProductSessionId(), []);
   const convex = useConvex();
   const httpClient = useMemo(() => {
-    const convexUrl = import.meta.env.VITE_CONVEX_URL as string | undefined;
+    const convexUrl = configuredConvexUrl();
     return convexUrl ? new ConvexHttpClient(convexUrl) : null;
   }, []);
   const [snapshotState, setSnapshotState] = useState<

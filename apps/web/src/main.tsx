@@ -9,6 +9,7 @@ import App from "./App";
 import { ToastProvider } from "./components/ui";
 import { Toaster as SonnerToaster } from "sonner";
 import { bootstrapNativeShell } from "./lib/nativeBootstrap";
+import { configuredConvexUrl } from "./lib/convexUrl";
 
 // Fire-and-forget: configures iOS/Android status bar + keyboard on boot.
 // No-op on web. Safe to call before React mounts.
@@ -149,7 +150,10 @@ function MissingConvexUrlScreen() {
   );
 }
 
-const convexUrl = import.meta.env.VITE_CONVEX_URL as string | undefined;
+// Validity, not presence. A non-empty but non-deployment URL (the value
+// .env.example ships) used to pass this gate and leave the app rendered with a
+// dead socket. See apps/web/src/lib/convexUrl.ts.
+const convexUrl = configuredConvexUrl();
 const convex = convexUrl ? new ConvexReactClient(convexUrl) : null;
 
 // Prod: capture global errors into a deduped bug-card workflow (Ralph loop substrate).
