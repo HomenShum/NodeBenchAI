@@ -6,6 +6,14 @@ Entity intelligence for any company, market, or question.
 **npm:** `npx nodebench-mcp` / `npx nodebench-mcp-power` / `npx nodebench-mcp-admin`  
 **GitHub:** [HomenShum/nodebench-ai](https://github.com/HomenShum/nodebench-ai)
 
+**New to this codebase?** Read [`docs/START_HERE.md`](docs/START_HERE.md) — it
+follows one user's question through the code in the order it actually runs, then
+[`.tours/`](.tours/) walks the same path inside the live source in VS Code
+(CodeTour extension). [`docs/codebase/`](docs/codebase/) has the stack,
+structure, conventions, integrations, testing and the honest list of known
+problems. [`docs/SIMPLIFICATION_REPORT.md`](docs/SIMPLIFICATION_REPORT.md)
+records what was measured and removed, with the command for every number.
+
 ![Live graph rail replaying a committed eval transcript: 34 entities stream in, then a hover isolates one node's neighbourhood and a drag repositions it](demo/graph-rail/graph-rail-clip.gif)
 
 *Recorded from `demo/graph-rail/` replaying a committed eval transcript (persona-episode pack, 2026-01-05) through `session.observe()` — recorded events replayed, not re-verified; every label is a literal fixture substring, edges are traversal history, never evidence. Regenerate: `node scripts/record-graph-rail-clip.mjs`.*
@@ -533,15 +541,27 @@ npx nodebench-mcp
 ```bash
 git clone https://github.com/HomenShum/nodebench-ai.git
 cd nodebench-ai
+nvm use            # Node version from .nvmrc
 npm install
-cp .env.example .env.local
 
-# Frontend + Convex + voice server
-npm run dev
+# Frontend only. This is the honest first run: it starts, and every product
+# route shows the "Convex backend not configured" card until you supply a real
+# VITE_CONVEX_URL. That card is the designed state, not a failure.
+npx vite --port 5173
 
 # Production build
 npm run build
 ```
+
+`npm run dev` runs three processes in parallel (`vite`, `convex dev`,
+and the voice worker). Two of them block on credentials — `convex dev` wants an
+interactive Convex login and the voice worker wants `.env.local` — so it is not
+the command to start with on a fresh clone.
+
+`cp .env.example .env.local` on its own does **not** get you a working backend:
+the file ships `VITE_CONVEX_URL=https://your-project.convex.cloud`, which is a
+placeholder and is rejected on purpose (`apps/web/src/lib/convexUrl.ts`). Run
+`npx convex dev` to provision a real deployment, then put its URL there.
 
 ## Architecture
 

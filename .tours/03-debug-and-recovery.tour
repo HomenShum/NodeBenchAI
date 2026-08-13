@@ -1,0 +1,64 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "3 — When it goes wrong, and how you would know",
+  "description": "Three different bad endings, why they must stay different, how a citation is checked after the fact, and which tests hold it in place. Mirrors Step 10-11 of docs/START_HERE.md. Validate with: node scripts/validate-tours.mjs",
+  "steps": [
+    {
+      "file": "backend/convex/domains/redesign/chatRuns.ts",
+      "line": 2366,
+      "pattern": "\\} catch \\(err: any\\) \\{",
+      "title": "Cancel is not an error",
+      "description": "One `try` wraps the whole orchestration, and the first thing the `catch` does is check whether the user cancelled. If they did, it returns without writing anything. Conflating \"the user stopped it\" with \"it broke\" is the classic bug here: it would overwrite a deliberate cancellation with a scary red error the user did not cause.\n\nEverything else becomes an `error` event row plus a failed run."
+    },
+    {
+      "file": "backend/convex/domains/redesign/chatRuns.ts",
+      "line": 1849,
+      "pattern": "export const failRun = internalMutation",
+      "title": "The write that refuses to clobber a cancellation",
+      "description": "`if (row && row.status !== \"cancelled\")`. Two paths can race — the cancel mutation and the failing action — and this guard decides which one wins. The cancellation does.\n\nThere is no retry on this path. A failed run stays failed and the user re-asks; that is a deliberate choice, not an omission, because a silent retry of a paid call is a cost bug."
+    },
+    {
+      "file": "backend/convex/domains/redesign/chatRuns.ts",
+      "line": 1727,
+      "pattern": "export const cancelRun = mutation",
+      "title": "How Stop reaches a background action",
+      "description": "The browser cannot signal a running action directly. It writes a cancellation onto the run row; the action polls `getRunControl` between chunks and throws `RUN_CANCELLED` when it sees one. Cooperative cancellation through the database — the same substrate everything else uses."
+    },
+    {
+      "file": "backend/convex/domains/redesign/chatRuns.ts",
+      "line": 2384,
+      "pattern": "function isUrlSafe",
+      "title": "Before re-fetching a cited URL, check it is safe to fetch",
+      "description": "Verification means the server fetches URLs that came out of a model. That is a server-side request forgery risk: without this check a cited 'source' could point at internal infrastructure. This is a trust boundary, so it is one of the few places where extra defensiveness is correct rather than clutter."
+    },
+    {
+      "file": "backend/convex/domains/redesign/chatRuns.ts",
+      "line": 2464,
+      "pattern": "export const validateRunSources = internalAction",
+      "title": "Citations are verified after the answer, on purpose",
+      "description": "Scheduled once the packet is sealed. It re-fetches each cited page and asserts the quoted text is a literal substring, then patches verification flags onto the evidence rows. The user sees the answer immediately and the verification marks arrive a moment later through the same subscription.\n\nA citation that cannot be re-found is **marked, not deleted**. Latency for the user, honesty for the claim."
+    },
+    {
+      "file": "backend/convex/domains/redesign/chatRuns.contract.test.ts",
+      "line": 132,
+      "pattern": "describe\\(\"answer-packet state schemas",
+      "title": "The test that stops the packet drifting",
+      "description": "It drives the declared UI contract through the **real** runtime functions, so a contract file cannot silently disagree with the code that ships. Per shape and per evidence level it asserts which fields must be present and which must never leak — a compact answer renders compact precisely because the forbidden fields are empty.\n\nRun it: `npx vitest run backend/convex/domains/redesign/chatRuns.contract.test.ts`"
+    },
+    {
+      "file": "apps/web/src/lib/convexUrl.test.ts",
+      "line": 16,
+      "pattern": "describe\\(\"resolveConvexUrl\"",
+      "title": "The test that keeps the front door honest",
+      "description": "This exists because the documented first-run path was once the branch nobody designed: `.env.example` shipped a placeholder URL, the presence check accepted it, and the app mounted against a dead socket with the remedy card suppressed. This test pins validity-not-presence.\n\nRun it: `npx vitest run apps/web/src/lib/convexUrl.test.ts`"
+    },
+    {
+      "file": "scripts/testing/runSegmentedVitest.mjs",
+      "line": 1,
+      "pattern": "import \\{ spawn \\}",
+      "title": "Reading a red suite without panicking",
+      "description": "`npm run test:run` is four independent Vitest processes, each with a hard 300-second kill. The suite is **red at HEAD** for reasons that predate any change you are making, and one segment (`mcp-local`) is killed by the timeout rather than failing an assertion — so its reported failure list is truncated and varies run to run.\n\nThe honest regression check is a diff of the `FAIL` lines, not a count. See docs/codebase/TESTING.md for the exact commands and the current numbers."
+    }
+  ],
+  "ref": "main"
+}

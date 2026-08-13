@@ -1,0 +1,64 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "1 — From an empty page to a submitted question",
+  "description": "Follow one person typing one question, from the browser deciding whether the backend is usable through to the server accepting the request. Mirrors Steps 1-5 of docs/START_HERE.md. Validate with: node scripts/validate-tours.mjs",
+  "steps": [
+    {
+      "file": "apps/web/src/main.tsx",
+      "line": 156,
+      "pattern": "const convexUrl = configuredConvexUrl\\(\\);",
+      "title": "Is there a backend at all?",
+      "description": "Everything durable in NodeBench — accounts, chat runs, reports — lives in Convex, a hosted backend. This one line decides whether the app can mount. It tests the configured URL for **validity**, not merely for presence, because a URL that merely exists lets the app mount against a socket that will never answer, and the user then gets silence with no remedy on screen."
+    },
+    {
+      "file": "apps/web/src/lib/convexUrl.ts",
+      "line": 37,
+      "pattern": "export function resolveConvexUrl",
+      "title": "The rule the URL has to satisfy",
+      "description": "A `*.convex.cloud` host must carry a real deployment name (`[a-z]+-[a-z]+-[0-9]+`). That regex is copied from Convex's own CLI rather than invented, so the check cannot drift away from what the platform will actually route. Any other host is left alone — that is the self-hosted case, which Convex does not name-parse.\n\nFour callers build a Convex client from this string; they all go through this one function, so the rule is enforced once."
+    },
+    {
+      "file": "apps/web/src/App.tsx",
+      "line": 209,
+      "pattern": "const isRedesignRoute",
+      "title": "Routing is an if-ladder, not a <Route> tree",
+      "description": "Stop looking for `<Route>` elements — there are none in this repository. `App` reads `location.pathname` and returns a component. `/redesign/*` is the live product; the other branches below are public share pages, print views and legacy surfaces."
+    },
+    {
+      "file": "apps/web/src/features/redesign/RedesignShell.tsx",
+      "line": 27,
+      "pattern": "export default function RedesignShell",
+      "title": "One surface, many intents",
+      "description": "NodeBench deliberately has one working destination. Reports, Inbox and Me are `?intent=` states of the same conversation. The shell redirects every legacy path to `/redesign/chat` using `canonicalRedesignChatTarget`, so if you add a new route it will bounce the user straight back out of it."
+    },
+    {
+      "file": "apps/web/src/features/redesign/components/UniversalComposer.tsx",
+      "line": 248,
+      "pattern": "const handleSubmit",
+      "title": "The primary user action",
+      "description": "The composer owns exactly two decisions: is there any text, and is a previous answer still streaming. It does not know what a run is, who the user is, or whether a model will be called. That ignorance is the point — it keeps the input widget reusable."
+    },
+    {
+      "file": "apps/web/src/features/redesign/surfaces/ChatSurface.tsx",
+      "line": 637,
+      "pattern": "const sendMessage",
+      "title": "Decide whether a live run is even allowed, then paint immediately",
+      "description": "Live research costs money, so it needs a real signed-in account. Read the `unavailableReason` ladder just below: every branch produces a sentence a person can act on. The user turn and an assistant turn are appended to local state before any network call, so the interface never looks frozen.\n\nThe comment at the `userLoading` branch is worth reading — it records a real production incident where a correctly linked account was told to link an account."
+    },
+    {
+      "file": "apps/web/src/features/redesign/hooks/useRedesignChatRun.ts",
+      "line": 501,
+      "pattern": "const runId = await startChat",
+      "title": "Crossing from browser to server",
+      "description": "`clientRequestId` is the idempotency key. It is computed from a fingerprint of the submission, so a double-click, a retried request, or a reconnect replays to the *same* run instead of buying a second paid model call.\n\nNotice what is NOT returned here: the answer. `startChat` returns only a run id."
+    },
+    {
+      "file": "backend/convex/domains/redesign/chatRuns.ts",
+      "line": 1457,
+      "pattern": "export const startChat = mutation",
+      "title": "The trust boundary",
+      "description": "Above this line, every value is browser state a user can edit. Below it, the server owns the truth. The `args` block is the domain type for this path — Convex rejects a malformed call before the handler runs, which is why there is no second hand-written validation layer underneath.\n\nContinue in tour 2 to see what the server does with it."
+    }
+  ],
+  "ref": "main"
+}

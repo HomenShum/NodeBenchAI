@@ -2665,7 +2665,7 @@ Before declaring this work done, run the UI/UX QA checklist:
 6. CONSOLE: Check browser devtools for errors/warnings
 7. CAPTURE: Call capture_responsive_suite(url, label) to screenshot at 3 breakpoints
 8. E2E: Run \`npm run test:e2e\` if relevant tests exist
-9. LIGHTHOUSE: Run \`npm run perf:lighthouse\` for performance + accessibility scores
+9. PERF: Run \`npm run test:e2e -- evals/performance-lighthouse.spec.ts\` for Core Web Vitals
 
 After checking each item, record results:
   call get_gate_preset("ui_ux_qa") to see the 8 evaluation rules
@@ -2679,7 +2679,6 @@ Commands available:
   npm run test:run        — Vitest component tests
   npm run test:e2e        — Playwright E2E tests
   npm run storybook       — Storybook dev server (port 6006)
-  npm run perf:lighthouse — Lighthouse audit
   npm run perf:bundle     — Bundle size analysis`,
         },
       },

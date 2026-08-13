@@ -1,0 +1,85 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "2 — What the server does with the question",
+  "description": "Validation, the durable run row, the background action, the single tool, and how every stage becomes a row the browser can subscribe to. Mirrors Steps 5-9 of docs/START_HERE.md. Validate with: node scripts/validate-tours.mjs",
+  "steps": [
+    {
+      "file": "backend/convex/domains/redesign/chatRuns.ts",
+      "line": 159,
+      "pattern": "async function requirePaidChatUserId",
+      "title": "Identity: a session is not enough",
+      "description": "Anonymous sessions are supported in this product and can read public artefacts. They cannot start a paid run. The test is not \"is someone signed in\" but \"does this user own at least one non-anonymous `authAccounts` row\". The frontend checks too, but only so the user gets a reason; this is the gate."
+    },
+    {
+      "file": "backend/convex/domains/redesign/chatRuns.ts",
+      "line": 1492,
+      "pattern": "const prompt = args.prompt.slice\\(0, MAX_PROMPT_CHARS\\)",
+      "title": "Bounds, then idempotency",
+      "description": "Truncate to 4,000 characters, reject anything under three. Then look up `clientRequestId` on the `by_user_client_request` index: if this submission has been seen, return the original run id and stop. Cost control and correctness are the same guard here."
+    },
+    {
+      "file": "backend/convex/domains/redesign/chatRuns.ts",
+      "line": 1512,
+      "pattern": "await ctx.db.insert\\(\"redesignChatRuns\"",
+      "title": "The run becomes durable before any work happens",
+      "description": "Status `pending`, with the model and provider recorded. The row exists before the model is called, so a crash mid-run leaves something the user and the operator can both see, rather than a request that evaporated."
+    },
+    {
+      "file": "backend/convex/domains/redesign/chatRuns.ts",
+      "line": 1526,
+      "pattern": "ctx.scheduler.runAfter\\(0, internal.domains.redesign.chatRuns.runStreamingChat",
+      "title": "Hand off to the background, return immediately",
+      "description": "A Convex mutation is a transaction; it cannot hold a socket open to a model for thirty seconds. So the slow work is scheduled and `startChat` returns a run id in well under a second.\n\nThis is the line that makes the whole design make sense: **the answer is never returned to the caller.**"
+    },
+    {
+      "file": "backend/convex/domains/redesign/chatRuns.ts",
+      "line": 1868,
+      "pattern": "export const runStreamingChat = internalAction",
+      "title": "The orchestrator",
+      "description": "`internalAction` means no browser can call this, which is why it does no identity checking of its own. An action may call the network but may not touch the database directly — every write below goes through `ctx.runMutation`.\n\nRead the `append` helper defined at the top of the handler. Everything the user will ever see is written through it."
+    },
+    {
+      "file": "backend/convex/domains/redesign/chatRuns.ts",
+      "line": 1921,
+      "pattern": "const classification = classifyPrompt\\(args.prompt\\)",
+      "title": "A fixed pipeline, not an agent loop",
+      "description": "Classify the question, resolve context, decide whether live grounding is worth paying for, call the model, parse, bind evidence, seal. `classifyPrompt` lives in `shared/redesign/promptClassifier` because it must run identically in the browser and in Convex.\n\nThere is no plan-act-observe loop here. If you were expecting one, that is a different runtime — see docs/codebase/ARCHITECTURE.md."
+    },
+    {
+      "file": "backend/convex/domains/redesign/chatRuns.ts",
+      "line": 2077,
+      "pattern": "streamGenerateContent\\?alt=sse",
+      "title": "The model call — raw fetch, no SDK",
+      "description": "Gemini's streaming endpoint, called directly. An `AbortController` armed with a 45-second timeout is passed as `signal`, and the read loop below re-checks for cancellation on every chunk, so a user pressing Stop actually stops the upstream request rather than just hiding the output."
+    },
+    {
+      "file": "backend/convex/domains/redesign/chatRuns.ts",
+      "line": 2084,
+      "pattern": "tools: \\[\\{ google_search: \\{\\} \\}\\]",
+      "title": "The only tool on this path, and it is not ours",
+      "description": "One boolean switches on Google's built-in search grounding. There is no tool registry, no dispatcher and no function-calling loop in this file. The rows the UI labels \"tool calls\" are stage records the orchestrator writes about itself.\n\nMulti-tool agent machinery does exist in this repository (`backend/convex/domains/agents/`, `packages/convex-mcp-nodebench`), and none of it is reachable from `/redesign/chat`."
+    },
+    {
+      "file": "backend/convex/domains/redesign/chatRuns.ts",
+      "line": 1775,
+      "pattern": "export const appendEvent = internalMutation",
+      "title": "Progress is state, not a message",
+      "description": "Each stage becomes a row with a monotonically increasing `idx`. Read-max-then-insert is safe here because a Convex mutation is a transaction.\n\nThe rule this creates: **a stage that does not append cannot be seen.** Adding a computation to the orchestrator is not enough; it has to become a row."
+    },
+    {
+      "file": "apps/web/src/features/redesign/hooks/useRedesignChatRun.ts",
+      "line": 290,
+      "pattern": "const events = useQuery",
+      "title": "The 'stream' is two ordinary subscriptions",
+      "description": "No SSE endpoint, no WebSocket route, no polling loop in this application's code. A Convex query is a subscription: it re-runs and pushes whenever its underlying rows change, so the event rows written on the server *are* the stream.\n\n`\"skip\"` is Convex's idiom for \"do not subscribe yet\". Because the rows are durable, a reload does not lose an answer — `getLatestOwnedRun` re-attaches to it."
+    },
+    {
+      "file": "backend/convex/domains/redesign/chatRuns.ts",
+      "line": 1821,
+      "pattern": "export const finalizeRun = internalMutation",
+      "title": "Sealing the answer",
+      "description": "The run row is patched to `complete` with the content hash that makes the answer shareable at a stable URL. A crash before this point leaves a run that is visibly unfinished rather than a truncated answer presented as whole."
+    }
+  ],
+  "ref": "main"
+}
