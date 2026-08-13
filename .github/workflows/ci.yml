@@ -39,6 +39,12 @@ jobs:
           package-manager-cache: false
           node-version-file: ".nvmrc"
 
+      # Needs no dependencies, so it runs before install and fails in ~1s.
+      # Asserts every docs/START_HERE.md line citation and every .tours/ step
+      # still points at the text it claims — not merely at a line that exists.
+      - name: Walkthrough citations
+        run: node scripts/validate-tours.mjs
+
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 

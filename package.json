@@ -23,6 +23,7 @@
     "proofloop:engine": "tsx proofloop-run.ts",
     "build:voice": "tsc -p workers/node/tsconfig.json --noCheck",
     "start:voice": "node dist/workers/node/index.js",
+    "docs:check": "node scripts/validate-tours.mjs",
     "lint": "node scripts/ui/agentNativeUiLinter.mjs && tsc -p backend/convex -noEmit --pretty false && tsc -p . -noEmit --pretty false && convex dev --once --typecheck=enable && vite build",
     "notebook:health": "node scripts/ops/hourlyHealthCheck.mjs",
     "nodekit:activegraph:collect": "node scripts/nodekit/collectActiveGraphCorpus.mjs",
