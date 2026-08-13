@@ -457,7 +457,7 @@ reasons that predate this document; the exact counts and causes are in
 `docs/codebase/CONCERNS.md`, so you can tell a pre-existing failure from one you
 just caused.
 
-`npm run docs:check` validates this page's line citations and the CodeTour steps
+`node scripts/validate-tours.mjs` validates this page's line citations and the CodeTour steps
 in `.tours/`. It needs no browser, no backend and no install — run it after
 moving any code either one points at.
 

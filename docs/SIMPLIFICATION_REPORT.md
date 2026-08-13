@@ -39,7 +39,7 @@ appear in search results but are dead. Those are what moved.
 | Typecheck | **not re-measured in this pass** — `promotion/PROMOTION_LOG.md` records exit 2 / 5,383 errors at the Wave 1 baseline | exit 2 · **5,378** errors | no delta claimed | `npx tsc -p tsconfig.app.json --noEmit --pretty false 2>&1 \| grep -c "error TS"` |
 | Browser workflow passes | not run — needs a Convex deployment | not run — same reason | — | `npx playwright test evals/e2e/one-flow-regression.spec.ts` (requires `VITE_CONVEX_URL`) |
 | Production bundle size | exit 0 · PWA precache 338 entries / 22,522.18 KiB | exit 0 · PWA precache 338 entries / **22,522.06 KiB** | −0.12 KiB | `npm run build` |
-| CodeTour steps resolving | n/a (no tours existed) | 27 / 27 | +27 | `node scripts/validate-tours.mjs` |
+| CodeTour steps resolving | n/a (no tours existed) | 27 / 27 | +27 | `node scripts/validate-tours.mjs` (the validator has since grown to cover `docs/START_HERE.md` citations too, so the same command now reports a larger total — 27 of them are still the tour steps counted here) |
 | Additions/deletions | — | — | 34 files, +1,700 / −1,885 | `git diff --shortstat` |
 
 
