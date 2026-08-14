@@ -131,6 +131,10 @@ public/dogfood/frames/
 # Secrets
 .mcpregistry_github_token
 packages/mcp-local/.mcpregistry_github_token
+# every registry credential, not just the github one: a publish JWT was
+# committed here on 2026-03-12 because this pattern listed only _github_token
+.mcpregistry_*_token
+packages/mcp-local/.mcpregistry_*_token
 vendor/claw3d/
 
 # Competitive intelligence (private)
