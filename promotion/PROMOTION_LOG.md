@@ -95,8 +95,11 @@ reproduction; a hunch is not a defect.
 
 | # | Severity | Journey | Reproduction | Status |
 |---|----------|---------|--------------|--------|
-| D1 | Critical | J1–J4, product half of J5 | Clone clean, `npm install`, start Vite, open `/redesign/chat` (any width). The app renders the "Convex backend not configured" card, never the chat surface. There is no offline, fixture, or local-backend mode for the product routes: the gate is `convexUrl ? new ConvexReactClient(convexUrl) : null` in `apps/web/src/main.tsx`, and the on-screen remedy (`npx convex dev`) requires a Convex cloud account. A stranger following the README cannot reach a single canonical journey. | **Narrowed** (iteration 1). The gate now tests validity, not presence, so D1b below is fixed and gated. The half that remains open is unchanged and needs a backend: with no deployment URL there is still no product surface, and creating one is out of scope. |
+| D1 | Critical | J1–J4, product half of J5 | Clone clean, `npm install`, start Vite, open `/redesign/chat` (any width). The app renders the "Convex backend not configured" card, never the chat surface. There is no offline, fixture, or local-backend mode for the product routes: the gate is `convexUrl ? new ConvexReactClient(convexUrl) : null` in `apps/web/src/main.tsx`, and the on-screen remedy (`npx convex dev`) requires a Convex cloud account. A stranger following the README cannot reach a single canonical journey. | **Closed as a blocker** — iteration 2. With a deployment provisioned, J1/J2/J4 run end to end at 1280 and 375 (`promotion/evidence/live-journey/report.json`, exit 0). Two real defects sat behind the door and were fixed (undeclared `@convex-dev/crons`; a module-analysis-time throw for an unconfigured OpenRouter key that failed the whole push). What is *not* fixed and is not a defect: the product still requires a Convex deployment, which is the architecture. The setup path is now written down — `docs/START_HERE.md` "Before Step 1" and `docs/codebase/CONCERNS.md` C7b. |
 | D1b | Critical | J1–J4 | Discovered while reproducing D1, and strictly worse than it. The README's own "Local development" section says `cp .env.example .env.local`, and `.env.example` line 11 ships `VITE_CONVEX_URL=https://your-project.convex.cloud`. That string is non-empty, so `convexUrl ? … : null` accepted it, `MissingConvexUrlScreen` was skipped, and the product mounted: `/redesign/chat` rendered the real shell (`[data-agent-runtime-surface="redesign-chat"]`, `data-empty="true"`, header, starters, composer) against a host Convex refuses to route. `*.convex.cloud` is a wildcard, so the socket connected and the server answered `FatalError: Couldn't parse deployment name your-project`, which `convex/dist/esm/browser/sync/client.js` rethrows out of its message handler before terminating the socket. Measured at both 1280×900 and 375×812: `h1` absent, 3 console/page errors including that uncaught throw, backend permanently dead, remedy card never shown. **So the documented first-run path was the one branch nobody designed.** | **Fixed** — iteration 1. Gated by `node scripts/capture-convex-setup-gate.mjs`; pre-fix run retained at `promotion/evidence/convex-setup-gate/before/report.json`. |
+| D5 | Major | J1 error path | Sign in, type a 2-character prompt (`ab`), submit. `startChat` correctly rejects it at the trust boundary — but the **reason never reaches the screen**. The turn reads only "Live chat is not running / The live chat run could not be started."; the actual message, `Prompt too short — write at least a 3-character question.`, appears **only in the browser console**. Measured 2026-08-14, captured in `promotion/evidence/live-journey/report.json` (check "Condition 5…", compare `detail.turn` with `detail.consoleErrors[0]`) and `09-validation-error-desktop.png`. The user is told something failed and given no way to know what to change. | Open — found by iteration 2, not fixed in it |
+| D6 | Major | conditions 7 and 10 | Two independent measurements of the same root cause, both on the production build under `vite preview`, signed out, at `/redesign/chat`. (a) Lighthouse 13.4.1 default (mobile emulation, throttled): **performance 56**, **LCP 10 827 ms**, FCP 6 883 ms — TBT 193 ms and CLS 0.0028 are fine, so the problem is bytes on the wire, not main-thread work. The build reports a PWA precache of **338 entries / 22 518 KiB**. (b) The Web Interface Guidelines review found four major deviations: no `<h1>` and no skip link on the only route the product has, three sub-44px touch targets at 375 including the 44×36 submit button, and a 14.5px composer font that triggers iOS Safari auto-zoom. Artifacts: `promotion/evidence/web-quality/summary.json`, `promotion/evidence/wig-review/REVIEW.md`. | Open — found by iteration 2, not fixed in it |
+| D7 | Major | J1 | Ask the same freshness-intent question ("What has changed at Anthropic in the last year?") repeatedly on the same deployment, signed in. The number of grounded sources attached to the answer was **3, 2, 1, 0, 1 and 0** across six consecutive runs on 2026-08-14 with the same model, tier and settings. Not a width effect — re-asking a 0-source question at 1280 in a fresh session returned 0 again. On the zero runs `fallback_source_search` fires and reports status `warning`, `bind_evidence` warns, and the packet correctly shows "Source needed: no supported URL is available, so source-strength and claim-strength comparisons are unverified." So the app **degrades honestly**, which is why this is Major and not Critical — but the product's whole promise is "an answer with its sources counted and attached", and a third of runs deliver none, with no retry offered and nothing telling the user that re-asking might work. Reproduce with `node scripts/capture-live-journey.mjs` a few times and diff `report.json` → `results[2].detail.sourceCount`. | Open — found by iteration 2, not fixed in it |
 | D2 | Major | build/CI hygiene (blocks condition 11) | `npx tsc -p tsconfig.app.json --noEmit --pretty false` → exit 2 with 5383 errors. 4641 are `TS2339` ("property does not exist") and 4365 error lines mention `never`, i.e. one upstream `api` type collapsing to `never` and cascading. First error is `apps/web/src/App.tsx(88,20): TS2367 … types 'MainView' and '"home"' have no overlap`. `npm run build` still exits 0, so the red typecheck is invisible to anyone who only builds. | Open — known blocker, out of scope for Wave 1 by instruction |
 | D3 | Major | J5 (graph rail) | Load `demo/graph-rail/index.html` in a tab whose viewport is 0 wide (hidden pane, collapsed panel, `display:none` ancestor at mount). Sigma throws an uncaught `Error: Sigma: Container has no width`; the rail renders nothing and `#stats` stays at `0 entities · 0 edges · replaying…` even though `window.__graphRail.done === true`. Then resize the viewport to 375×812 and wait 3 s: `#stats` is **still** `0 entities · 0 edges · replaying…` — it never recovers without a full reload. Reproduced twice, in two separate tabs. The repo's own gate (`scripts/capture-graph-rail.mjs`) cannot catch this because it always mounts at a fixed non-zero viewport. **Caveat, stated so nobody over-reads it:** 0 wide is not itself a supported width, and at 375 and 1280 the surface mounts clean with zero console errors. What makes this Major rather than cosmetic is the *no-recovery* half — mounting inside a collapsed drawer, a `display:none` tab, or a not-yet-laid-out panel is an ordinary product situation, and the rail stays dead afterwards. | Open — baseline, not fixed in Wave 1 |
 | D4 | Minor | first-run onboarding | `npm run dev` is `npm-run-all --parallel dev:frontend dev:backend dev:voice`. `dev:backend` is `convex dev`, which blocks on an interactive Convex login, and `dev:voice` requires `.env.local` to exist. A stranger running the documented start command gets an interactive prompt rather than a running app; the frontend-only path (`npx vite`) is not documented anywhere in the README. | Open — baseline |
@@ -190,4 +193,133 @@ reproduction; a hunch is not a defect.
   run to run; that is a fact about the suite, not about this change.
 
 - **Conditions newly PASS:** 12. **1/12.**
+
+### Iteration 2 — 2026-08-14 — the backend was stood up, and nine conditions stopped being hypothetical
+
+- **Journey exercised:** J1, J2 and J4, end to end, at 1280×900 and 375×812,
+  against a live Convex deployment provisioned for this run.
+
+- **Observed — the other half of D1, and what was actually behind it.**
+  Wave 1 and iteration 1 both stopped at the same sentence: "creating a backend
+  is out of scope." With that scope opened, the door turned out to have **three**
+  locks, and two of them were defects rather than architecture.
+
+  1. `npx convex dev --once --configure new` provisioned fine, then the first
+     push died: `Could not resolve "@convex-dev/crons/convex.config"`.
+     `@erquhart/convex-oss-stats@0.8.2` imports that module and declares it in
+     neither `dependencies` nor `peerDependencies`; with `package-lock.json`
+     gitignored (CONCERNS C5b) a fresh install simply may not have it.
+  2. With that fixed the push died again, differently:
+     `InvalidModules: Failed to analyze domains/agents/digestAgent.js:
+     Uncaught Error: OpenRouter model "kimi-k2.6" requested but
+     OPENROUTER_API_KEY not configured`. **Root cause**, traced rather than
+     guessed: Convex analyses every backend module on every push;
+     `domains/agents/core/coordinatorAgent.ts:1390` calls
+     `createCoordinatorAgent(DEFAULT_MODEL).asTextAction(...)` at module scope
+     because a Convex function must be a module-level export; `DEFAULT_MODEL` is
+     `kimi-k2.6`, an OpenRouter model; and `buildLanguageModel` threw *at
+     construction* for an unconfigured provider. So a key for a provider that
+     `/redesign/chat` never calls made the **entire backend undeployable** —
+     no chat, no auth, no persistence — for anyone without an OpenRouter
+     account. That is the mechanism by which "the whole system below the trust
+     boundary is unrunnable" was true.
+  3. Sign-in then failed with `Missing environment variable 'JWT_PRIVATE_KEY'`.
+     Convex Auth needs its own keys, and nothing in the repo's setup text said
+     so. Not skippable: live research rejects anonymous accounts
+     (`requirePaidChatUserId`, `chatRuns.ts:159`).
+
+- **Fixed.** Two changes, both at the seam every caller routes through.
+  - `package.json`: `@convex-dev/crons` declared as a direct dependency, because
+    the package that needs it does not.
+  - `backend/convex/domains/agents/mcp_tools/models/modelResolver.ts`:
+    `buildLanguageModel` no longer throws when a provider key is missing. It
+    returns a `LanguageModel` whose `doGenerate`/`doStream` throw the same
+    sentence, so **the error is moved, not removed** — an unconfigured provider
+    now fails the call that needs the key instead of the deploy that does not.
+    Applied to the `google` branch as well, which had the identical shape.
+    Gated by a new case in `modelResolver.test.ts` that deletes
+    `OPENROUTER_API_KEY`, constructs `DEFAULT_MODEL`, and asserts both that
+    construction succeeds and that calling it still rejects.
+  - The three setup commands are now written down in `docs/START_HERE.md`
+    ("Before Step 1") and `docs/codebase/CONCERNS.md` (C7b), including both
+    traps above, so the next cold reader does not rediscover them.
+
+- **Re-proved in the rendered app.** `node scripts/capture-live-journey.mjs
+  --port 4902` → **exit 0**, 9 of 9 checks ok. Report and eight screenshots at
+  `promotion/evidence/live-journey/`. What it asserts, none of it inferred:
+  - the surface mounts with `data-empty="true"` on a live backend;
+  - after submit the transcript holds two turns, the assistant turn carries a
+    `data-chat-run-id`, and the live-research checklist is on screen;
+  - the sealed turn agrees with itself: this capture landed `Auto · 0 sources`,
+    so it carries the honest "Source needed: no supported URL is available…"
+    notice and **no** evidence rows; five tool rows are present (including
+    `fallback_source_search` and `bind_evidence` at status `warning`); and it is
+    **not** the unavailable fallback. The gate asserts the invariant in both
+    directions — see D7 on why it cannot assert `sources >= 1`;
+  - the run row reaches `status: "complete"` with **30** durable event rows in
+    `redesignChatStreamEvents`, `idx` strictly increasing, including `tool_call`
+    and `packet_complete` — read back out of Convex, so "it streamed" and "it
+    persisted" are proven separately;
+  - `/redesign/chat/r/1znqpv1wpmh0` opened in a **cold context** reaches
+    `data-state="ready"` with matching text, and `getLatestOwnedRun().runId` is
+    unchanged across it — the link replays, it does not re-run;
+  - Stop produces "Cancellation recorded…" and a turn that says the run was
+    cancelled, with **no** sealed packet, and the session takes the next
+    question (4 turns → 6);
+  - zero console errors and zero failed requests across the whole journey;
+  - at 375: mounts, answers, `scrollWidth === clientWidth === 375`, zero
+    console errors.
+
+- **Three gate bugs found in this gate, worth recording because each one would
+  have produced a false result.** (a) Waiting for "SOURCES … evidence rows"
+  *hangs* on an answer with 0 sources instead of failing it; (b) relaxing that
+  to the packet header matched the RuntimeBoard **mid-stream**, so every later
+  check read a half-finished run and reported `status: "running"` as a product
+  defect; (c) asserting a cancelled turn contains no "evidence rows" failed a
+  perfectly correct cancellation, because `liveChatUnavailableMarkdown`'s own
+  copy contains the phrase "stream tool events, evidence rows". The gate now
+  asks the **run row** whether the run is terminal and matches the sealed
+  packet's cost header, not prose.
+
+- **Audits, finally runnable because there is finally a surface.**
+  - `node scripts/audit-web-quality.mjs` (Lighthouse 13.4.1 + @axe-core/cli
+    4.13.0 against the **production build** under `vite preview`, signed out):
+    performance **56**, accessibility **96**, best-practices **100**, SEO
+    **100**; LCP **10 827 ms**, FCP **6 883 ms**, TBT **193 ms**, CLS **0.0028**.
+    axe: **2 violations, both moderate, 0 serious/critical**
+    (`landmark-one-main`, `page-has-heading-one`).
+    Artifacts: `promotion/evidence/web-quality/{lighthouse.json,axe.json,summary.json}`.
+  - `node scripts/review-web-interface-guidelines.mjs` + the written review at
+    `promotion/evidence/wig-review/REVIEW.md`: **4 major findings** — no `<h1>`
+    on the primary surface, no skip link, three sub-44px touch targets at 375
+    including the submit button (44×36), and a 14.5px composer font that will
+    trigger iOS Safari auto-zoom. This is a review, not a Lighthouse score; the
+    two measure different things and both are committed separately.
+
+- **Tests:** `npx vitest run backend/convex/domains/agents/mcp_tools/models/modelResolver.test.ts`
+  → exit 0, 4 passed (3 pre-existing + 1 new). `node node_modules/vite/bin/vite.js build`
+  → exit 0, PWA precache 338 entries / 22 518 KiB. `npm run build` still fails
+  on this machine before Vite runs — its first step shells out to
+  `npx esbuild` for a Vercel serverless bundle and the shim is not resolvable
+  here; that is unrelated to the rendered page and unchanged by this iteration.
+  The full `npm run test:run` was **not** re-run this iteration, so condition 11
+  keeps iteration 1's measurement rather than a fresh one.
+
+- **A measurement that changed what this gate can assert, recorded so nobody
+  re-derives it.** The first version asserted `sources >= 1` on the answer. The
+  same prompt, model and settings produced **3, 2, 1, 0, 1 and 0** grounded sources
+  across five consecutive runs — Gemini decides how many `groundingChunks` come
+  back, and a 0-source answer is a *designed* state that says so
+  ("Source needed: no supported URL is available…", `chatRuns.ts:843`). Verified
+  it is not a width effect by re-asking the 0-source question at 1280 in a fresh
+  session: 0 sources again. So the gate now asserts the invariant that actually
+  holds — count and evidence agree, and a zero count is *stated* — in both
+  branches. A gate that fails a third of the time for reasons outside the repo
+  teaches people to ignore it.
+
+- **Found but not fixed** (added to the ledger, not silently carried): **D5**,
+  the server's validation reason never reaches the screen; **D6**, LCP 10.8 s on
+  the production build plus four major Web Interface Guidelines deviations.
+
+- **Conditions newly PASS:** 1, 3, 4, 5, 6, 9. **7/12.**
 

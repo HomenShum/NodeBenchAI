@@ -832,6 +832,38 @@ export const LEGACY_ALIASES: Record<string, ApprovedModel> = {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
+ * A LanguageModel that can be *constructed* without the key it would need to
+ * *run*.
+ *
+ * Why this exists, in the order it bites: Convex analyses every backend module
+ * on every push, and `domains/agents/core/coordinatorAgent.ts` builds its model
+ * at module scope (`createCoordinatorAgent(DEFAULT_MODEL).asTextAction(...)`),
+ * because a Convex function has to be a module-level export. `DEFAULT_MODEL` is
+ * `kimi-k2.6`, an OpenRouter model. So throwing here — at construction — made
+ * `convex dev` fail with `InvalidModules: Failed to analyze
+ * domains/agents/digestAgent.js` for anyone without an OpenRouter account, and
+ * a failed push means *no* backend at all: no chat, no auth, no persistence,
+ * for a reader who only wanted the Gemini-backed `/redesign/chat` path.
+ *
+ * The error is not removed, only moved to the call that actually needs the key.
+ * `doGenerate`/`doStream` still throw the same sentence, so a run against an
+ * unconfigured provider fails loudly instead of silently returning something.
+ */
+function unconfiguredModel(alias: string, requirement: string): LanguageModel {
+  const fail = async (): Promise<never> => {
+    throw new Error(`Model "${alias}" requested but ${requirement}`);
+  };
+  return {
+    specificationVersion: "v2",
+    provider: "unconfigured",
+    modelId: alias,
+    supportedUrls: {},
+    doGenerate: fail,
+    doStream: fail,
+  } as unknown as LanguageModel;
+}
+
+/**
  * Build a LanguageModel instance from a ModelSpec
  */
 function buildLanguageModel(spec: ModelSpec): LanguageModel {
@@ -843,8 +875,9 @@ function buildLanguageModel(spec: ModelSpec): LanguageModel {
     case "google": {
       const googleProvider = getGoogleProvider();
       if (!googleProvider) {
-        throw new Error(
-          `Google model "${spec.alias}" requested but no Google API key alias is configured`,
+        return unconfiguredModel(
+          spec.alias,
+          "no Google API key alias is configured",
         );
       }
       return googleProvider(spec.sdkId);
@@ -852,9 +885,7 @@ function buildLanguageModel(spec: ModelSpec): LanguageModel {
     case "openrouter": {
       const openrouter = getOpenRouterProvider();
       if (!openrouter) {
-        throw new Error(
-          `OpenRouter model "${spec.alias}" requested but OPENROUTER_API_KEY not configured`
-        );
+        return unconfiguredModel(spec.alias, "OPENROUTER_API_KEY not configured");
       }
       return openrouter.chat(spec.sdkId);
     }

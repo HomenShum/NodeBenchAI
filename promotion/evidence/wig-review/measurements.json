@@ -1,0 +1,143 @@
+{
+  "capturedAt": "2026-08-14T03:16:17.452Z",
+  "guidelines": "https://vercel.com/design/guidelines",
+  "url": "http://127.0.0.1:4902/redesign/chat",
+  "authState": "signed out",
+  "measurements": {
+    "desktop": {
+      "viewportWidth": 1280,
+      "minTargetPx": 24,
+      "title": "NodeBench AI — Entity Intelligence for Any Company, Market, or Question",
+      "viewportMeta": "width=device-width, initial-scale=1.0, viewport-fit=cover",
+      "zoomDisabled": false,
+      "themeColorMeta": "#09090B",
+      "htmlColorScheme": "light",
+      "h1Count": 0,
+      "mainLandmarks": 1,
+      "skipLink": false,
+      "ariaLiveRegions": 1,
+      "interactiveCount": 10,
+      "smallTargets": [
+        {
+          "tag": "a",
+          "name": "NodeBench decision workspace",
+          "w": 79,
+          "h": 23
+        },
+        {
+          "tag": "a",
+          "name": "See a real answered example, receipts in",
+          "w": 284,
+          "h": 18
+        }
+      ],
+      "unnamedIconButtons": [],
+      "fields": [
+        {
+          "tag": "textarea",
+          "type": null,
+          "fontSizePx": 14.5,
+          "placeholder": "Ask anything · type / for commands",
+          "hasLabel": true,
+          "autocomplete": null
+        }
+      ],
+      "css": {
+        "transitionAllCount": 1,
+        "reducedMotionBlocks": 64,
+        "focusVisibleRules": 148,
+        "touchActionManipulation": 4,
+        "unreadableSheets": 0
+      },
+      "scrollWidth": 1280,
+      "clientWidth": 1280,
+      "focusRing": {
+        "restingFirstControl": {
+          "outline": "none 3px",
+          "boxShadow": "none"
+        },
+        "focused": {
+          "tag": "a",
+          "name": "NodeBench decision workspace",
+          "outline": "solid 1px",
+          "boxShadow": "none"
+        },
+        "changed": true
+      }
+    },
+    "mobile": {
+      "viewportWidth": 375,
+      "minTargetPx": 44,
+      "title": "NodeBench AI — Entity Intelligence for Any Company, Market, or Question",
+      "viewportMeta": "width=device-width, initial-scale=1.0, viewport-fit=cover",
+      "zoomDisabled": false,
+      "themeColorMeta": "#09090B",
+      "htmlColorScheme": "light",
+      "h1Count": 0,
+      "mainLandmarks": 1,
+      "skipLink": false,
+      "ariaLiveRegions": 1,
+      "interactiveCount": 10,
+      "smallTargets": [
+        {
+          "tag": "button",
+          "name": "Sign in",
+          "w": 59,
+          "h": 32
+        },
+        {
+          "tag": "a",
+          "name": "See a real answered example, receipts in",
+          "w": 284,
+          "h": 18
+        },
+        {
+          "tag": "button",
+          "name": "Run research",
+          "w": 44,
+          "h": 36
+        }
+      ],
+      "unnamedIconButtons": [],
+      "fields": [
+        {
+          "tag": "textarea",
+          "type": null,
+          "fontSizePx": 14.5,
+          "placeholder": "Ask anything · type / for commands",
+          "hasLabel": true,
+          "autocomplete": null
+        }
+      ],
+      "css": {
+        "transitionAllCount": 1,
+        "reducedMotionBlocks": 64,
+        "focusVisibleRules": 148,
+        "touchActionManipulation": 4,
+        "unreadableSheets": 0
+      },
+      "scrollWidth": 375,
+      "clientWidth": 375,
+      "focusRing": {
+        "restingFirstControl": {
+          "outline": "none 3px",
+          "boxShadow": "none"
+        },
+        "focused": {
+          "tag": "a",
+          "name": "NodeBench decision workspace",
+          "outline": "solid 3px",
+          "boxShadow": "none"
+        },
+        "changed": true
+      }
+    }
+  },
+  "notMeasured": [
+    "Test on actual mobile devices (emulation only here)",
+    "Screen-reader passes (axe covers the tree, not the narration)",
+    "Optical alignment ±1px",
+    "iOS Low Power Mode / macOS Safari performance",
+    "Locale formatting across locales"
+  ]
+}

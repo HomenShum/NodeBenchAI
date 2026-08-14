@@ -1,0 +1,171 @@
+{
+  "capturedAt": "2026-08-14T03:36:25.738Z",
+  "deployment": "a Convex cloud deployment (host redacted)",
+  "port": 4902,
+  "question": "What has changed at Anthropic in the last year?",
+  "journeys": [
+    "J1",
+    "J2",
+    "J4"
+  ],
+  "expectation": "Against a real Convex deployment the primary journey renders, streams, persists ordered event rows, replays from its permanent link without a second run, and cancels honestly — at 1280 and at 375, with zero console errors.",
+  "observed": {
+    "answerExcerpt": "Auto · 0 sources · 20.4s · <$0.01just now0% memory hit1 external refreshOver the past year, Anthropic has transitioned from a private, research-focused AI lab into a highly profitable commercial powerhouse, filing confidentially for a historic $2 trillion IPO, launching its Claude 4 and Claude 5 model families, and restructuring its organization toOver the past year, Anthropic has transitioned fro",
+    "persistence": {
+      "status": "complete",
+      "eventCount": 30,
+      "eventTypes": [
+        "tool_call",
+        "stage",
+        "board_state",
+        "context_candidate",
+        "tool_decision",
+        "context_runtime_packet",
+        "live_grounding_decision",
+        "scratchpad",
+        "section",
+        "run_metrics",
+        "packet_complete"
+      ]
+    },
+    "consoleErrors": [],
+    "failedRequests": []
+  },
+  "captures": [
+    "promotion/evidence/live-journey/01-empty-desktop.png",
+    "promotion/evidence/live-journey/02-agent-running-desktop.png",
+    "promotion/evidence/live-journey/03-answer-desktop.png",
+    "promotion/evidence/live-journey/04-answer-trace-desktop.png",
+    "promotion/evidence/live-journey/05-receipt-desktop.png",
+    "promotion/evidence/live-journey/06-cancelled-desktop.png",
+    "promotion/evidence/live-journey/09-validation-error-desktop.png",
+    "promotion/evidence/live-journey/07-empty-mobile.png",
+    "promotion/evidence/live-journey/08-answer-mobile.png"
+  ],
+  "results": [
+    {
+      "check": "J1 step 2 — designed empty state on a live backend",
+      "detail": {
+        "mounted": "redesign-chat",
+        "empty": "true",
+        "turnCount": 0,
+        "runIds": [],
+        "lastTurnText": "",
+        "continuationState": null,
+        "scrollWidth": 1280,
+        "clientWidth": 1280
+      },
+      "problems": []
+    },
+    {
+      "check": "J1 steps 3-4 — agent-running state is designed, not a spinner",
+      "detail": {
+        "turnCount": 2,
+        "runIds": [
+          "chat_msse8tbz_5w7dj9"
+        ],
+        "excerpt": "✦Drafting answer…Live research run3 / 3 passedUnderstanding the promptoperator · prompt-only contextbuild_context_bundleEntity identificationcompany_search · Anthropicclassify_queryMemory checkoperator · prompt-only cont"
+      },
+      "problems": []
+    },
+    {
+      "check": "J1 step 4 — a real answer packet whose source count and evidence agree",
+      "detail": {
+        "runId": "chat_msse8tbz_5w7dj9",
+        "sources": "0 sources",
+        "sourceCount": 0,
+        "evidenceRows": null,
+        "sourceNeededNotice": true,
+        "toolCalls": [
+          "Tool · classify_queryClassify query · 0ms · done",
+          "Tool · build_context_bundleBuild context bundle · 293ms · done",
+          "Tool · gemini_synthesisGemini synthesis · 19.9s · done",
+          "Tool · fallback_source_searchFallback source search · 0ms · warning",
+          "Tool · bind_evidenceBind evidence · 2ms · warning"
+        ]
+      },
+      "problems": []
+    },
+    {
+      "check": "START_HERE steps 5+8 — the answer is durable rows, not a socket message",
+      "detail": {
+        "status": "complete",
+        "eventCount": 30,
+        "eventTypes": [
+          "tool_call",
+          "stage",
+          "board_state",
+          "context_candidate",
+          "tool_decision",
+          "context_runtime_packet",
+          "live_grounding_decision",
+          "scratchpad",
+          "section",
+          "run_metrics",
+          "packet_complete"
+        ]
+      },
+      "problems": []
+    },
+    {
+      "check": "J2 — the permanent link replays the stored answer instead of re-running it",
+      "detail": {
+        "hash": "1znqpv1wpmh0",
+        "continuationState": "ready",
+        "latestRunIdBefore": "chat_msse8tbz_5w7dj9",
+        "latestRunIdAfter": "chat_msse8tbz_5w7dj9"
+      },
+      "problems": []
+    },
+    {
+      "check": "J4 — a cancelled run reports an honest terminal state and fabricates no answer",
+      "detail": {
+        "toasts": [
+          "Cancellation recorded. The active stream will abort at its next checkpoint."
+        ],
+        "excerpt": "✦NodeBenchLive chat is not runningRun cancelled. Any in-flight provider stream was aborted at the next cooperative checkpoint.No live artifact context has loaded yet.Use the composer to start a live chat run and stream tool events, evidence"
+      },
+      "problems": []
+    },
+    {
+      "check": "J4 — the session survives the cancel and accepts the next question",
+      "detail": {
+        "turnsBefore": 4,
+        "turnsAfter": 6
+      },
+      "problems": []
+    },
+    {
+      "check": "Condition 9 — no unexplained console errors and no failed requests",
+      "detail": {
+        "consoleErrors": [],
+        "failedRequests": []
+      },
+      "problems": []
+    },
+    {
+      "check": "Condition 5 — the error state is designed, and validation happens on the server",
+      "detail": {
+        "toasts": [],
+        "turn": "✦NodeBenchLive chat is not runningThe live chat run could not be started.No live artifact context has loaded yet.Use the composer to start a live chat run and stream tool events, evidence rows, and th",
+        "consoleErrors": [
+          "[CONVEX M(domains/redesign/chatRuns:startChat)] [Request ID: eaa5e418bf2a77ef] Server Error\nUncaught Error: Prompt too short — write at least a 3-character question.\n"
+        ]
+      },
+      "problems": []
+    },
+    {
+      "check": "Conditions 3-4 — the same journey is intentional at 375 wide",
+      "detail": {
+        "empty": "true",
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "consoleErrors": 0,
+        "sealedSourceCount": "0"
+      },
+      "problems": []
+    }
+  ],
+  "verdict": "PASS",
+  "failures": []
+}

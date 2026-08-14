@@ -176,21 +176,77 @@ version of the reuse ladder.
 
 ---
 
+## C7b — MAJOR for a new engineer: the product is unobservable until you stand up a Convex deployment, and the door has three locks, not one
+
+This is the first thing that will happen to you, so it is the first thing you
+should read. Every product route renders **"Convex backend not configured"**
+until `VITE_CONVEX_URL` points at a real deployment. That is by design — this
+repo keeps all durable state in Convex and ships no local substitute — but
+until 2026-08-14 the setup instructions covered one of the three things you
+actually need, and the other two failed in ways that do not name themselves.
+
+**Reproduce the working path** (needs a Convex account and a Gemini key; the
+full version with the traps is `docs/START_HERE.md` → "Before Step 1"):
+
+```bash
+npx convex dev --once --configure new --project <yours> --team <yours>
+npx @convex-dev/auth                       # JWT_PRIVATE_KEY + JWKS + SITE_URL
+npx convex env set GEMINI_API_KEY -- "<key>"
+npx vite --port 4902 --strictPort --host 127.0.0.1
+node scripts/capture-live-journey.mjs --port 4902     # drives J1/J2/J4, costs model calls
+```
+
+The three locks, in the order they bite:
+
+1. **A missing transitive dependency stops the first push.**
+   `@erquhart/convex-oss-stats@0.8.2` imports `@convex-dev/crons/convex.config`
+   and declares it in neither `dependencies` nor `peerDependencies`. With
+   `package-lock.json` gitignored (C5b), a fresh install can land a tree without
+   it and `convex dev` dies on `Could not resolve
+   "@convex-dev/crons/convex.config"`. Fixed by declaring `@convex-dev/crons`
+   directly; if you see this again, that is what regressed.
+2. **A missing OPTIONAL model key used to fail the ENTIRE deploy.** Convex
+   analyses every backend module on every push.
+   `domains/agents/core/coordinatorAgent.ts` builds `DEFAULT_MODEL`
+   (`kimi-k2.6`, OpenRouter) at module scope, and `buildLanguageModel` threw at
+   construction when `OPENROUTER_API_KEY` was unset — so the push failed with
+   `InvalidModules: Failed to analyze domains/agents/digestAgent.js` and you got
+   no backend at all, for a provider `/redesign/chat` never calls. The error now
+   lives on `doGenerate`/`doStream` instead, so an unconfigured provider fails
+   the call that needs it rather than the deploy.
+   Gated by `backend/convex/domains/agents/mcp_tools/models/modelResolver.test.ts`.
+3. **Convex Auth needs its own keys, and nothing on screen says so.** Without
+   `JWT_PRIVATE_KEY`/`JWKS`, sign-in throws `Missing environment variable
+   'JWT_PRIVATE_KEY'` from the server. You cannot skip this: live research
+   rejects anonymous accounts (`requirePaidChatUserId`,
+   `backend/convex/domains/redesign/chatRuns.ts:159`), so the journey is
+   unreachable signed out.
+
+**What it costs you if you skip it.** Nine of the twelve promotion conditions
+are judged on what a browser shows. Tests and typecheck tell you nothing about
+them. See `promotion/PROMOTION_LOG.md` iteration 2.
+
+---
+
 ## C8 — Documented product defects, not restated here
 
 `promotion/PROMOTION_LOG.md` carries the reproductions:
 
 - **D1** — no product route works without a Convex cloud deployment; there is no
-  offline or fixture backend for the product surfaces. Narrowed, not closed.
+  offline or fixture backend for the product surfaces. **Closed 2026-08-14** as
+  a *blocker*: with a deployment the journeys run end to end
+  (`promotion/evidence/live-journey/report.json`). The dependency itself is not
+  a defect, it is the architecture; the setup path is C7b above.
 - **D2** — the red typecheck (C1 above).
 - **D3** — the graph rail dies permanently if mounted at zero viewport width
   (collapsed drawer, `display:none` tab) and never recovers without a reload.
 - **D4** — `npm run dev` blocks on interactive credentials; the frontend-only
   path is now documented in the README.
 
-Four of the five product journeys are recorded **UNVERIFIED**, not passing, for
-the reason in D1: nobody has driven them without a backend, and creating one was
-out of scope. Read that word literally — it does not mean they work.
+As of 2026-08-14, **J1, J2 and J4 are driven end to end** against a live
+deployment by `node scripts/capture-live-journey.mjs`; J3 (inline correction) and
+the product half of J5 are still UNVERIFIED. Read UNVERIFIED literally — it does
+not mean they work, it means nobody has watched them.
 
 ---
 
