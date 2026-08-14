@@ -32,12 +32,68 @@ does not ship a local substitute for. Without a deployment URL there is no
 database, so there is no product.
 
 To get past that card you need `VITE_CONVEX_URL` pointing at a real Convex
-deployment (`npx convex dev` provisions one against a Convex account). Everything
-from Step 3 down needs that backend. Steps 1–2 you can read and run without it.
+deployment. Everything from Step 3 down needs that backend. Steps 1–2 you can
+read and run without it.
 
 Do **not** start with `npm run dev`. That command runs three processes in
 parallel and two of them block on credentials you may not have. See
 `docs/codebase/CONCERNS.md`, defect D4.
+
+### Standing the backend up — the whole list, in order
+
+This is the part that used to be missing, and it is the reason nine of the
+twelve promotion conditions sat at UNVERIFIED: **you cannot observe anything
+below Step 2 without doing this.** It needs a Convex account and a Gemini API
+key. There is no offline, fixture, or local-backend substitute in this repo.
+
+```bash
+npx convex dev --once --configure new --project <yours> --team <yours>
+#   provisions an isolated DEV deployment and writes CONVEX_DEPLOYMENT,
+#   VITE_CONVEX_URL and VITE_CONVEX_SITE_URL into .env.local (gitignored).
+
+npx @convex-dev/auth
+#   generates JWT_PRIVATE_KEY + JWKS and sets SITE_URL on that deployment.
+#   Without them every sign-in fails with
+#   "Missing environment variable `JWT_PRIVATE_KEY`" and no journey can run,
+#   because live research refuses anonymous callers (Step 5).
+
+npx convex env set GEMINI_API_KEY -- "<your key>"
+#   Step 7 calls Gemini directly. Without this the run fails at the model call.
+
+npx vite --port 4902 --strictPort --host 127.0.0.1
+```
+
+Two traps that cost real time here, so they are written down rather than
+rediscovered:
+
+- **`@erquhart/convex-oss-stats` imports `@convex-dev/crons` without declaring
+  it.** `package-lock.json` is gitignored (CONCERNS C5b), so a fresh
+  `npm install` can resolve a tree where that transitive package is absent and
+  the very first push dies with
+  `Could not resolve "@convex-dev/crons/convex.config"`. It is now a direct
+  dependency for exactly this reason.
+- **A missing OPTIONAL model key used to break the whole deploy.** Convex
+  analyses every backend module on every push, and
+  `domains/agents/core/coordinatorAgent.ts` builds `DEFAULT_MODEL`
+  (`kimi-k2.6`, an OpenRouter model) at module scope. Building a model for an
+  unconfigured provider threw *at construction*, so `convex dev` failed with
+  `InvalidModules: Failed to analyze domains/agents/digestAgent.js` unless you
+  had an OpenRouter account — even though `/redesign/chat` never touches
+  OpenRouter. `modelResolver.ts` now defers that error to the call that needs
+  the key. You do **not** need `OPENROUTER_API_KEY` to run the primary journey.
+
+### Proving it, without trusting this page
+
+```bash
+node scripts/capture-live-journey.mjs --port 4902
+```
+
+That drives J1 (ask → stream → answer with sources), J2 (open the permanent
+receipt link cold and get the same answer, proven by the latest-run id being
+unchanged) and J4 (cancel, honest terminal state, keep working) in a real
+browser at 1280 and 375, and reads the durable rows back out of Convex. It
+writes `promotion/evidence/live-journey/report.json` plus eight screenshots, and
+exits nonzero if any of it stops being true. **It costs real model calls.**
 
 ---
 

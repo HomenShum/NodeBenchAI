@@ -1,0 +1,42 @@
+{
+  "capturedAt": "2026-08-14T03:13:40.583Z",
+  "url": "http://127.0.0.1:4902/redesign/chat",
+  "route": "/redesign/chat",
+  "servedFrom": "vite preview (production build)",
+  "authState": "signed out",
+  "lighthouse": {
+    "version": "13.4.1",
+    "categories": {
+      "performance": 56,
+      "accessibility": 96,
+      "best-practices": 100,
+      "seo": 100
+    },
+    "metrics": {
+      "lcpMs": 10826.5971,
+      "cls": 0.0027902687099600697,
+      "tbtMs": 192.94467500000042,
+      "fcpMs": 6882.513148147581
+    }
+  },
+  "axe": {
+    "violationCount": 2,
+    "seriousOrCriticalCount": 0,
+    "violations": [
+      {
+        "id": "landmark-one-main",
+        "impact": "moderate",
+        "help": "Document should have one main landmark",
+        "nodes": 1,
+        "firstTarget": "html"
+      },
+      {
+        "id": "page-has-heading-one",
+        "impact": "moderate",
+        "help": "Page should contain a level-one heading",
+        "nodes": 1,
+        "firstTarget": "html"
+      }
+    ]
+  }
+}

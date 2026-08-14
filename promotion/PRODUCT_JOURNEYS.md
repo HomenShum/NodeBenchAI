@@ -50,7 +50,7 @@ Each journey states, in this order:
   an answer (not `liveChatUnavailableMarkdown`), and the turn reports a source
   count. `[data-agent-runtime-surface="redesign-chat"]` has lost its
   `data-empty="true"` attribute.
-- **Evidence:** _none yet — surface never rendered; blocked by defect D1 (Convex cloud deployment required, out of scope for Wave 1). See promotion/PROMOTION_LOG.md._
+- **Evidence (2026-08-14, live Convex deployment):** `node scripts/capture-live-journey.mjs --port 4902` → exit 0. Run `chat_msse8tbz_5w7dj9`: the surface mounted with `data-empty="true"`, the submitted turn showed the live-research checklist while streaming, and the turn sealed into an answer packet with five tool rows (classify_query 0 ms, build_context_bundle 293 ms, gemini_synthesis 19.9 s, fallback_source_search **warning**, bind_evidence **warning**). **This capture landed the ungrounded branch:** `Auto · 0 sources`, no evidence rows, and the honest "Source needed: no supported URL is available…" notice — which is a designed state, asserted by the gate, and which the journey's own "Done when" (a reported source count) is satisfied by. Runs of the same prompt on the same deployment returned 3, 2 and 1 sources earlier the same day, so this is nondeterminism in Gemini's grounding, tracked as defect D7 — not a rendering failure. Captures: `promotion/evidence/live-journey/01-empty-desktop.png`, `02-agent-running-desktop.png`, `03-answer-desktop.png`, `04-answer-trace-desktop.png`; numbers in `report.json`. Zero console errors, zero failed requests.
 
 ## J2 — "Send my partner the exact answer I saw, not a re-run of it"
 
@@ -72,7 +72,7 @@ Each journey states, in this order:
   "Prompt, answer, and N sources are carried into new messages", with the
   original prompt and answer visible above the composer. `data-state="loading"`
   that never resolves, or `data-state="unavailable"`, is a failure.
-- **Evidence:** _none yet — surface never rendered; blocked by defect D1 (Convex cloud deployment required, out of scope for Wave 1). See promotion/PROMOTION_LOG.md._
+- **Evidence (2026-08-14, live Convex deployment):** same run. **Share reproducible link** produced `/redesign/chat/r/1znqpv1wpmh0`; opened in a **cold browser context**, the continuation aside reached `data-state="ready"` and the restored answer text matched the original. That it *replayed* rather than re-ran is proven independently of the text: `getLatestOwnedRun().runId` was `chat_msse8tbz_5w7dj9` both before and after opening the link, so no second run row was created. Capture: `promotion/evidence/live-journey/05-receipt-desktop.png`.
 
 ## J3 — "The agent got one sentence wrong and I want to fix it in place"
 
@@ -94,7 +94,10 @@ Each journey states, in this order:
 - **Done when:** signed in, the toast reads "Correction saved to your NodeBench
   memory." Signed out, it reads "Use Sign in in the header to persist
   corrections to memory." — the signed-out path must NOT claim a save.
-- **Evidence:** _none yet — surface never rendered; blocked by defect D1 (Convex cloud deployment required, out of scope for Wave 1). See promotion/PROMOTION_LOG.md._
+- **Evidence:** _still none. The surface now renders (see J1), so the blocker is
+  gone, but nobody has driven the selection-triggered correction panel or
+  compared the signed-in and signed-out toasts. UNVERIFIED means unwatched, not
+  broken._
 
 ## J4 — "Stop. That is not the question I meant."
 
@@ -115,7 +118,7 @@ Each journey states, in this order:
   `_(cancellation requested)_` or the honest unavailable message rather than a
   fabricated answer; and the next submission produces a new turn in the same
   transcript.
-- **Evidence:** _none yet — surface never rendered; blocked by defect D1 (Convex cloud deployment required, out of scope for Wave 1). See promotion/PROMOTION_LOG.md._
+- **Evidence (2026-08-14, live Convex deployment):** same run. Stop was pressed ~3.5 s into a streaming run; the toast read **"Cancellation recorded. The active stream will abort at its next checkpoint."** and the turn settled on **"Live chat is not running / Run cancelled. Any in-flight provider stream was aborted at the next cooperative checkpoint."** — no sealed answer packet was rendered for the cancelled turn (asserted). The next question then produced new turns in the same transcript (4 → 6). Capture: `promotion/evidence/live-journey/06-cancelled-desktop.png`.
 
 ## J5 — "Show me how these entities are connected, and do not invent an edge"
 
