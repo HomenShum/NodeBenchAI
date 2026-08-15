@@ -59,7 +59,7 @@ tests the URL for **validity**, not merely for presence.
 **Core code**
 
 ```tsx
-// apps/web/src/main.tsx:156
+// apps/web/src/main.tsx:156 — const convexUrl = configuredConvexUrl()
 const convexUrl = configuredConvexUrl();
 const convex = convexUrl ? new ConvexReactClient(convexUrl) : null;
 ```
@@ -90,7 +90,7 @@ before you go looking for them.
 **Core code**
 
 ```tsx
-// apps/web/src/App.tsx:209
+// apps/web/src/App.tsx:209 — const isRedesignRoute
 const isRedesignRoute = location.pathname === "/redesign" || location.pathname.startsWith("/redesign/");
 if (isRedesignRoute) {
   return (<ThemeProvider><ErrorBoundary title="Something went wrong">
@@ -124,7 +124,7 @@ does not know what a run is.
 **Core code**
 
 ```tsx
-// apps/web/src/features/redesign/components/UniversalComposer.tsx:248
+// apps/web/src/features/redesign/components/UniversalComposer.tsx:248 — const handleSubmit
 const handleSubmit = (mode: ComposerMode = "research") => {
   const trimmed = text.trim();
   if (!trimmed || streaming) return;
@@ -160,7 +160,7 @@ immediately with a plain-English reason.
 **Core code**
 
 ```tsx
-// apps/web/src/features/redesign/surfaces/ChatSurface.tsx:637
+// apps/web/src/features/redesign/surfaces/ChatSurface.tsx:637 — const sendMessage
 const sendMessage = (text: string, submittedTier: RouterTier) => {
   const canRunLiveChat = chatRun.state.available && !_skipLiveSeed;
   // ... push the user turn + an assistant turn (thinking, or the reason it can't run)
@@ -185,7 +185,7 @@ anonymous account). No network call is made.
 
 **File:** `backend/convex/domains/redesign/chatRuns.ts`
 **Symbol:** `startChat` (a public Convex `mutation`)
-**Called by:** `useRedesignChatRun.submit` (`apps/web/src/features/redesign/hooks/useRedesignChatRun.ts:501`)
+**Called by:** `useRedesignChatRun.submit` in `apps/web/src/features/redesign/hooks/useRedesignChatRun.ts`
 **Calls next:** `ctx.scheduler.runAfter(0, internal…chatRuns.runStreamingChat, …)`
 
 **Why this exists**
@@ -204,10 +204,10 @@ schema layer.
 **Core code**
 
 ```ts
-// backend/convex/domains/redesign/chatRuns.ts:1492
+// backend/convex/domains/redesign/chatRuns.ts:1492 — const prompt = args.prompt.slice(0, MAX_PROMPT_CHARS)
 const prompt = args.prompt.slice(0, MAX_PROMPT_CHARS);
 if (prompt.trim().length < 3) throw new Error("Prompt too short — write at least a 3-character question.");
-const userId = await requirePaidChatUserId(ctx);          // line 159: rejects anonymous accounts
+const userId = await requirePaidChatUserId(ctx);          // rejects anonymous accounts
 const clientRequestId = args.clientRequestId?.trim().slice(0, 160);
 if (clientRequestId) { /* by_user_client_request index → return existing.runId */ }
 ```
@@ -243,7 +243,7 @@ parse, bind evidence, seal.
 **Core code**
 
 ```ts
-// backend/convex/domains/redesign/chatRuns.ts:1868
+// backend/convex/domains/redesign/chatRuns.ts:1868 — export const runStreamingChat = internalAction
 export const runStreamingChat = internalAction({
   handler: async (ctx, args) => {
     const append = (eventType, payload) =>
@@ -284,7 +284,7 @@ renders multi-step agent panels). None of it is on the `/redesign/chat` path. Se
 **Core code**
 
 ```ts
-// backend/convex/domains/redesign/chatRuns.ts:2077
+// backend/convex/domains/redesign/chatRuns.ts:2077 — streamGenerateContent?alt=sse
 const url = `https://generativelanguage.googleapis.com/v1beta/models/${args.model}:streamGenerateContent?alt=sse&key=${apiKey}`;
 const res = await fetch(url, { method: "POST", signal: controller.signal, body: JSON.stringify({
   systemInstruction: { parts: [{ text: systemPrompt }] },
@@ -322,7 +322,7 @@ to `status: "complete"` with its content hash.
 **Core code**
 
 ```ts
-// backend/convex/domains/redesign/chatRuns.ts:1775
+// backend/convex/domains/redesign/chatRuns.ts:1775 — export const appendEvent = internalMutation
 export const appendEvent = internalMutation({
   handler: async (ctx, args) => {
     const existing = await ctx.db.query("redesignChatStreamEvents")
@@ -337,7 +337,7 @@ export const appendEvent = internalMutation({
 `grounding_chunk`, `board_state`, `packet_complete`, `error`), and a payload.
 **Output** — one row in `redesignChatStreamEvents`, ordered by `idx`.
 **Failure behavior** — Convex mutations are transactional; a failed append
-leaves no partial row. `finalizeRun` (line 1821) is what makes an answer
+leaves no partial row. `finalizeRun` is what makes an answer
 readable, so a crash before it leaves the run visibly unfinished rather than
 silently truncated.
 **Next** — the browser is already subscribed to those rows.
@@ -348,7 +348,7 @@ silently truncated.
 
 **File:** `apps/web/src/features/redesign/hooks/useRedesignChatRun.ts`
 **Symbol:** `useRedesignChatRun`
-**Called by:** `ChatSurface` (line 339)
+**Called by:** `ChatSurface` — the surface's single `useRedesignChatRun()` call
 **Calls next:** `buildPartialChatAnswer` → `ChatAssistantMessage`
 
 **Why this exists**
@@ -361,7 +361,7 @@ results whenever the underlying rows change. The event rows written in Step 8
 **Core code**
 
 ```ts
-// apps/web/src/features/redesign/hooks/useRedesignChatRun.ts:290
+// apps/web/src/features/redesign/hooks/useRedesignChatRun.ts:290 — const events = useQuery(
 const events = useQuery(api.domains.redesign.chatRuns.streamEventsForRun, activeRunId ? { runId: activeRunId } : "skip");
 const runRow = useQuery(api.domains.redesign.chatRuns.getRun,               activeRunId ? { runId: activeRunId } : "skip");
 ```
@@ -370,9 +370,9 @@ const runRow = useQuery(api.domains.redesign.chatRuns.getRun,               acti
 subscribe yet").
 **Output** — a projected `RealChatRun`: partial answer, evidence rows, trace
 rows and metrics, rebuilt on every batch of new events by
-`buildPartialChatAnswer` (line 186).
-**Failure behavior** — both queries call `assertRunReadable` on the server
-(line 175), so a run belonging to someone else throws instead of leaking. If the
+`buildPartialChatAnswer`.
+**Failure behavior** — both queries call `assertRunReadable` on the
+server, so a run belonging to someone else throws instead of leaking. If the
 tab reloads, `getLatestOwnedRun` re-attaches to the newest owned run, and the
 answer resumes from the durable rows.
 **Next** — failure and recovery.
@@ -398,7 +398,7 @@ as evidence.
 **Core code**
 
 ```ts
-// backend/convex/domains/redesign/chatRuns.ts:2366
+// backend/convex/domains/redesign/chatRuns.ts:2366 — } catch (err: any) {
 } catch (err: any) {
   if ((err?.message || String(err)) === "RUN_CANCELLED" || await isCancelled()) return;   // cancel ≠ error
   const errorMessage = (err?.message || String(err)).slice(0, 280);
@@ -409,12 +409,12 @@ as evidence.
 
 **Input** — any thrown value from the orchestration.
 **Output** — an `error` event row plus `status: "error"` on the run row — unless
-the run was cancelled, in which case nothing is overwritten (`failRun`, line
-1849, explicitly refuses to touch a `cancelled` row).
+the run was cancelled, in which case nothing is overwritten (`failRun` explicitly
+refuses to touch a `cancelled` row).
 **Failure behavior** — there is no retry on this path. A failed run stays failed
-and the user re-asks. After a *successful* run, `validateRunSources` (line 2464)
-is scheduled: it re-fetches each cited URL through an SSRF check (`isUrlSafe`,
-line 2384) and asserts the quoted text is literally a substring of the page,
+and the user re-asks. After a *successful* run, `validateRunSources`
+is scheduled: it re-fetches each cited URL through an SSRF check (`isUrlSafe`)
+and asserts the quoted text is literally a substring of the page,
 patching verification flags onto the evidence rows. The UI updates through the
 same subscription, so verification appears after the answer rather than delaying
 it.
@@ -430,13 +430,36 @@ it.
 | Step 4's tier mapping, idempotency key and answer projection | `apps/web/src/features/redesign/hooks/useRedesignChatRun.test.ts` | `npx vitest run apps/web/src/features/redesign/hooks/useRedesignChatRun.test.ts` |
 | The answer packet keeps required fields and leaks no forbidden ones, driven through the real runtime functions | `backend/convex/domains/redesign/chatRuns.contract.test.ts` | `npx vitest run backend/convex/domains/redesign/chatRuns.contract.test.ts` |
 | The response-shape policy (compact vs. full) matches the UI contract | `backend/convex/domains/redesign/chatRuns.responseShape.test.ts` | `npx vitest run backend/convex/domains/redesign/chatRuns.responseShape.test.ts` |
-| Only owners can read a run's route and events | `evals/e2e/redesign-runtime-route-ownership.spec.ts` | `npx playwright test evals/e2e/redesign-runtime-route-ownership.spec.ts` |
-| The whole surface renders end to end in a browser | `evals/e2e/one-flow-regression.spec.ts` | `npx playwright test evals/e2e/one-flow-regression.spec.ts` |
+| Only owners can read a run's route and events — **requires a configured Convex deployment; fails from a clean clone** | `evals/e2e/redesign-runtime-route-ownership.spec.ts` | `npx playwright test evals/e2e/redesign-runtime-route-ownership.spec.ts` |
+| The whole surface renders end to end in a browser — **requires a configured Convex deployment; fails from a clean clone** | `evals/e2e/one-flow-regression.spec.ts` | `npx playwright test evals/e2e/one-flow-regression.spec.ts` |
+
+The first four rows are vitest and run from a clean clone. **The last two are
+Playwright and do not.** They need a browser *and* a `VITE_CONVEX_URL`, for the
+reason Step 1 already gave: with no deployment URL `main.tsx` renders
+`MissingConvexUrlScreen` instead of the app, so no product element ever mounts
+and the specs time out waiting for elements that cannot exist. Measured on
+2026-08-13 from a fresh clone, vite serving the frontend with no
+`VITE_CONVEX_URL` set and `BASE_URL` pointed at it: `one-flow-regression`
+**6 failed / 0 passed** (2 tests across chromium, firefox and webkit), every
+failure `getByTestId('one-surface-workspace')` never found;
+`redesign-runtime-route-ownership` on chromium **3 failed / 1 passed**, failing
+on `right-inspector`, `reports-runtime-inspector` and `exact-web-chat-stream`.
+The page under all of them was the "Convex backend not configured" card.
+`docs/codebase/TESTING.md` says the same thing under "Browser checks need a
+running app".
+
+There is no local fixture backend. Steps 5–10 are Convex server code and this
+repo ships no substitute for Convex, so those steps are readable and testable
+but not observable in a browser without a deployment.
 
 The full suite is four segments — `npm run test:run`. It is **red at HEAD** for
 reasons that predate this document; the exact counts and causes are in
 `docs/codebase/CONCERNS.md`, so you can tell a pre-existing failure from one you
 just caused.
+
+`node scripts/validate-tours.mjs` validates this page's line citations and the CodeTour steps
+in `.tours/`. It needs no browser, no backend and no install — run it after
+moving any code either one points at.
 
 ---
 

@@ -1,13 +1,19 @@
 # TESTING — what to run, what it proves, and what is already red
 
-## The three commands you actually need
+## The four commands you actually need
 
 ```bash
 npx vitest run <path>          # one file, fast — this is your inner loop
 npm run test:run               # the full suite, four segments, ~8 minutes
-npx playwright test evals/e2e/<spec>.spec.ts   # browser, needs a running app
-node scripts/validate-tours.mjs                # the CodeTour files still point at real lines
+npx playwright test evals/e2e/<spec>.spec.ts   # browser + a configured Convex deployment
+node scripts/validate-tours.mjs                # START_HERE.md and .tours/ cite the right lines
 ```
+
+The last one is the only one that needs neither an install nor a backend, which
+is why CI runs it before `npm install`. It asserts each citation matches the
+text it names, not merely that the line number is in range — a range check
+passes a citation that has drifted onto a different symbol, which is the
+failure it exists to prevent.
 
 ## The suite is segmented, and that is deliberate
 
