@@ -4,7 +4,7 @@
 fastapi==0.136.1
 uvicorn[standard]==0.46.0
 pydantic==2.13.3
-pydantic-settings==2.14.0
+pydantic-settings==2.14.2
 
 # Convex client
 convex==0.7.0
