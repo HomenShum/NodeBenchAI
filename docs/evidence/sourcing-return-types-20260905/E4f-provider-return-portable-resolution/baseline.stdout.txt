@@ -1,0 +1,33 @@
+{
+  "mode": "baseline",
+  "repo": "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.worktrees\\portfolio-provider-20260904",
+  "fixtureDirectory": "C:\\Users\\hshum\\.codex\\worktrees\\5dba\\nodebench-ai\\docs\\plans\\portfolio-recovery-20260904\\E4e-real-api-partition",
+  "output": "C:\\Users\\hshum\\.codex\\worktrees\\5dba\\nodebench-ai\\docs\\plans\\portfolio-recovery-20260904\\E4f-portable-unused-output\\baseline",
+  "baselineRef": "673ba7dc4ed7bf90fab839322d832511550b8bbc",
+  "resolvedBaseline": "673ba7dc4ed7bf90fab839322d832511550b8bbc",
+  "typescript": "5.9.3",
+  "compilerRootCount": 1376,
+  "bindings": {
+    "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.worktrees\\portfolio-provider-20260904\\backend\\convex\\domains\\mcp\\mcpSourcingDraft.ts": "9a6c3a620dbbbf6639dcfe1bdaf5ec89aada81d088ac7ebe92ebeea9774e7139",
+    "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.worktrees\\portfolio-provider-20260904\\backend\\convex\\_generated\\api.d.ts": "773158eea806db4ef349fc9ae1704277ae6286bc96a4afd72c45dfbde652295a",
+    "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.worktrees\\portfolio-provider-20260904\\backend\\convex\\_generated\\server.d.ts": "b0c8d708aaa165b10633bb6181dea1af4b9976a71ad001d75f42785ddfbca458",
+    "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.worktrees\\portfolio-provider-20260904\\backend\\convex\\_generated\\server.js": "aea87b3ee367e0e870f3da81ffce8babd8ea1aea695a1e38689841aebc09a1e8",
+    "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.worktrees\\portfolio-provider-20260904\\backend\\convex\\_generated\\dataModel.d.ts": "db177073d16a4393c7a96bcdc3a2a904e88c2432d54d138ca7715cc431982c17",
+    "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.worktrees\\portfolio-provider-20260904\\tsconfig.app.json": "f543fff20d4fb4c6e658329453798e71bdc13138780151586624086d5df167c9",
+    "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.worktrees\\portfolio-provider-20260904\\tsconfig.json": "a1f320b12ba1d29fbe02d22203410088e7dcb43fa9b064060f3c88f6c678dfe9",
+    "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.worktrees\\portfolio-provider-20260904\\backend\\convex\\tsconfig.json": "bb9208267220aff113f2177f3f043293c6f192754697f5f89699236a73d44db7",
+    "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.worktrees\\portfolio-provider-20260904\\package.json": "6ce982b298758f22b7c586078a5b53847b79d7b54eb96726b1f0fb258283f677",
+    "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.worktrees\\portfolio-provider-20260904\\package-lock.json": null,
+    "C:\\Users\\hshum\\.codex\\worktrees\\5dba\\nodebench-ai\\docs\\plans\\portfolio-recovery-20260904\\E4e-real-api-partition\\module-local-contract-declaration.d.ts.txt": "afb876cdff23623111b5400d1ee77fd4e7a0536d60ac816956a43e0bbb8d9bc5",
+    "C:\\Users\\hshum\\.codex\\worktrees\\5dba\\nodebench-ai\\docs\\plans\\portfolio-recovery-20260904\\E4e-real-api-partition\\module-local-contract-fixture.ts.txt": "4a6d9ca5c33eb2ebe046d309fee79af43d0fdbeb6960499e4553065430972396",
+    "C:\\Users\\hshum\\.codex\\worktrees\\5dba\\nodebench-ai\\docs\\plans\\portfolio-recovery-20260904\\E4e-real-api-partition\\return-leaf-diagnosis.json": "fe40beebcbb730cfa5919c051792f418d3ab78d9d3f401890ca7c7f159191261",
+    "C:\\Users\\hshum\\.codex\\worktrees\\5dba\\nodebench-ai\\docs\\plans\\portfolio-recovery-20260904\\E4e-real-api-partition\\module-local-contract-report.json": "d41e6b4e36e45d2d4ff26718d78d49961e18a72808807755c54402f8201caa5b",
+    "C:\\Users\\hshum\\.codex\\worktrees\\5dba\\nodebench-ai\\docs\\plans\\portfolio-recovery-20260904\\E4e-real-api-partition\\module-local-contract-diagnostics.json": "871223bfe62c2504874c627369b0555e98202d6494914b32e51a28a173fcb58d"
+  },
+  "exactTwoDeclarationDiff": true,
+  "providerCurrentSha256": "9a6c3a620dbbbf6639dcfe1bdaf5ec89aada81d088ac7ebe92ebeea9774e7139",
+  "providerBaselineSha256": "1c00f9247f13f26aa3054dc3c5aa879ee3f28c480412e0536ffb7cd24c1e590f",
+  "providerOverride": true,
+  "compilerProgramCreated": false,
+  "outputCreated": false
+}
