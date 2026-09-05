@@ -349,13 +349,19 @@ export const startToolCallInternal = internalMutation({
     const tierLimit =
       (cfg.dailyLimitsByTier?.[tierKey] ?? DEFAULT_POLICY.dailyLimitsByTier?.[tierKey]) ??
       undefined;
-    const toolLimit = cfg.dailyLimitsByTool?.[toolKey] ?? undefined;
+    // The new cost-bearing draft tool always has a bounded daily budget, even
+    // while the older gateway's default policy remains in observation mode.
+    const sourcingDraft = toolName === "mcpGenerateSourcingDraft";
+    const configuredToolLimit = cfg.dailyLimitsByTool?.[toolKey];
+    const toolLimit = sourcingDraft
+      ? Math.min(20, typeof configuredToolLimit === "number" && Number.isFinite(configuredToolLimit) && configuredToolLimit >= 0 ? configuredToolLimit : 20)
+      : configuredToolLimit;
 
     const budgetWouldExceed =
       (typeof tierLimit === "number" && tierCount >= tierLimit) ||
       (typeof toolLimit === "number" && toolCount >= toolLimit);
 
-    const enforce = Boolean(cfg.enforce);
+    const enforce = sourcingDraft || Boolean(cfg.enforce);
 
     // Denylist always blocks. Budget only blocks when enforce=true.
     const allowed = !blockedByDenylist && (!enforce || !budgetWouldExceed);

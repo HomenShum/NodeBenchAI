@@ -47,6 +47,12 @@ function getMcpServiceUserId(): Id<"users"> {
 // The gateway client shim extracts this from paths like "domain/module:funcName".
 
 const ALLOWLIST: Record<string, AllowlistEntry> = {
+  // Review-only provider draft. Never add this to the anonymous research set.
+  mcpGenerateSourcingDraft: {
+    ref: internal.domains.mcp.mcpSourcingDraft.generate,
+    type: "action",
+    injectUserId: true,
+  },
   // ── GROUP A: Public queries — no auth needed ─────────────────────────────
 
   // Research (8)
@@ -641,7 +647,7 @@ export const mcpGatewayHandler = httpAction(async (ctx, request) => {
     body && typeof body.meta === "object" && body.meta ? body.meta : {};
 
   // 2. Lookup in allowlist
-  const entry = ALLOWLIST[fn];
+  const entry = Object.prototype.hasOwnProperty.call(ALLOWLIST, fn) ? ALLOWLIST[fn] : undefined;
   if (!entry) {
     const available = Object.keys(ALLOWLIST).sort().join(", ");
     return badRequest(
@@ -716,13 +722,12 @@ export const mcpGatewayHandler = httpAction(async (ctx, request) => {
   }
 
   // 5. Inject userId if needed
-  const finalArgs = entry.injectUserId
-    ? { ...args, userId: getMcpServiceUserId() }
-    : { ...args };
-
   // 6. Dispatch
   const t0 = Date.now();
   try {
+    const finalArgs = entry.injectUserId
+      ? { ...args, userId: getMcpServiceUserId() }
+      : { ...args };
     let result: unknown;
     switch (entry.type) {
       case "query":
@@ -738,19 +743,12 @@ export const mcpGatewayHandler = httpAction(async (ctx, request) => {
 
     const durationMs = Math.max(0, Date.now() - t0);
     if (ledgerCallId) {
-      try {
-        await ctx.runMutation(internal.domains.mcp.mcpToolLedger.finishToolCallInternal, {
-          callId: ledgerCallId,
-          success: true,
-          durationMs,
-          result,
-        });
-      } catch (e: any) {
-        console.error(
-          `[mcpGateway] Failed to finish ledger for ${fn}:`,
-          e?.message ?? String(e)
-        );
-      }
+      await ctx.runMutation(internal.domains.mcp.mcpToolLedger.finishToolCallInternal, {
+        callId: ledgerCallId,
+        success: true,
+        durationMs,
+        result,
+      });
     }
 
     return ok({ success: true, data: result });

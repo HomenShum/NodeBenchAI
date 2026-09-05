@@ -57,6 +57,8 @@ Server Error) for an unknown slug.
 
 ## Active claims (who is editing what RIGHT NOW)
 
+- **2026-09-05 · Codex /root** · `domains/mcp/mcpSourcingDraft` (new), gateway sourcing allowlist/audit completion, ledger sourcing budget, and task-manager atomic service completion · bounded review-only China sourcing draft using the existing service owner and trace · branch `codex/sourcing-provider-20260904`. No shared-table/schema changes and no out-of-band deployment. Provider adapter follows the additive backend contract.
+
 > **STANDARD-TREE MIGRATION (2026-07-19, feat/standard-tree-migration): repo paths moved.**
 > `convex/` → `backend/convex/` (convex.json `functions` added; function identifiers unchanged),
 > `src/` + `index.html` → `apps/web/` (`@convex` alias replaces relative `../convex` imports),
