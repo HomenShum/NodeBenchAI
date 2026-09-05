@@ -52,6 +52,8 @@ export const generate = internalAction({
       clearTimeout(timer); timer = undefined;
       const result = JSON.parse(buffer.subarray(0, bytes).toString("utf8"));
       if (result?.status !== "completed" || !Array.isArray(result.output)) throw new Error("SOURCING_MODEL_INCOMPLETE");
+      // External JSON is untyped here: inspect only discriminated message fields,
+      // then validate the complete draft before any model content is accepted.
       const content = result.output.filter((item: any) => item?.type === "message").flatMap((item: any) => Array.isArray(item.content) ? item.content : []);
       if (content.some((item: any) => item?.type === "refusal")) throw new Error("SOURCING_MODEL_REFUSAL");
       const output = content.filter((item: any) => item?.type === "output_text").map((item: any) => item.text).join("");

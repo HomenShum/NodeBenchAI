@@ -39,6 +39,8 @@ function gatewayRequest(args: unknown, secret = "test-service-secret", fn = "mcp
   return new Request("https://example.com/api/mcpGateway", { method: "POST", headers: { "content-type": "application/json", "x-mcp-secret": secret }, body: JSON.stringify({ fn, args }) });
 }
 const invokeGateway = (ctx: unknown, request: Request): Promise<Response> => (mcpGatewayHandler as any)._handler(ctx, request);
+// The repository's Convex type shims erase reference types. This test-only bridge
+// forwards those untyped references to real convex-test validators/transactions.
 function gatewayContext(t: ReturnType<typeof convexTest>) { return { runMutation: (ref: any, args: any) => t.mutation(ref, args), runAction: (ref: any, args: any) => t.action(ref, args), runQuery: (ref: any, args: any) => t.query(ref, args) }; }
 
 beforeEach(() => {
