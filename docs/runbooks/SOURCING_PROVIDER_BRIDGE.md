@@ -25,6 +25,8 @@ The local adapter must validate these bindings and perform its existing revision
 
 ## Verification and release
 
+The root runtime dependencies explicitly include `@convex-dev/crons`: the enabled ossStats component imports it but declares it only as a development dependency. Verify bundle analysis from a fresh checkout; a nested worktree can otherwise resolve an undeclared package from its parent checkout and hide the missing dependency. PR617's initial Linux CI caught this before either TypeScript project ran. The existing Runtime smoke CI job includes the sourcing, execution-trace and model-registry scenarios.
+
 Run `npx vitest run backend/convex/domains/mcp/mcpSourcingDraft.integration.test.ts backend/convex/domains/mcp/mcpExecutionTraceEndpoints.integration.test.ts` and `npx tsc --noEmit --pretty false -p backend/convex/tsconfig.json` from the repository root. These are local scenarios with synthetic credentials and a stubbed provider; they do not establish live model quality or deployed behavior. The scenarios use actual Convex test transactions and cover authenticated success, owner replacement, changed evidence, byte limits, timeout/retry, terminal failures, concurrent attempts, sustained budget accumulation, UTC rollover and atomic rollback.
 
 Follow `AGENT_COORDINATION.md`: land the additive backend through the shared PR/CI path before wiring the local server. Do not deploy a worktree out of band. Then verify the deployed contract, selected registry model, a single representative real provider run and the resulting private execution trace. The local pilot still needs provider receipt validation, stale-response rejection, rendered review behavior and an independent judge.
