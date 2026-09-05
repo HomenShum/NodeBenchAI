@@ -1,0 +1,104 @@
+{
+  "at": "2026-09-05T06:10:30.713Z",
+  "mode": "module-local-contract",
+  "head": "672041cd13edd44633e2994b6519f00a3b9d0acb",
+  "inputSha256": "773158eea806db4ef349fc9ae1704277ae6286bc96a4afd72c45dfbde652295a",
+  "inMemorySha256": "afb876cdff23623111b5400d1ee77fd4e7a0536d60ac816956a43e0bbb8d9bc5",
+  "inputUnchanged": true,
+  "modules": 1539,
+  "groups": [
+    500,
+    500,
+    500,
+    39
+  ],
+  "types": {
+    "api": {
+      "flags": 524288,
+      "isNever": false,
+      "isAny": false,
+      "propertyCount": 32,
+      "display": "{ actions: { coordinatorWorkflowActions: { startCoordinatorWorkflow: FunctionReference<\"action\", \"public\", { model?: string | undefined; threadId: string; prompt: string; }, { runId: string; }, string | undefined>; }; ... 4 more ...; spreadsheetActions: { ...; }; }; ... 30 more ...; workflows: { ...; }; }"
+    },
+    "internal": {
+      "flags": 524288,
+      "isNever": false,
+      "isAny": false,
+      "propertyCount": 32,
+      "display": "{ actions: { coordinatorWorkflowActions: {}; externalOrchestrator: { runExternalOrchestrator: FunctionReference<\"action\", \"internal\", { context?: string | undefined; sessionId?: string | undefined; model?: string | undefined; message: string; provider: \"gemini\" | \"openai\"; }, { ...; } | { ...; }, string | undefined>..."
+    }
+  },
+  "diagnosticCount": 1553,
+  "byCode": {
+    "2303": 15,
+    "2304": 2,
+    "2305": 1,
+    "2307": 4,
+    "2322": 170,
+    "2339": 578,
+    "2344": 7,
+    "2345": 369,
+    "2349": 31,
+    "2352": 7,
+    "2353": 72,
+    "2363": 1,
+    "2365": 1,
+    "2367": 14,
+    "2503": 3,
+    "2532": 5,
+    "2536": 2,
+    "2551": 13,
+    "2554": 4,
+    "2561": 6,
+    "2578": 1,
+    "2615": 77,
+    "2677": 2,
+    "2719": 19,
+    "2739": 37,
+    "2741": 9,
+    "2769": 6,
+    "2783": 1,
+    "18046": 2,
+    "18047": 73,
+    "18048": 21
+  },
+  "sourceFiles": 7481,
+  "shimIncluded": [],
+  "elapsedMs": 167338,
+  "contractPassed": false,
+  "contractDiagnostics": [
+    {
+      "code": 2322,
+      "message": "Type 'number' is not assignable to type 'string'.",
+      "file": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai/.worktrees/portfolio-provider-20260904/nodebench-readonly-api-contract.ts",
+      "line": 14,
+      "character": 62
+    },
+    {
+      "code": 2322,
+      "message": "Type 'string' is not assignable to type 'number'.",
+      "file": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai/.worktrees/portfolio-provider-20260904/nodebench-readonly-api-contract.ts",
+      "line": 15,
+      "character": 81
+    },
+    {
+      "code": 2339,
+      "message": "Property 'generate' does not exist on type '{}'.",
+      "file": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai/.worktrees/portfolio-provider-20260904/nodebench-readonly-api-contract.ts",
+      "line": 17,
+      "character": 57
+    },
+    {
+      "code": 2339,
+      "message": "Property 'startCoordinatorWorkflow' does not exist on type '{}'.",
+      "file": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai/.worktrees/portfolio-provider-20260904/nodebench-readonly-api-contract.ts",
+      "line": 18,
+      "character": 70
+    }
+  ],
+  "limits": [
+    "No source/configuration edits",
+    "No deploy or function calls",
+    "Representative contract checks do not establish every API leaf or whole-app type safety"
+  ]
+}

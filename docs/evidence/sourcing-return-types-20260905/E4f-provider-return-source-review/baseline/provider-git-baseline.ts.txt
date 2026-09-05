@@ -59,10 +59,10 @@ export const generate = internalAction({
       const output = content.filter((item: any) => item?.type === "output_text").map((item: any) => item.text).join("");
       const draft = validateSourcingDraft(JSON.parse(output));
       const outputHash = hash(draft);
-      const usage: { input: number; output: number; total: number } | undefined = result.usage && [result.usage.input_tokens, result.usage.output_tokens, result.usage.total_tokens].every((n: unknown) => Number.isInteger(n) && Number(n) >= 0 && Number(n) <= 200_000) && result.usage.input_tokens + result.usage.output_tokens === result.usage.total_tokens
+      const usage = result.usage && [result.usage.input_tokens, result.usage.output_tokens, result.usage.total_tokens].every((n: unknown) => Number.isInteger(n) && Number(n) >= 0 && Number(n) <= 200_000) && result.usage.input_tokens + result.usage.output_tokens === result.usage.total_tokens
         ? { input: result.usage.input_tokens, output: result.usage.output_tokens, total: result.usage.total_tokens } : undefined;
       if (typeof result.model !== "string" || !result.model.trim() || result.model.length > 200) throw new Error("SOURCING_MODEL_SCHEMA");
-      const actualModel: string = result.model;
+      const actualModel = result.model;
       await ctx.runMutation(task.recordStepForService, {
         userId: args.userId, traceId: run.traceId, stage: "propose", type: "render_generated", title: "Prepare the schema-valid proposal",
         tool: "openai.responses", action: "generate-draft", target: args.projectId, resultSummary: "Five draft fields validated. Every requirement remains model-suggestion-unverified; the owner must accept or reject locally.",

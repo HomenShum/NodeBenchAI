@@ -1,0 +1,30 @@
+**Builder — portable replay instructions for the accepted source patch.**
+
+**Re your request:** Make the repaired repository understandable and reproducible for the next developer or coding agent. The [source judgment](E4f_NODEBENCH_RETURN_LEAF_SOURCE_JUDGE.md) proves that the two actual provider annotations preserve validated model and token-counter types. This adapter removes the original probe's host-specific paths.
+
+The original executed probe is preserved byte-for-byte as [executed-probe.mjs.txt](E4f-provider-return-source-review/executed-probe.mjs.txt), SHA256 `cb8ac456afb35c547bad1316362faec1a504dce9395379511f09102b60f04c0f`. Its reports remain frozen. The separate [portable replay](E4f-replay-provider-return-contract.mjs), SHA256 `048b99bd7577ecad092709aa5773e0248b5e9526f5e14a2be46dc841c0f3953b`, keeps the compiler, contract and emission logic while adding explicit arguments and a resolution-only mode. It refuses to overwrite an existing mode output directory.
+
+The target checkout needs its installed TypeScript and existing dependencies. This tool performs no install. Supply a fixture directory containing these five retained files with their existing names:
+
+- `module-local-contract-declaration.d.ts.txt`
+- `module-local-contract-fixture.ts.txt`
+- `return-leaf-diagnosis.json`
+- `module-local-contract-report.json`
+- `module-local-contract-diagnostics.json`
+
+The last three files preserve the earlier diagnostic inputs; they are not a claim that the whole app now passes. These five inputs currently reside in `E4e-real-api-partition/`. All their hashes are in the actual-source reports. Use the exact reviewed provider SHA256 `9a6c3a620dbbbf6639dcfe1bdaf5ec89aada81d088ac7ebe92ebeea9774e7139`; the adapter checks this intentionally. The baseline commit is `673ba7dc4ed7bf90fab839322d832511550b8bbc` and must exist in the target Git object database.
+
+From the copied proof packet, replace `<checkout-path>` with the repository path and choose a fresh output location. No environment variable or credential is needed:
+
+```powershell
+node --check ./E4f-replay-provider-return-contract.mjs
+node ./E4f-replay-provider-return-contract.mjs --repo "<checkout-path>" --fixtures ./E4e-real-api-partition --output ./fresh-replay --base 673ba7dc4ed7bf90fab839322d832511550b8bbc --mode current-source --resolve-only
+node --max-old-space-size=6144 ./E4f-replay-provider-return-contract.mjs --repo "<checkout-path>" --fixtures ./E4e-real-api-partition --output ./fresh-replay --base 673ba7dc4ed7bf90fab839322d832511550b8bbc --mode baseline
+node --max-old-space-size=6144 ./E4f-replay-provider-return-contract.mjs --repo "<checkout-path>" --fixtures ./E4e-real-api-partition --output ./fresh-replay --base 673ba7dc4ed7bf90fab839322d832511550b8bbc --mode current-source
+```
+
+The baseline intentionally accepts five invalid return assignments and rejects four other invalid contracts. Its exit code confirms the probe ran and preserved inputs; it is not a baseline type-safety pass. The current-source result must reject all nine invalid cases, accept all nine valid cases, pass four leaf `IsAny` assertions and have zero targeted provider diagnostics. Both modes must emit identical provider JavaScript. Reports and emitted text go into distinct `baseline/` and `current-source/` subdirectories. The provider is overridden only for the Git baseline; the current-source mode loads the actual provider from disk.
+
+The adapter received `node --check` plus successful baseline and current-source argument/read-resolution checks. Those checks created no compiler program or replay output; the full compiler proof was not repeated because only portability behavior changed. The [portability receipt](E4f-provider-return-portable-resolution/receipt.json) and raw stdout/stderr preserve the exact checks. The accepted compiler results remain tied to the original executed probe, not retroactively relabeled as adapter executions.
+
+This proof still substitutes the retained module-local API declaration in memory. It does not repair or certify the actual on-disk generated API/project graph, run the provider, certify whole-app typing or perform a deployment. The inspected 25-second timeout bounds provider I/O, not every surrounding audit mutation.

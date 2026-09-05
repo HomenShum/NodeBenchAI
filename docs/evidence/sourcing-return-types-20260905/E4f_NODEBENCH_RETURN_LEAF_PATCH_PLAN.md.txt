@@ -1,0 +1,15 @@
+# Preserve validated sourcing receipt types
+
+Builder. A developer consuming a sourcing draft must treat its model name as text and token counters as numbers. The current provider validates those values at runtime, but JSON.parse returns any; that any survives the guards and flows into the inferred action contract. A caller can then assign a token count to text without a compiler error. Explicit local types preserve the already validated outward contract.
+
+**Re your request:** execute each repo's readiness and handoff repairs. Named proof: NODEBENCH-SOURCING-RETURN-LEAVES-01. This is a one-file type-only patch, separate from whole-app typing.
+
+The upstream cause is established by E4e_NODEBENCH_PROVIDER_RETURN_LEAF_JUDGE.md/json: nine invalid scenarios currently reject only four; the two virtual declarations reject all nine, preserve all nine valid cases, and leave emitted JavaScript byte-identical. Seven thousand four hundred eighty disk-backed inputs and the previous generated API remain protected. This demonstrates why an outer API object check alone missed the invalid return leaves.
+
+1. Reuse the clean existing provider worktree, preserving its old branch. The freshly fetched canonical main is 673ba7dc4ed7bf90fab839322d832511550b8bbc; the provider file is byte-equivalent to the reviewed 672041cd candidate. Create codex/sourcing-return-types-20260905 from that main.
+2. Apply only the reviewed explicit string model and optional three-number usage declarations in backend/convex/domains/mcp/mcpSourcingDraft.ts. No public signature cast, validator, generated binding, dependency, configuration or runtime logic changes.
+3. An independent nonauthor replays the nine positive/nine negative cases with the actual edited provider and retained in-memory API declaration. Compare both emitted files exactly, retain the original invalid outcomes, and inspect the literal diff and source bindings.
+4. Recheck the eight backend reliability requirements against unchanged emitted code and existing guarded path. No real model call, production write or out-of-band deployment is needed to verify erased type annotations.
+5. Publish a small reviewed handoff and normal PR only after the exact patch is judged. Keep the on-disk generated API/project-graph failure and whole-app readiness explicitly open; the virtual API declaration is not a shipped solution.
+
+No user credential or permission is needed for this reversible local type repair. NodeKit's unrelated H1 credential question remains pending. Stop this slice after the exact source/type/emission proof and normal integration; do not expand it into generated-API or app restructuring.
