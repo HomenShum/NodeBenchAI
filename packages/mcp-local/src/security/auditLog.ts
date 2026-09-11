@@ -23,6 +23,7 @@ export interface AuditEntry {
 }
 
 // In-memory buffer for batch writes
+const MAX_BUFFER_ENTRIES = 256;
 let _buffer: AuditEntry[] = [];
 let _flushTimer: ReturnType<typeof setTimeout> | null = null;
 let _db: any = null;
@@ -88,40 +89,41 @@ function getDb(): any {
 function flushBuffer(): void {
   if (_buffer.length === 0) return;
 
+  // Detach the bounded batch even if storage is unavailable or a write fails.
+  const batch = _buffer;
+  _buffer = [];
+
   const db = getDb();
   if (!db) {
     // No SQLite — just discard (entries were already returned from auditLog)
-    _buffer = [];
     return;
   }
 
-  const insert = db.prepare(`
-    INSERT OR IGNORE INTO audit_log (id, timestamp, category, tool_name, args_preview, allowed, reason, metadata)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  const insertMany = db.transaction((entries: AuditEntry[]) => {
-    for (const e of entries) {
-      insert.run(
-        e.id,
-        e.timestamp,
-        e.category,
-        e.toolName,
-        e.argsPreview,
-        e.allowed ? 1 : 0,
-        e.reason ?? null,
-        e.metadata ? JSON.stringify(e.metadata) : null,
-      );
-    }
-  });
-
   try {
-    insertMany(_buffer);
+    const insert = db.prepare(`
+      INSERT OR IGNORE INTO audit_log (id, timestamp, category, tool_name, args_preview, allowed, reason, metadata)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const insertMany = db.transaction((entries: AuditEntry[]) => {
+      for (const e of entries) {
+        insert.run(
+          e.id,
+          e.timestamp,
+          e.category,
+          e.toolName,
+          e.argsPreview,
+          e.allowed ? 1 : 0,
+          e.reason ?? null,
+          e.metadata ? JSON.stringify(e.metadata) : null,
+        );
+      }
+    });
+
+    insertMany(batch);
   } catch {
     // SQLite write failed — discard silently
   }
-
-  _buffer = [];
 }
 
 /**
@@ -151,6 +153,7 @@ export function auditLog(
     metadata,
   };
 
+  if (_buffer.length >= MAX_BUFFER_ENTRIES) flushBuffer();
   _buffer.push(entry);
 
   // Batch flush every 100ms

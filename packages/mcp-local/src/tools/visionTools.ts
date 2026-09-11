@@ -12,7 +12,7 @@
 import { join } from "path";
 import { homedir } from "os";
 import { mkdirSync, existsSync, writeFileSync } from "fs";
-import type { McpTool, ContentBlock } from "../types.js";
+import type { McpTool, ContentBlock, RawToolResult } from "../types.js";
 
 const CAPTURE_DIR = join(homedir(), ".nodebench", "captures");
 
@@ -329,7 +329,7 @@ export const visionTools: McpTool[] = [
       },
       required: ["imageBase64"],
     },
-    handler: async (args): Promise<ContentBlock[]> => {
+    handler: async (args): Promise<RawToolResult> => {
       const providerChoice = args.provider ?? "auto";
       const analysisPrompt = args.context
         ? `Context: ${args.context}\n\n${args.prompt ?? DEFAULT_ANALYSIS_PROMPT}`
@@ -367,19 +367,14 @@ export const visionTools: McpTool[] = [
       }
 
       if (!selectedProvider) {
-        return [
-          {
-            type: "text",
-            text: JSON.stringify({
-              error: true,
-              message:
-                "No vision provider available. Call discover_vision_env to see what's needed.",
-              suggestion:
-                "Set one of: GEMINI_API_KEY (recommended), OPENAI_API_KEY, ANTHROPIC_API_KEY, or OPENROUTER_API_KEY. " +
-                "Also install the corresponding SDK: @google/genai, openai, or @anthropic-ai/sdk.",
-            }),
-          },
-        ];
+        return {
+          error: true,
+          message:
+            "No vision provider available. Call discover_vision_env to see what's needed.",
+          suggestion:
+            "Set one of: GEMINI_API_KEY (recommended), OPENAI_API_KEY, ANTHROPIC_API_KEY, or OPENROUTER_API_KEY. " +
+            "Also install the corresponding SDK: @google/genai, openai, or @anthropic-ai/sdk.",
+        };
       }
 
       try {
@@ -442,18 +437,13 @@ export const visionTools: McpTool[] = [
 
         return content;
       } catch (err: any) {
-        return [
-          {
-            type: "text",
-            text: JSON.stringify({
-              error: true,
-              provider: selectedProvider,
-              message: `Vision analysis failed: ${err.message}`,
-              suggestion:
-                "Check that the API key is valid and the SDK is installed. Try a different provider with provider='openai' or provider='anthropic'.",
-            }),
-          },
-        ];
+        return {
+          error: true,
+          provider: selectedProvider,
+          message: `Vision analysis failed: ${err.message}`,
+          suggestion:
+            "Check that the API key is valid and the SDK is installed. Try a different provider with provider='openai' or provider='anthropic'.",
+        };
       }
     },
   },
@@ -517,21 +507,16 @@ export const visionTools: McpTool[] = [
       },
       required: ["imageBase64", "operation"],
     },
-    handler: async (args): Promise<ContentBlock[]> => {
+    handler: async (args): Promise<RawToolResult> => {
       const sharp = await getSharp();
       if (!sharp) {
-        return [
-          {
-            type: "text",
-            text: JSON.stringify({
-              error: true,
-              message:
-                "sharp is not installed. Install it with: npm install sharp",
-              suggestion:
-                "The manipulate_screenshot tool requires sharp for image processing.",
-            }),
-          },
-        ];
+        return {
+          error: true,
+          message:
+            "sharp is not installed. Install it with: npm install sharp",
+          suggestion:
+            "The manipulate_screenshot tool requires sharp for image processing.",
+        };
       }
 
       const inputBuffer = Buffer.from(args.imageBase64, "base64");
@@ -642,16 +627,11 @@ export const visionTools: McpTool[] = [
           },
         ];
       } catch (err: any) {
-        return [
-          {
-            type: "text",
-            text: JSON.stringify({
-              error: true,
-              operation: args.operation,
-              message: `Image manipulation failed: ${err.message}`,
-            }),
-          },
-        ];
+        return {
+          error: true,
+          operation: args.operation,
+          message: `Image manipulation failed: ${err.message}`,
+        };
       }
     },
   },

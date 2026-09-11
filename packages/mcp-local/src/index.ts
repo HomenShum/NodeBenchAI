@@ -3504,14 +3504,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       } catch { /* instrumentation */ }
     }
 
-    // Tools with rawContent return ContentBlock[] directly (e.g. image captures)
+    // Permission to execute is separate from the handler's success or failure.
+    // Record raw calls too, before their content-preserving early return.
+    auditLog("tool_call", name, JSON.stringify(args ?? {}).substring(0, 200), true,
+      errorMsg ?? undefined, { resultStatus });
+
+    // Successful raw content is opaque: text can legitimately describe an error.
     if (tool.rawContent && Array.isArray(result)) {
-      return { content: result, isError: false };
+      return { content: result, isError: resultStatus === "error" };
     }
 
     // Auto-append quickRef from registry (progressive disclosure)
     let enrichedResult = result;
-    if (result && typeof result === "object" && !Array.isArray(result)) {
+    if (resultStatus === "success" && result && typeof result === "object" && !Array.isArray(result)) {
       const quickRef = getQuickRef(name);
       if (quickRef && !(result as any)._quickRef) {
         enrichedResult = { ...(result as Record<string, unknown>), _quickRef: quickRef };
@@ -3543,12 +3548,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       contentBlocks.push({ type: "text" as const, text: hookHint });
     }
 
-    // Audit log: successful tool call
-    auditLog("tool_call", name, JSON.stringify(args ?? {}).substring(0, 200), true);
-
     return {
       content: contentBlocks,
-      isError: false,
+      isError: resultStatus === "error",
     };
   } catch (err: any) {
     // Security errors get a clean response (not a stack trace)

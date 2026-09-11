@@ -19,7 +19,7 @@ declare var sessionStorage: { clear(): void };
 import { join } from "path";
 import { homedir } from "os";
 import { mkdirSync, existsSync, readFileSync } from "fs";
-import type { McpTool, ContentBlock } from "../types.js";
+import type { McpTool, ContentBlock, RawToolResult } from "../types.js";
 import { getDb, genId } from "../db.js";
 
 // ═══ Constants ═══
@@ -256,19 +256,14 @@ export const visualQaTools: McpTool[] = [
       },
       required: ["url"],
     },
-    handler: async (args): Promise<ContentBlock[]> => {
+    handler: async (args): Promise<RawToolResult> => {
       const pw = await getPlaywright();
       if (!pw) {
-        return [
-          {
-            type: "text",
-            text: JSON.stringify({
-              error: true,
-              message:
-                "Playwright is not installed. Run: npm install playwright && npx playwright install chromium",
-            }),
-          },
-        ];
+        return {
+          error: true,
+          message:
+            "Playwright is not installed. Run: npm install playwright && npx playwright install chromium",
+        };
       }
 
       const frameCount = Math.min(Math.max(args.frameCount ?? 10, 2), 30);
@@ -279,15 +274,10 @@ export const visualQaTools: McpTool[] = [
       const waitUntil = args.waitUntil ?? "networkidle";
 
       if (!viewportSize) {
-        return [
-          {
-            type: "text",
-            text: JSON.stringify({
-              error: true,
-              message: `Unknown viewport: ${viewportName}. Use: mobile, tablet, desktop, wide`,
-            }),
-          },
-        ];
+        return {
+          error: true,
+          message: `Unknown viewport: ${viewportName}. Use: mobile, tablet, desktop, wide`,
+        };
       }
 
       const burstDir = ensureBurstDir(args.label ?? "burst");
@@ -428,16 +418,11 @@ export const visualQaTools: McpTool[] = [
             /* ignore cleanup */
           }
         }
-        return [
-          {
-            type: "text",
-            text: JSON.stringify({
-              error: true,
-              message: `Burst capture failed: ${err.message}`,
-              url: args.url,
-            }),
-          },
-        ];
+        return {
+          error: true,
+          message: `Burst capture failed: ${err.message}`,
+          url: args.url,
+        };
       }
     },
   },
@@ -490,31 +475,21 @@ export const visualQaTools: McpTool[] = [
       },
       required: ["framePaths"],
     },
-    handler: async (args): Promise<ContentBlock[]> => {
+    handler: async (args): Promise<RawToolResult> => {
       const sharp = await getSharp();
       if (!sharp) {
-        return [
-          {
-            type: "text",
-            text: JSON.stringify({
-              error: true,
-              message: "sharp is not installed. Run: npm install sharp",
-            }),
-          },
-        ];
+        return {
+          error: true,
+          message: "sharp is not installed. Run: npm install sharp",
+        };
       }
 
       const paths: string[] = args.framePaths;
       if (!paths || paths.length === 0) {
-        return [
-          {
-            type: "text",
-            text: JSON.stringify({
-              error: true,
-              message: "framePaths is required and must be non-empty",
-            }),
-          },
-        ];
+        return {
+          error: true,
+          message: "framePaths is required and must be non-empty",
+        };
       }
 
       const cols = args.columns ?? 5;
@@ -631,15 +606,10 @@ export const visualQaTools: McpTool[] = [
           { type: "image", data: base64, mimeType: "image/png" },
         ];
       } catch (err: any) {
-        return [
-          {
-            type: "text",
-            text: JSON.stringify({
-              error: true,
-              message: `Grid collage generation failed: ${err.message}`,
-            }),
-          },
-        ];
+        return {
+          error: true,
+          message: `Grid collage generation failed: ${err.message}`,
+        };
       }
     },
   },
@@ -907,32 +877,22 @@ export const visualQaTools: McpTool[] = [
       },
       required: ["url"],
     },
-    handler: async (args): Promise<ContentBlock[]> => {
+    handler: async (args): Promise<RawToolResult> => {
       const pw = await getPlaywright();
       if (!pw) {
-        return [
-          {
-            type: "text",
-            text: JSON.stringify({
-              error: true,
-              message:
-                "Playwright is not installed. Run: npm install playwright && npx playwright install chromium",
-            }),
-          },
-        ];
+        return {
+          error: true,
+          message:
+            "Playwright is not installed. Run: npm install playwright && npx playwright install chromium",
+        };
       }
 
       const sharpMod = await getSharp();
       if (!sharpMod) {
-        return [
-          {
-            type: "text",
-            text: JSON.stringify({
-              error: true,
-              message: "sharp is not installed. Run: npm install sharp",
-            }),
-          },
-        ];
+        return {
+          error: true,
+          message: "sharp is not installed. Run: npm install sharp",
+        };
       }
 
       // Step 1: Burst capture (inline — reuse logic from burst_capture)
@@ -945,15 +905,10 @@ export const visualQaTools: McpTool[] = [
       const waitUntil = args.waitUntil ?? "networkidle";
 
       if (!viewportSize) {
-        return [
-          {
-            type: "text",
-            text: JSON.stringify({
-              error: true,
-              message: `Unknown viewport: ${viewportName}`,
-            }),
-          },
-        ];
+        return {
+          error: true,
+          message: `Unknown viewport: ${viewportName}`,
+        };
       }
 
       const burstDir = ensureBurstDir(args.label ?? "suite");
@@ -1252,16 +1207,11 @@ export const visualQaTools: McpTool[] = [
             /* ignore */
           }
         }
-        return [
-          {
-            type: "text",
-            text: JSON.stringify({
-              error: true,
-              message: `Visual QA suite failed: ${err.message}`,
-              url: args.url,
-            }),
-          },
-        ];
+        return {
+          error: true,
+          message: `Visual QA suite failed: ${err.message}`,
+          url: args.url,
+        };
       }
     },
   },

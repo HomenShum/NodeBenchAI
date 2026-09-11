@@ -3,7 +3,7 @@
  * Covers: static, unit, integration layers.
  * Live E2E layer is tested via bash pipe in the flywheel step.
  */
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import os from "node:os";
 import path from "node:path";
 import { mkdtemp, writeFile } from "node:fs/promises";
@@ -70,6 +70,170 @@ import { dogfoodJudgeTools } from "../tools/dogfoodJudgeTools.js";
 import { getQuickRef, hybridSearch, TOOL_REGISTRY, SEARCH_MODES, ALL_REGISTRY_ENTRIES, WORKFLOW_CHAINS, tokenize, buildDenseIndex, getToolComplexity } from "../tools/toolRegistry.js";
 import { TOOLSET_LOADERS } from "../toolsetRegistry.js";
 import type { McpTool } from "../types.js";
+
+// A developer must be able to distinguish failed captures from usable evidence.
+describe("raw tool outcome contract", () => {
+  const mocks = ["playwright", "sharp", "openai", "@google/genai", "os", "../db.js"];
+  let home: string;
+  beforeEach(async () => {
+    vi.resetModules();
+    home = await mkdtemp(path.join(os.tmpdir(), "raw-tool-outcome-"));
+    vi.doMock("os", async (original) => ({ ...await original<typeof import("os")>(), homedir: () => home }));
+    for (const key of ["GEMINI_API_KEY", "GOOGLE_AI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY"]) vi.stubEnv(key, "");
+  });
+  afterEach(() => {
+    for (const name of mocks) vi.doUnmock(name);
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+    vi.resetModules();
+  });
+  async function tools() {
+    return [
+      ...(await import("../tools/uiCaptureTools.js")).uiCaptureTools,
+      ...(await import("../tools/visionTools.js")).visionTools,
+      ...(await import("../tools/uiUxDiveTools.js")).uiUxDiveTools,
+      ...(await import("../tools/visualQaTools.js")).visualQaTools,
+    ];
+  }
+  async function call(name: string, args: Record<string, unknown> = {}): Promise<any> {
+    return (await tools()).find(t => t.name === name)!.handler(args);
+  }
+  function failure(result: any, message: RegExp) {
+    expect(Array.isArray(result)).toBe(false);
+    expect(result).toMatchObject({ error: true, message: expect.stringMatching(message) });
+  }
+  function browser(goto = vi.fn().mockResolvedValue(undefined)) {
+    const bytes = Buffer.from("controlled screenshot bytes");
+    const page = {
+      on: vi.fn(), goto, waitForSelector: vi.fn(),
+      screenshot: vi.fn(async (opts: any) => { if (opts.path) writeFileSync(opts.path, bytes); return bytes; }),
+      title: vi.fn().mockResolvedValue("A developer's evidence"), url: () => "https://example.invalid/",
+      $: vi.fn().mockResolvedValue(null), accessibility: { snapshot: vi.fn().mockResolvedValue({ role: "document" }) },
+    };
+    const context = { newPage: vi.fn().mockResolvedValue(page), close: vi.fn() };
+    const instance = { newPage: vi.fn().mockResolvedValue(page), newContext: vi.fn().mockResolvedValue(context), close: vi.fn() };
+    vi.doMock("playwright", () => ({ chromium: { launch: vi.fn().mockResolvedValue(instance) } }));
+    return { page, instance, bytes };
+  }
+
+  it.each([
+    ["capture_ui_screenshot", "playwright"], ["capture_responsive_suite", "playwright"],
+    ["burst_capture", "playwright"], ["run_visual_qa_suite", "playwright"],
+    ["manipulate_screenshot", "sharp"], ["generate_grid_collage", "sharp"],
+  ])("lets a fresh-install developer identify the unavailable dependency for %s", async (name, dependency) => {
+    vi.doMock(dependency, () => { throw new Error("Optional dependency unavailable in this consumer"); });
+    failure(await call(name), /not installed/i);
+  });
+
+  it("reports missing provider and missing browser session without producing evidence", async () => {
+    failure(await call("analyze_screenshot", { imageBase64: "ignored" }), /No vision provider/);
+    failure(await call("dive_snapshot", { sessionId: "not-started" }), /No active browser/);
+  });
+
+  it.each(["capture_ui_screenshot", "capture_responsive_suite", "burst_capture", "run_visual_qa_suite"])("closes the failed browser and retains context for %s", async name => {
+    const { instance } = browser(vi.fn().mockRejectedValue(new Error("Page closed during navigation")));
+    const result = await call(name, { url: "https://example.invalid/", label: "failed", waitMs: 0, settleMs: 0 });
+    failure(result, /Page closed during navigation/);
+    expect(result.url).toBe("https://example.invalid/");
+    expect(instance.close).toHaveBeenCalledOnce();
+  });
+
+  it("rejects invalid visual viewports and empty or unreadable frames before calling them a collage", async () => {
+    browser();
+    for (const name of ["burst_capture", "run_visual_qa_suite"]) failure(await call(name, { viewport: "invalid" }), /Unknown viewport/);
+    failure(await call("generate_grid_collage", { framePaths: [] }), /non-empty/);
+    failure(await call("generate_grid_collage", { framePaths: [path.join(home, "missing.png")] }), /failed/i);
+  });
+
+  it("reports a suite's missing image decoder even when its browser is available", async () => {
+    browser();
+    vi.doMock("sharp", () => { throw new Error("Image dependency unavailable"); });
+    failure(await call("run_visual_qa_suite"), /sharp is not installed/);
+  });
+
+  it("preserves single and responsive capture bytes and content ordering", async () => {
+    const { bytes } = browser();
+    const single = await call("capture_ui_screenshot", { url: "https://example.invalid/", waitMs: 0 });
+    expect(single.map((b: any) => b.type)).toEqual(["text", "image"]);
+    expect(single[1]).toEqual({ type: "image", data: bytes.toString("base64"), mimeType: "image/png" });
+    const multi = await call("capture_responsive_suite", { url: "https://example.invalid/", label: "three-widths", waitMs: 0 });
+    expect(multi.map((b: any) => b.type)).toEqual(["text", "text", "image", "text", "image", "text", "image"]);
+    expect(multi.filter((b: any) => b.type === "image").map((b: any) => b.data)).toEqual(Array(3).fill(bytes.toString("base64")));
+  });
+
+  it("rejects malformed bytes and invalid crops, then processes a valid image in the same workflow", async () => {
+    const sharp = (await import("sharp")).default;
+    const input = await sharp({ create: { width: 8, height: 8, channels: 3, background: "#224466" } }).png().toBuffer();
+    failure(await call("manipulate_screenshot", { imageBase64: Buffer.from("not-an-image").toString("base64"), operation: "resize", width: 4 }), /Image manipulation failed/);
+    failure(await call("manipulate_screenshot", { imageBase64: input.toString("base64"), operation: "crop", x: 99, y: 0, cropWidth: 2, cropHeight: 2 }), /Image manipulation failed/);
+    const result = await call("manipulate_screenshot", { imageBase64: input.toString("base64"), operation: "resize", width: 4 });
+    expect(result[1].type).toBe("image");
+    expect(await sharp(Buffer.from(result[1].data, "base64")).metadata()).toMatchObject({ width: 4, height: 4 });
+  });
+
+  it("retains failed-provider context and successful text containing JSON error words", async () => {
+    const create = vi.fn().mockRejectedValueOnce(new Error("Controlled provider failure")).mockResolvedValueOnce({ choices: [{ message: { content: '{"error":true} is literal text in this screenshot' } }] });
+    vi.doMock("openai", () => ({ default: class { chat = { completions: { create } }; } }));
+    const failed = await call("analyze_screenshot", { imageBase64: "controlled", provider: "openai" });
+    failure(failed, /Controlled provider failure/);
+    expect(failed.provider).toBe("openai");
+    const success = await call("analyze_screenshot", { imageBase64: "controlled", provider: "openai" });
+    expect(success[1]).toEqual({ type: "text", text: '{"error":true} is literal text in this screenshot' });
+    expect(Array.isArray(success)).toBe(true);
+  });
+
+  it("keeps multiple provider images in order without interpreting their accompanying text as failure", async () => {
+    vi.doMock("@google/genai", () => ({ GoogleGenAI: class { models = { generateContent: async () => ({ candidates: [{ content: { parts: [{ text: "An error label is visible" }, { inlineData: { data: "first-image" } }, { inlineData: { data: "second-image" } }] } }] }) }; } }));
+    const result = await call("analyze_screenshot", { imageBase64: "controlled", provider: "gemini" });
+    expect(result.map((b: any) => b.type)).toEqual(["text", "text", "image", "image"]);
+    expect(result.slice(2).map((b: any) => b.data)).toEqual(["first-image", "second-image"]);
+  });
+
+  it("keeps a dive usable after missing selectors, screenshot failure and accessibility failure", async () => {
+    const { page, bytes } = browser();
+    vi.doMock("../db.js", () => ({ getDb: () => ({ prepare: () => ({ run: vi.fn() }) }), genId: () => "controlled-dive" }));
+    const session = await call("start_ui_dive", { appUrl: "https://example.invalid/", autoDiscover: false });
+    const args = { sessionId: session.sessionId };
+    failure(await call("dive_snapshot", { ...args, selector: "#missing" }), /Element not found/);
+    page.screenshot.mockRejectedValueOnce(new Error("Closed page during screenshot"));
+    failure(await call("dive_snapshot", args), /Screenshot failed/);
+    page.accessibility.snapshot.mockRejectedValueOnce(new Error("Accessibility unavailable"));
+    failure(await call("dive_snapshot", { ...args, mode: "accessibility" }), /Accessibility snapshot failed/);
+    const screenshot = await call("dive_snapshot", args);
+    expect(screenshot[1].data).toBe(bytes.toString("base64"));
+    const accessibility = await call("dive_snapshot", { ...args, mode: "accessibility" });
+    expect(accessibility).toHaveLength(1);
+    expect(JSON.parse(accessibility[0].text).accessibilityTree).toEqual({ role: "document" });
+  });
+
+  it("survives an agent burst and repeated audit storage failures, then resumes truthful logging", async () => {
+    let unavailable = true;
+    const rows: unknown[][] = [];
+    const batches: number[] = [];
+    const db = {
+      pragma: vi.fn(), exec: vi.fn(),
+      prepare: vi.fn((sql: string) => {
+        if (sql.includes("INSERT") && unavailable) throw new Error("Audit storage unavailable");
+        return { run: (...args: unknown[]) => { if (sql.includes("INSERT")) rows.push(args); } };
+      }),
+      transaction: (fn: (entries: unknown[]) => void) => (entries: unknown[]) => { batches.push(entries.length); fn(entries); },
+    };
+    vi.doMock("../db.js", () => ({ openOptionalSqliteDatabase: () => db }));
+    const { auditLog, flushAuditLog, _resetAuditForTesting } = await import("../security/auditLog.js");
+    try {
+      for (let round = 0; round < 3; round++) {
+        for (let call = 0; call < 700; call++) expect(() => auditLog("tool_call", "manipulate_screenshot", "controlled", true, "decoder failed", { resultStatus: "error" })).not.toThrow();
+        expect(flushAuditLog).not.toThrow();
+      }
+      unavailable = false;
+      for (let call = 0; call < 700; call++) auditLog("tool_call", "manipulate_screenshot", "controlled", true, undefined, { resultStatus: "success" });
+      flushAuditLog();
+      expect(rows).toHaveLength(700);
+      expect(Math.max(...batches)).toBeLessThanOrEqual(256);
+      expect(rows.every(row => row[5] === 1 && JSON.parse(String(row[7])).resultStatus === "success")).toBe(true);
+    } finally { _resetAuditForTesting(); }
+  });
+});
 
 // Assemble all tools like index.ts does
 const domainTools: McpTool[] = [
