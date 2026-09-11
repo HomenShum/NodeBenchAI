@@ -76,6 +76,9 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Workflow event data scenarios
+        run: node --test scripts/nodebench-packet-contracts.node.mjs
+
       - name: Runtime smoke tests
         run: >
           npx vitest run
