@@ -208,3 +208,6 @@ scripts/ops/.tmp-*
 # proof-looping run evidence (screenshots/videos/traces) — not committed
 .proofloop-ui/
 .proofloop-run/
+
+# Generated benchmark results belong to the current run, not source control.
+/scripts/attrition/golden-results.json
