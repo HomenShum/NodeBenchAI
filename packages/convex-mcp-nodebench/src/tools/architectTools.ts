@@ -12,6 +12,7 @@
  * - convex_generate_plan: Build a plan for missing signatures
  */
 
+import { findConvexDir } from "../project.js";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { getDb, genId } from "../db.js";
@@ -129,31 +130,6 @@ function analyzePatterns(content: string, patterns: PatternCategory): Record<str
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-function findConvexDir(projectDir: string): string | null {
-  // convex.json "functions" overrides the default directory, same as the Convex CLI.
-  const configPath = join(projectDir, "convex.json");
-  if (existsSync(configPath)) {
-    try {
-      const config = JSON.parse(readFileSync(configPath, "utf8")) as { functions?: string };
-      if (typeof config.functions === "string" && config.functions.length > 0) {
-        const configured = join(projectDir, config.functions);
-        if (existsSync(configured)) return configured;
-      }
-    } catch {
-      // fall through to the conventional candidates
-    }
-  }
-  const candidates = [
-    join(projectDir, "convex"),
-    join(projectDir, "src", "convex"),
-    join(projectDir, "backend", "convex"),
-  ];
-  for (const c of candidates) {
-    if (existsSync(c)) return c;
-  }
-  return null;
-}
-
 function collectTsFiles(dir: string): string[] {
   const results: string[] = [];
   if (!existsSync(dir)) return results;
@@ -236,7 +212,7 @@ export const architectTools: McpTool[] = [
       const projectDir = resolve(args.projectDir);
       const convexDir = findConvexDir(projectDir);
       if (!convexDir) {
-        return { error: "No convex/ directory found" };
+        return { error: "No configured Convex functions directory found" };
       }
 
       const files = collectTsFiles(convexDir);
@@ -358,7 +334,7 @@ export const architectTools: McpTool[] = [
         const projectDir = resolve(args.projectDir);
         const convexDir = findConvexDir(projectDir);
         if (!convexDir) {
-          return { error: "No convex/ directory found" };
+          return { error: "No configured Convex functions directory found" };
         }
         const files = collectTsFiles(convexDir);
         content = files.map(f => readFileSync(f, "utf-8")).join("\n// ── file boundary ──\n");
