@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { after, before, test } from 'node:test';
@@ -196,21 +196,118 @@ test('burst and sustained human requests retain their own query and packet witho
   assert.equal(new Set(queries).size, 44);
 });
 
+const attrition = readFileSync(new URL('../.github/workflows/attrition-qa.yml', import.meta.url), 'utf8');
+const crawlBlock = attrition.split('      - name: Crawl all surfaces\n')[1].split('\n  golden-queries:')[0];
+const crawlScript = crawlBlock.split('        run: |\n')[1];
+const ready = { status: 'ok', toolsAvailable: 2, toolsExpected: 2, tools: ['search', 'fetch'] };
+// Intercept curl before the actual shell block executes. These scenarios cannot
+// contact the public deployment or invoke a search/provider.
+const curlStub = `curl() {
+  if [[ "$1" == "--version" ]]; then printf '%s\n' "$CURL_FIXTURE_VERSION"; return; fi
+  printf '<curl:%s>\n' "\${@: -1}" >&2
+  if [[ "\${@: -1}" == *"/api/search-health" ]]; then
+    printf '<health-arg:%s>\n' "$@" >&2
+    if [[ "$HEALTH_EXIT" != "0" ]]; then return "$HEALTH_EXIT"; fi
+    node -e 'process.stdout.write(process.env.HEALTH_OVERSIZE === "1" ? Buffer.alloc(65541, 32) : Buffer.from(process.env.HEALTH_BYTES, "base64"))'
+    printf '\n%s' "$HTTP_STATUS"
+    return "$HEALTH_EXIT_AFTER_BODY"
+  else printf '%s' "$SURFACE_STATUS"; fi
+}
+`;
+const bashArgs = ['--noprofile', '--norc', '-e', '-c', curlStub + crawlScript];
+function crawlOptions(overrides = {}) {
+  const { HEALTH_FIXTURE, ...rest } = overrides;
+  return {
+    encoding: 'utf8', timeout: 10000, maxBuffer: 64000,
+    env: {
+      PATH: process.env.PATH, SystemRoot: process.env.SystemRoot || '',
+      BASE: 'https://example.invalid', HEALTH_BYTES: Buffer.from(HEALTH_FIXTURE ?? JSON.stringify(ready)).toString('base64'),
+      CURL_FIXTURE_VERSION: 'curl 8.5.0', HTTP_STATUS: '200', HEALTH_EXIT: '0', HEALTH_EXIT_AFTER_BODY: '0', HEALTH_OVERSIZE: '0', SURFACE_STATUS: '200',
+      ...rest,
+    },
+  };
+}
+
 test('an operator-supplied Attrition URL stays shell data and preserves the existing crawl', () => {
-  const attrition = readFileSync(new URL('../.github/workflows/attrition-qa.yml', import.meta.url), 'utf8');
-  const block = attrition.split('      - name: Crawl all surfaces\n')[1].split('\n  golden-queries:')[0];
-  assert.ok(block.includes("BASE: ${{ github.event.inputs.api_url || 'https://scratchnode.live' }}"));
-  const runScript = block.split('        run: |\n')[1];
-  assert.ok(runScript && !runScript.includes('${{'));
+  assert.ok(crawlBlock.includes("BASE: ${{ github.event.inputs.api_url || 'https://scratchnode.live' }}"));
+  assert.ok(crawlScript && !crawlScript.includes('${{'));
+  assert.ok(crawlScript.trimStart().startsWith('set -o pipefail'));
   const base = 'https://example.invalid/"$(printf "EXECUTED\\n" >&2)"';
-  // curl is intercepted before running the real shell block; it cannot network.
-  const stub = 'curl() { printf "<curl:%s>\\n" "${@: -1}" >&2; printf 200; }\n';
-  const observed = spawnSync('bash', ['--noprofile', '--norc', '-e', '-o', 'pipefail', '-c', stub + runScript], {
-    encoding: 'utf8', timeout: 5000, maxBuffer: 32000,
-    env: { PATH: process.env.PATH, BASE: base, SystemRoot: process.env.SystemRoot || '' },
-  });
+  const observed = spawnSync('bash', bashArgs, crawlOptions({ BASE: base }));
   assert.ifError(observed.error);
   assert.equal(observed.status, 0, observed.stderr);
   assert.ok(!observed.stderr.split(/\r?\n/).includes('EXECUTED'));
-  assert.equal((observed.stdout.match(/PASS /g) || []).length, 4);
+  assert.equal((observed.stdout.match(/PASS (ask|library|connect|telemetry):/g) || []).length, 4);
+  assert.ok(observed.stdout.includes('PASS public search health'));
+  const args = observed.stderr.split(/\r?\n/).filter(line => line.startsWith('<health-arg:')).map(line => line.slice(12, -1));
+  for (const flag of ['--globoff', '--proto', '=https', '--connect-timeout', '10', '--max-time', '30', '--max-filesize', '65536', '--']) assert.ok(args.includes(flag), flag);
+  assert.equal(args.at(-2), '--');
+  assert.equal(args.at(-1), base + '/api/search-health');
+  assert.ok(!args.includes('-L') && !args.includes('--location') && !args.includes('--retry'));
+});
+
+test('a release operator rejects HTML200, missing tools and degraded API readiness', () => {
+  const badBodies = ['<!DOCTYPE html><h1>App shell</h1>', '{', 'null', '[]', '{}',
+    JSON.stringify(ready).replace('"ok"', '"o\u0000k"'),
+    Buffer.concat([Buffer.from('{"status":"ok","toolsExpected":1,"toolsAvailable":1,"tools":["'), Buffer.from([255]), Buffer.from('"]}')]),
+    JSON.stringify({ ...ready, status: 'degraded' }),
+    JSON.stringify({ ...ready, toolsExpected: 0 }),
+    JSON.stringify({ ...ready, toolsExpected: 2.5 }),
+    JSON.stringify({ ...ready, toolsExpected: Number.MAX_SAFE_INTEGER + 1 }),
+    JSON.stringify({ ...ready, toolsAvailable: '2' }),
+    JSON.stringify({ ...ready, toolsAvailable: 1 }),
+    JSON.stringify({ ...ready, tools: ['search'] }),
+    JSON.stringify({ ...ready, tools: ['search', 'search'] }),
+    JSON.stringify({ ...ready, tools: ['search', ' search '] }),
+    JSON.stringify({ ...ready, tools: ['search', ' '] }),
+    JSON.stringify({ ...ready, tools: ['search', 42] })];
+  for (const body of badBodies) {
+    const result = spawnSync('bash', bashArgs, crawlOptions({ HEALTH_FIXTURE: body }));
+    assert.ifError(result.error); assert.notEqual(result.status, 0, String(body));
+    assert.ok(!result.stdout.includes('PASS public search health'));
+  }
+});
+
+test('a release operator retains HTTP, timeout and size failures and refuses an unbounded curl version', () => {
+  const failures = [
+    ...['204', '301', '302', '401', '405', '503'].map(HTTP_STATUS => ({ HTTP_STATUS })),
+    ...['28', '63'].map(HEALTH_EXIT => ({ HEALTH_EXIT })),
+    { HEALTH_EXIT_AFTER_BODY: '28' },
+    { HEALTH_OVERSIZE: '1' },
+    ...['curl 8.3.0', 'curl 7.88.1', 'invalid'].map(CURL_FIXTURE_VERSION => ({ CURL_FIXTURE_VERSION })),
+    { SURFACE_STATUS: '503' },
+  ];
+  for (const fixture of failures) {
+    const result = spawnSync('bash', bashArgs, crawlOptions(fixture));
+    assert.ifError(result.error); assert.notEqual(result.status, 0, JSON.stringify(fixture));
+  }
+  // These stubs prove propagation of curl's errors, not actual network timing
+  // or streaming limits. The real flags and version gate establish that bound.
+});
+
+test('concurrent release operators and repeated checks cannot inherit a previous passing response', async () => {
+  const observe = (fixture) => new Promise((resolve, reject) => {
+    const child = spawn('bash', bashArgs, crawlOptions(fixture));
+    let stdout = '', stderr = '';
+    child.stdout.on('data', b => { stdout += b; if (stdout.length > 64000) child.kill(); });
+    child.stderr.on('data', b => { stderr += b; if (stderr.length > 64000) child.kill(); });
+    child.on('error', reject);child.on('close', code => resolve({ code, stdout, stderr }));
+  });
+  for (let round = 0; round < 3; round++) {
+    const fixtures = [{}, { HTTP_STATUS: '405' }, { HEALTH_FIXTURE: '<html>cached fallback</html>' }, {}];
+    const results = await Promise.all(fixtures.map(observe));
+    assert.deepEqual(results.map(r => r.code === 0), [true, false, false, true]);
+  }
+});
+
+test('a failed pipeline benchmark remains failed and its result upload step remains eligible', () => {
+  const benchmark = attrition.split('      - name: Run golden queries\n')[1].split('      - name: Upload results\n')[0];
+  assert.ok(!benchmark.includes('continue-on-error') && !benchmark.includes('|| true'));
+  const script = benchmark.split('        run: |\n')[1];
+  const result = spawnSync('bash', ['--noprofile', '--norc', '-e', '-o', 'pipefail', '-c', 'npx() { return 1; }\n' + script], crawlOptions());
+  assert.ifError(result.error);assert.equal(result.status, 1);
+  const upload = attrition.split('      - name: Upload results\n')[1].split('      - name: Comment results')[0];
+  assert.ok(upload.includes('if: always()') && upload.includes('path: scripts/attrition/golden-results.json'));
+  const golden = readFileSync(new URL('./attrition/run-golden-queries.ts', import.meta.url), 'utf8');
+  assert.ok(golden.includes('/api/pipeline/search'), 'provider route must not be activated by silently retargeting');
 });

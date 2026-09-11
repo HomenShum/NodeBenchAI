@@ -19,10 +19,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - uses: actions/setup-node@v6
+        with:
+          package-manager-cache: false
+          node-version-file: ".nvmrc"
+
       - name: Crawl all surfaces
         env:
           BASE: ${{ github.event.inputs.api_url || 'https://scratchnode.live' }}
         run: |
+          set -o pipefail
           if [[ "$BASE" == https://vercel.com/* ]]; then
             BASE="https://scratchnode.live"
           fi
@@ -42,13 +48,36 @@ jobs:
             fi
           done
 
-          # Check pipeline health
-          PIPELINE=$(curl -L -sS --retry 1 --connect-timeout 10 "$BASE/api/pipeline/health" --max-time 30 2>/dev/null || echo '{}')
-          echo "Pipeline health: $PIPELINE"
-
-          # Check HyperLoop stats
-          HYPERLOOP=$(curl -L -sS --retry 1 --connect-timeout 10 "$BASE/api/hyperloop/stats" --max-time 30 2>/dev/null || echo '{}')
-          echo "HyperLoop stats: $HYPERLOOP"
+          # curl >=8.4 enforces max-filesize while receiving unknown-length bodies.
+          export CURL_VERSION="$(curl --version)"
+          node -e '
+            const version = /^curl (\d+)\.(\d+)\./.exec(process.env.CURL_VERSION || "");
+            if (!version || Number(version[1]) < 8 || (Number(version[1]) === 8 && Number(version[2]) < 4)) {
+              throw new Error("Public health requires curl >=8.4 for the response-size bound");
+            }
+          '
+          curl -sS --globoff --proto '=https' --connect-timeout 10 --max-time 30 --max-filesize 65536 --write-out '\n%{http_code}' -- "$BASE/api/search-health" | node --input-type=module -e '
+            const chunks = [];
+            let bytes = 0;
+            for await (const chunk of process.stdin) {
+              bytes += chunk.length;
+              if (bytes > 65540) throw new Error("Public health exceeds the response-size bound");
+              chunks.push(chunk);
+            }
+            const response = Buffer.concat(chunks);
+            if (!response.subarray(-4).equals(Buffer.from("\n200"))) throw new Error("Public health must return HTTP200");
+            const body = new TextDecoder("utf-8", { fatal: true }).decode(response.subarray(0, -4));
+            const health = JSON.parse(body);
+            if (!health || typeof health !== "object" || Array.isArray(health) || health.status !== "ok" ||
+                !Number.isSafeInteger(health.toolsExpected) || health.toolsExpected < 1 ||
+                !Number.isSafeInteger(health.toolsAvailable) || health.toolsAvailable !== health.toolsExpected ||
+                !Array.isArray(health.tools) || health.tools.length !== health.toolsAvailable ||
+                !health.tools.every(name => typeof name === "string" && name.length > 0 && name === name.trim()) ||
+                new Set(health.tools).size !== health.tools.length) {
+              throw new Error("Public search health is incomplete or malformed");
+            }
+          '
+          echo "PASS public search health"
 
           if [ $ERRORS -gt 0 ]; then
             echo "::error::$ERRORS surface(s) failed health check"
@@ -77,9 +106,9 @@ jobs:
             export NODEBENCH_API_URL="https://scratchnode.live"
           fi
           npx tsx scripts/attrition/run-golden-queries.ts
-        continue-on-error: true
 
       - name: Upload results
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: golden-query-results
