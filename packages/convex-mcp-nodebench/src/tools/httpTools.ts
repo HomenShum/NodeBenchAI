@@ -1,17 +1,10 @@
+import { findConvexDir } from "../project.js";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { getQuickRef } from "./toolRegistry.js";
 import type { McpTool } from "../types.js";
 
 // ── Helpers ──────────────────────────────────────────────────────────
-
-function findConvexDir(projectDir: string): string | null {
-  const candidates = [join(projectDir, "convex"), join(projectDir, "src", "convex"), join(projectDir, "backend", "convex")];
-  for (const c of candidates) {
-    if (existsSync(c)) return c;
-  }
-  return null;
-}
 
 // ── HTTP Endpoint Analysis ──────────────────────────────────────────
 
@@ -249,7 +242,7 @@ export const httpTools: McpTool[] = [
       const projectDir = resolve(args.projectDir);
       const convexDir = findConvexDir(projectDir);
       if (!convexDir) {
-        return { error: "No convex/ directory found" };
+        return { error: "No configured Convex functions directory found" };
       }
 
       const result = analyzeHttpEndpoints(convexDir);
