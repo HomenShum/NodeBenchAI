@@ -98,6 +98,9 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund || npm install --ignore-scripts --no-audit --no-fund
 
+      - name: Verify benchmark runner scenarios
+        run: node --test scripts/attrition/golden-runtime-scenarios.mjs
+
       - name: Run golden queries
         env:
           NODEBENCH_API_URL: ${{ github.event.inputs.api_url || 'https://scratchnode.live' }}
@@ -121,7 +124,9 @@ jobs:
           script: |
             const fs = require('fs');
             const results = JSON.parse(fs.readFileSync('scripts/attrition/golden-results.json', 'utf8'));
-            const body = `## NodeBench Quality Benchmark
+            const body = results.status === 'blocked'
+              ? `## NodeBench Quality Benchmark\n\n**Not run:** ${results.notRun} queries.\n\nRuntime preflight failed: ${results.message}\n\nNo answer-quality score was produced.`
+              : `## NodeBench Quality Benchmark
 
             **Pass rate:** ${results.passed}/${results.total} (${results.passRate}%)
             **Avg confidence:** ${results.avgConfidence}%
