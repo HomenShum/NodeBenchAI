@@ -1,9 +1,9 @@
 """
 Tool execution endpoints
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Body, HTTPException, Response
 from pydantic import BaseModel
-from typing import Dict, Any, Optional
+from typing import Annotated, Dict, Any, Optional
 from services.openbb_client import get_openbb_client
 from services.tool_registry import get_tool_registry
 
@@ -26,7 +26,7 @@ class ToolResponse(BaseModel):
 
 
 @router.post("/execute", response_model=ToolResponse)
-async def execute_tool(request: ToolRequest):
+async def execute_tool(request: ToolRequest, response: Response):
     """
     Execute a tool with given parameters
     
@@ -34,61 +34,76 @@ async def execute_tool(request: ToolRequest):
     """
     import time
     start_time = time.time()
+    response.status_code = 200
+    result = None
+    error = None
     
     try:
-        # Get tool registry and client
+        # Validate the requested tool before constructing its provider client.
         registry = get_tool_registry()
-        client = get_openbb_client()
         
         # Validate tool exists
         tool_info = registry.get_tool_info(request.tool_name)
         if not tool_info:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Tool '{request.tool_name}' not found"
+            response.status_code = 404
+        else:
+            client = get_openbb_client()
+            result = await client.execute_tool(
+                request.tool_name,
+                request.parameters,
             )
-        
-        # Execute tool
-        result = await client.execute_tool(
-            request.tool_name,
-            request.parameters
-        )
-        
-        execution_time = (time.time() - start_time) * 1000
-        
-        return ToolResponse(
-            success=True,
-            data=result,
-            tool_name=request.tool_name,
-            execution_time_ms=execution_time,
-        )
-        
-    except Exception as e:
-        execution_time = (time.time() - start_time) * 1000
-        
-        return ToolResponse(
-            success=False,
-            error=str(e),
-            tool_name=request.tool_name,
-            execution_time_ms=execution_time,
-        )
+            if isinstance(result, dict) and result.get("success") is False:
+                response.status_code = 503
+                error = "Tool execution is unavailable."
+                result = None
+    except Exception:
+        response.status_code = 502
+        error = "Tool execution failed."
+        result = None
+
+    # Only this route's unknown-tool error is exposed; provider exceptions stay sanitized.
+    if response.status_code == 404:
+        raise HTTPException(status_code=404, detail=f"Tool '{request.tool_name}' not found")
+
+    return ToolResponse(
+        success=error is None,
+        data=result,
+        error=error,
+        tool_name=request.tool_name,
+        execution_time_ms=(time.time() - start_time) * 1000,
+    )
 
 
 @router.post("/batch_execute")
-async def batch_execute_tools(requests: list[ToolRequest]):
+async def batch_execute_tools(
+    requests: Annotated[list[ToolRequest], Body(max_length=100)],
+    response: Response,
+):
     """
     Execute multiple tools in batch
     
     Executes multiple tools and returns all results
     """
     results = []
+    response.status_code = 200
     
     for request in requests:
-        result = await execute_tool(request)
+        item_response = Response()
+        try:
+            result = await execute_tool(request, item_response)
+        except HTTPException as exc:
+            item_response.status_code = exc.status_code
+            result = ToolResponse(
+                success=False,
+                error="Tool not found.",
+                tool_name=request.tool_name,
+            )
+        if response.status_code == 200 and item_response.status_code >= 400:
+            response.status_code = item_response.status_code
         results.append(result)
     
     return {
-        "success": True,
+        "success": all(result.success for result in results),
         "results": results,
         "count": len(results),
     }
