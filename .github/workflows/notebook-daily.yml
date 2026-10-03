@@ -46,4 +46,6 @@ jobs:
         with:
           name: notebook-daily-${{ github.run_id }}
           path: .tmp/notebook-daily-*.json
+          include-hidden-files: true
+          if-no-files-found: error
           retention-days: 90
