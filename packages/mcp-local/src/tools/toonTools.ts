@@ -85,7 +85,7 @@ export const toonTools: McpTool[] = [
       required: ["toon"],
     },
     handler: async (args) => {
-      if (!args.toon || typeof args.toon !== "string") {
+      if (typeof args.toon !== "string") {
         return { error: true, message: "Provide a 'toon' string to decode." };
       }
 
