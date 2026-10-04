@@ -78,6 +78,23 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+      - name: Observe generated API compiler symbols
+        id: api_symbol_probe
+        if: failure() && steps.app_typecheck.outcome == 'failure'
+        timeout-minutes: 11
+        env:
+          NODEBENCH_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node scripts/testing/probeGeneratedApiTypes.mjs
+
+      - name: Upload generated API symbol observation
+        if: always() && steps.api_symbol_probe.outcome != 'skipped'
+        uses: actions/upload-artifact@v7
+        with:
+          name: generated-api-symbols-${{ github.sha }}
+          path: ${{ runner.temp }}/nodebench-api-symbol-probe/generated-api-symbols.json
+          retention-days: 7
+          if-no-files-found: error
+
   runtime-smoke:
     name: Runtime smoke
     runs-on: ubuntu-latest
