@@ -56,13 +56,27 @@ jobs:
         run: npx convex codegen
 
       - name: App typecheck
-        run: npx tsc -p tsconfig.app.json --noEmit --pretty false
+        id: app_typecheck
+        run: node scripts/testing/captureAppTypecheck.mjs npx tsc -p tsconfig.app.json --noEmit --pretty false
 
       - name: Node typecheck
         run: npx tsc -p tsconfig.node.json --noEmit --pretty false
 
       - name: Convex typecheck
         run: npx tsc -p backend/convex --noEmit --pretty false
+
+      - name: Upload app typecheck diagnostic proof
+        if: always() && steps.app_typecheck.outcome != 'skipped'
+        uses: actions/upload-artifact@v7
+        with:
+          name: generated-api-typecheck-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/nodebench-app-typecheck/api.d.ts
+            ${{ runner.temp }}/nodebench-app-typecheck/server.d.ts
+            ${{ runner.temp }}/nodebench-app-typecheck/dataModel.d.ts
+            ${{ runner.temp }}/nodebench-app-typecheck/app-typecheck-diagnostics.log
+          retention-days: 7
+          if-no-files-found: error
 
   runtime-smoke:
     name: Runtime smoke
