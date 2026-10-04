@@ -56,7 +56,10 @@ jobs:
         run: npx convex codegen
 
       - name: App typecheck
-        run: npx tsc --noEmit --pretty false
+        run: npx tsc -p tsconfig.app.json --noEmit --pretty false
+
+      - name: Node typecheck
+        run: npx tsc -p tsconfig.node.json --noEmit --pretty false
 
       - name: Convex typecheck
         run: npx tsc -p backend/convex --noEmit --pretty false
@@ -158,5 +161,28 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Build retained Storybook examples
+        id: storybook
+        timeout-minutes: 10
+        run: |
+          test ! -e storybook-static
+          test ! -e storybook-proof.json
+          npm run build-storybook -- --config-dir .storybook --output-dir storybook-static --disable-telemetry
+
+      - name: Verify retained Storybook index
+        timeout-minutes: 1
+        run: node scripts/testing/verifyStorybookIndex.mjs
+
       - name: Production build
         run: npm run build
+
+      - name: Upload retained Storybook index proof
+        if: always() && steps.storybook.outcome != 'skipped'
+        uses: actions/upload-artifact@v7
+        with:
+          name: retained-storybook-${{ github.sha }}
+          path: |
+            storybook-static/index.json
+            storybook-proof.json
+          retention-days: 7
+          if-no-files-found: error
