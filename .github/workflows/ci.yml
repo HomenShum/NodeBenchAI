@@ -33,6 +33,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
 
       - uses: actions/setup-node@v6
         with:
@@ -92,6 +94,46 @@ jobs:
         with:
           name: generated-api-symbols-${{ github.sha }}
           path: ${{ runner.temp }}/nodebench-api-symbol-probe/generated-api-symbols.json
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Capture one generated API relation trace
+        id: api_relation_trace
+        if: >-
+          failure() && steps.app_typecheck.outcome == 'failure' &&
+          github.event_name == 'pull_request' && github.event.action == 'synchronize' &&
+          github.event.pull_request.number == 632 && github.run_attempt == '1' &&
+          github.event.pull_request.head.ref == 'fix/test-tooling-vitest4-storybook' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        timeout-minutes: 11
+        env:
+          NODEBENCH_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+          NODEBENCH_EVENT_ACTION: ${{ github.event.action }}
+          NODEBENCH_PR_NUMBER: ${{ github.event.pull_request.number }}
+          NODEBENCH_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          NODEBENCH_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+        run: node scripts/testing/captureAppTypecheckTrace.mjs
+
+      - name: Upload relation trace receipt and compiler output
+        if: always() && steps.api_relation_trace.outcome != 'skipped'
+        uses: actions/upload-artifact@v7
+        with:
+          name: generated-api-relation-trace-receipt-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/nodebench-app-typecheck-trace/trace-receipt.json
+            ${{ runner.temp }}/nodebench-app-typecheck-trace/trace-compiler.log
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Upload bounded native relation trace
+        if: always() && steps.api_relation_trace.outputs.native_files_bounded == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: generated-api-relation-trace-native-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/nodebench-app-typecheck-trace/native/trace.json
+            ${{ runner.temp }}/nodebench-app-typecheck-trace/native/types.json
+            ${{ runner.temp }}/nodebench-app-typecheck-trace/native/legend.json
           retention-days: 7
           if-no-files-found: error
 
