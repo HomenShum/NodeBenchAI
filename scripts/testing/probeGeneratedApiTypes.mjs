@@ -10,8 +10,8 @@ import { performance } from "node:perf_hooks";
 const SELF = fileURLToPath(import.meta.url);
 const ROOT = path.resolve(path.dirname(SELF), "../..");
 const MIB = 1024 * 1024;
-const REPORT_CAP = 256 * 1024;
-const CHILD_CAP = 224 * 1024;
+const REPORT_CAP = MIB;
+const CHILD_CAP = 960 * 1024;
 const FILE_CAP = 2 * MIB;
 const started = performance.now();
 const deadline = started + 600000;
@@ -33,6 +33,18 @@ const locations = [
   ["backend/convex/domains/search/analytics/analytics.ts", "getRoadmapAnalytics"],
   ["backend/convex/domains/integrations/gmail.ts", "getUserPreferencesForGmail"],
 ];
+const aggregationInputHashes = {
+  "backend/convex/_generated/api.d.ts": "28807c921bfe1d71ce2b0ce742a59355b3425948540ea4ecd6038ec8380f67f5",
+  "backend/convex/_generated/server.d.ts": "2b536ee08d434dd044efe0302aeaf4ccb00cd08af10c9f8c7bc7a6734e4aa49b",
+  "backend/convex/_generated/dataModel.d.ts": "db177073d16a4393c7a96bcdc3a2a904e88c2432d54d138ca7715cc431982c17",
+  "node_modules/convex/dist/esm-types/server/api.d.ts": "642f76dd6a1faac0efaabebedfb07e77c38ecaa0360846f55295eda4d537b46c",
+  "node_modules/convex/dist/esm-types/server/registration.d.ts": "28e694a7831bb0d9ed97f4b78e953877b59ad3773b94d054abbc8af712657315",
+  "node_modules/convex/dist/esm-types/server/index.d.ts": "3dde8f95d66278d89a3f896f7f9f7b05b3897ff040cfea68079b6e6e028a67b7",
+  "node_modules/convex/dist/esm-types/server/schema.d.ts": "ed2a07ef99205ee94494156a48d191bbc25d03c74667ad488a66c241f662a8e7",
+  "node_modules/convex/dist/esm-types/values/index.d.ts": "62f048e2a1ab85c8f06cb2eb2a539d5a245f8e42829299f7ced48bfffea87e66",
+  "node_modules/convex/dist/esm-types/values/validator.d.ts": "c66933f5c7824921c3a0e09f41b8c857d3f0e9570c264ef241d62befcbd3c775",
+  "node_modules/convex/dist/esm-types/type_utils.d.ts": "c9b10f272dcd513115c421ddea5460a365a4810106821ffa2dec9a26446610fe",
+};
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const budget = () => { if (performance.now() >= deadline) throw new Error("budget_exhausted"); };
 const sameStat = (a, b) => ["dev", "ino", "size", "mtimeNs", "ctimeNs"].every((key) => a[key] === b[key]);
@@ -341,6 +353,138 @@ function compilerObservation() {
     if (present) bindFile(path.join(ROOT, file));
     return { file, present };
   });
+  const observeAggregationInputs = () => {
+    for (const [file, expected] of Object.entries(aggregationInputHashes)) {
+      if (selected.get(file)?.sha256 !== expected) throw new Error("aggregation_input_identity_mismatch");
+    }
+    const declaration = symbolAt(locations[0][0], "fullApi").node.parent;
+    const annotation = declaration.type;
+    if (!ts.isVariableDeclaration(declaration) || !annotation || !ts.isTypeReferenceNode(annotation) ||
+        !ts.isIdentifier(annotation.typeName) || annotation.typeName.text !== "ApiFromModules" ||
+        annotation.typeArguments?.length !== 1 || !ts.isTypeLiteralNode(annotation.typeArguments[0])) throw new Error("aggregation_argument_shape_mismatch");
+    const argument = annotation.typeArguments[0];
+    if (argument.members.length > 2048) throw new Error("aggregation_module_limit");
+    const identifier = (value) => {
+      if (Buffer.byteLength(value) > 512) throw new Error("aggregation_identifier_limit");
+      return value;
+    };
+    const compare = (a, b) => a < b ? -1 : a > b ? 1 : 0;
+    const members = argument.members.map((member) => {
+      if (!ts.isPropertySignature(member) || member.questionToken || !member.type || !ts.isTypeQueryNode(member.type) ||
+          !ts.isIdentifier(member.type.exprName) || !(ts.isStringLiteral(member.name) || ts.isIdentifier(member.name))) throw new Error("aggregation_member_shape_mismatch");
+      return { key: identifier(member.name.text), node: member };
+    }).sort((a, b) => compare(a.key, b.key));
+    const allModules = checker.getTypeFromTypeNode(argument);
+    const properties = checker.getPropertiesOfType(allModules);
+    if (properties.length !== members.length || properties.length > 2048) throw new Error("aggregation_member_inventory_mismatch");
+    const propertyNames = properties.map((item) => identifier(item.getName())).sort(compare);
+    if (members.some((item, index) => item.key !== propertyNames[index] || (index > 0 && item.key === members[index - 1].key))) throw new Error("aggregation_member_inventory_mismatch");
+    const indices = checker.getIndexInfosOfType(allModules);
+    if (indices.length > 8) throw new Error("aggregation_index_info_limit");
+    const flagNames = ["any", "never", "unknown", "union", "intersection"];
+    const flagMasks = [ts.TypeFlags.Any, ts.TypeFlags.Never, ts.TypeFlags.Unknown, ts.TypeFlags.Union, ts.TypeFlags.Intersection];
+    const markerNames = ["isConvexFunction", "isQuery", "isMutation", "isAction", "_visibility"];
+    const markerStates = ["absent", "true", "false", "other"];
+    const markerFacts = (type, node) => markerNames.map((name) => {
+      const property = checker.getPropertyOfType(type, name);
+      if (!property) return { present: false, state: "absent" };
+      const value = checker.getTypeOfSymbolAtLocation(property, node);
+      const literal = value.flags & ts.TypeFlags.BooleanLiteral ? checker.typeToString(value, node, ts.TypeFormatFlags.None) : null;
+      return { present: true, flags: value.flags, state: literal === "true" || literal === "false" ? literal : "other",
+        stringLiteral: name === "_visibility" && value.isStringLiteral() ? identifier(value.value) : null };
+    });
+    const details = [], moduleRows = [], prefixPairs = [];
+    const detailFiles = new Set();
+    const exportDigest = createHash("sha256"), prefixDigest = createHash("sha256");
+    let exportCount = 0, detailCount = 0, prefixPairCount = 0, decodedSourceBytes = 0, omittedDeclarationBindings = 0;
+    const detailDeclarations = (symbol) => {
+      const target = symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol;
+      if (checker.isUnknownSymbol(target)) throw new Error("aggregation_export_alias_unresolved");
+      const declarations = target.declarations || [];
+      if (declarations.length > 8) throw new Error("selected_symbol_declaration_limit");
+      return declarations.map((node) => {
+        const source = node.getSourceFile();
+        const file = relative(checked(source.fileName, false, "read_file"));
+        const at = source.getLineAndCharacterOfPosition(node.getStart(source));
+        const mayBind = selected.has(file) || (detailFiles.size < 16 && selected.size < 32);
+        if (mayBind) {
+          if (!selected.has(file)) detailFiles.add(file);
+          bindFile(source.fileName);
+        } else omittedDeclarationBindings++;
+        return { path: file, line: at.line + 1, column: at.character + 1, rawFileHashBound: mayBind };
+      });
+    };
+    for (const member of members) {
+      budget();
+      const type = checker.getTypeFromTypeNode(member.node.type);
+      const alias = checker.getSymbolAtLocation(member.node.type.exprName);
+      if (!alias || !(alias.flags & ts.SymbolFlags.Alias)) throw new Error("aggregation_namespace_alias_missing");
+      const namespace = checker.getAliasedSymbol(alias);
+      if (checker.isUnknownSymbol(namespace) || namespace.declarations?.length !== 1) throw new Error("aggregation_namespace_unresolved_or_merged");
+      const source = namespace.declarations[0].getSourceFile();
+      const sourcePath = relative(checked(source.fileName, false, "read_file"));
+      if (program.getSourceFile(source.fileName) !== source) throw new Error("aggregation_namespace_not_in_program");
+      const sourceBytes = Buffer.byteLength(source.text);
+      if (sourceBytes > FILE_CAP || decodedSourceBytes + sourceBytes > 128 * MIB) throw new Error("aggregation_decoded_source_limit");
+      decodedSourceBytes += sourceBytes;
+      const sourceTextSha256 = sha(Buffer.from(source.text));
+      const properties = checker.getPropertiesOfType(type);
+      if (properties.length > 1024 || exportCount + properties.length > 32768) throw new Error("aggregation_export_limit");
+      const exports = [...properties].sort((a, b) => compare(a.getName(), b.getName()));
+      const nextSegments = new Set();
+      for (const other of members) {
+        if (other.key.startsWith(member.key + "/")) nextSegments.add(other.key.slice(member.key.length + 1).split("/")[0]);
+      }
+      const flagTotals = flagNames.map(() => 0), markerTotals = markerNames.map(() => markerStates.map(() => 0));
+      const factsByExport = new Map();
+      for (const symbol of exports) {
+        budget();
+        const name = identifier(symbol.getName());
+        const value = checker.getTypeOfSymbolAtLocation(symbol, member.node.type);
+        const markers = markerFacts(value, member.node.type);
+        flagMasks.forEach((mask, index) => { if (value.flags & mask) flagTotals[index]++; });
+        markers.forEach((item, index) => markerTotals[index][markerStates.indexOf(item.state)]++);
+        const fact = { flags: value.flags, markers };
+        factsByExport.set(name, fact);
+        exportDigest.update(encode({ module: member.key, export: name, ...fact }, 16384));
+        exportCount++;
+        const unusual = !!(value.flags & (ts.TypeFlags.Any | ts.TypeFlags.Never | ts.TypeFlags.Unknown | ts.TypeFlags.Union)) ||
+          markers.slice(0, 4).some((item) => item.present && item.state === "other") ||
+          (markers[4].present && !["public", "internal"].includes(markers[4].stringLiteral)) || nextSegments.has(name);
+        if (unusual) {
+          detailCount++;
+          if (details.length < 128) {
+            const display = checker.typeToString(value, member.node.type, ts.TypeFormatFlags.None);
+            const constituents = value.isUnionOrIntersection() ? value.types : [];
+            details.push({ module: member.key, export: name, ...fact, modulePrefixNameMatch: nextSegments.has(name),
+              text: Buffer.from(display).subarray(0, 1024).toString("utf8"), textByteCapTruncated: Buffer.byteLength(display) > 1024,
+              constituentCount: constituents.length, constituentFlags: constituents.slice(0, 8).map((item) => item.flags), constituentsTruncated: constituents.length > 8,
+              declarations: detailDeclarations(symbol) });
+          }
+        }
+      }
+      moduleRows.push([member.key, sourcePath, sourceTextSha256, type.flags, exports.length, flagTotals, markerTotals]);
+      for (const other of members) {
+        if (!other.key.startsWith(member.key + "/")) continue;
+        const segment = other.key.slice(member.key.length + 1).split("/")[0];
+        const fact = factsByExport.get(segment);
+        const pair = { module: member.key, descendant: other.key, nextSegment: segment, exportPresent: !!fact, exportFacts: fact || null };
+        prefixDigest.update(encode(pair, 16384));
+        prefixPairCount++;
+        if (prefixPairs.length < 128) prefixPairs.push(pair);
+      }
+    }
+    return { status: "INPUT_CENSUS_COMPLETE", offenderIdentified: false, causeStatus: "OPEN",
+      allModulesFlags: allModules.flags, allModulesPropertyCount: properties.length,
+      allModulesIndices: indices.map((item) => ({ keyFlags: item.keyType.flags, valueFlags: item.type.flags })),
+      moduleCount: members.length, visitedModuleCount: moduleRows.length, exportCount, exportCensusSha256: exportDigest.digest("hex"),
+      moduleRowColumns: ["module", "namespaceSourcePath", "decodedSourceTextSha256", "moduleTypeFlags", "exportCount", "exportFlagTotals", "markerTotals"],
+      flagTotalColumns: flagNames, markerNames, markerStateColumns: markerStates, moduleRows,
+      detailCount, details, detailsTruncated: detailCount > details.length, detailRawFileCount: detailFiles.size, omittedDeclarationBindings,
+      prefixPairCount, prefixPairs, prefixPairsTruncated: prefixPairCount > prefixPairs.length, prefixCensusSha256: prefixDigest.digest("hex"), decodedSourceBytes,
+      meaning: "All original module/value-export inputs visited within limits. Flags, markers and prefix names are observations, not the library conditional result or a cause. Decoded program-text hashes are not raw-file hashes. Display text may already be shortened by TypeScript." };
+  };
+  const aggregation = observeAggregationInputs();
   for (const item of [...selected.values(), ...selectedPackages.values()]) {
     const after = readStable(checked(path.join(ROOT, item.path), false, "read_file"), item.version ? 128 * 1024 : FILE_CAP);
     if (after.sha256 !== item.sha256 || !sameStat(after.identity, item.identity)) throw new Error("selected_input_changed");
@@ -355,7 +499,7 @@ function compilerObservation() {
     sourceReadBytes: readBytes, sourceReadCalls: readCalls, metadataCalls, refusal,
     ancestorAnchorCount: ancestors.length, ancestorMetadataQueries, ancestorMetadataSamples,
     ancestorMetadataSamplesTruncated: ancestorMetadataQueries > ancestorMetadataSamples.length,
-    selectedInputsVerified: true,
+    selectedInputsVerified: true, aggregation,
   };
 }
 
@@ -415,7 +559,7 @@ if (process.argv[2] === "--compiler-child" && process.argv.length === 3) {
   try { process.stdout.write(encode(report, CHILD_CAP)); }
   catch { process.stdout.write('{"status":"INCOMPLETE","error":"report_limit","originStatus":"OPEN"}\n'); process.exitCode = 1; }
 } else {
-  const report = { proof: "NODEBENCH-GENERATED-API-FIRST-NEVER-01", startedAt: new Date().toISOString(), status: "INCOMPLETE", originStatus: "OPEN", appTypecheckPassed: false };
+  const report = { proof: "NODEBENCH-GENERATED-API-AGGREGATION-INPUTS-01", startedAt: new Date().toISOString(), status: "INCOMPLETE", originStatus: "OPEN", appTypecheckPassed: false };
   let output, exitCode = 1;
   try {
     if (process.platform !== "linux" || process.argv.length !== 2 || process.cwd() !== ROOT || fs.realpathSync(ROOT) !== ROOT) throw new Error("fixed_linux_checkout_required");
@@ -446,6 +590,7 @@ if (process.argv[2] === "--compiler-child" && process.argv.length === 3) {
       const file = path.join(ROOT, name);
       if (fs.realpathSync(file) !== file) throw new Error("fixed_input_not_canonical_public_path");
       const input = readStable(file, name.endsWith("lib/typescript.js") ? 16 * MIB : name.startsWith("node_modules/") ? 128 * 1024 : FILE_CAP);
+      if (aggregationInputHashes[name] && input.sha256 !== aggregationInputHashes[name]) throw new Error("aggregation_generated_input_mismatch");
       before.set(name, input);
       report.sourceHashes[name] = { bytes: input.bytes.length, sha256: input.sha256 };
       const captured = provenance.sourceHashes[name];
