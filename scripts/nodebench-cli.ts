@@ -2,7 +2,7 @@
 import { ConvexHttpClient } from "convex/browser";
 
 import { buildEventCaptureMutationArgs } from "../apps/api-headless/src/lib/event-capture-projection.ts";
-import { api } from "../convex/_generated/api";
+import { api } from "../backend/convex/_generated/api";
 
 type ParsedArgs = {
   command?: string;

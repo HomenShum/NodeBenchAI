@@ -1,0 +1,81 @@
+{
+  "schemaVersion": "nodekit.score-receipt/v1",
+  "receiptId": "score-nodebench-entity-notebook-baseline-capture-always-armed",
+  "ruleId": "rule-capture-always-armed",
+  "subject": {
+    "id": "nodebench-entity-notebook-baseline",
+    "name": "NodeBench AI entity notebook surface — baseline before note-surface DNA application",
+    "kind": "platform-surface",
+    "surface": "the capture path into the entity notebook: EntityNotebookView.tsx empty/read state, EntityNotebookSurface.tsx mode selection, EntityNoteEditor.tsx first-keystroke readiness, plus ViewModeToggle.tsx (Cmd/Ctrl+E) consulted for the global-keystroke question",
+    "evidenceBasis": "recorded-observation",
+    "evidenceRef": "source at commit 24a09f36 (origin/main of HomenShum/NodeBenchAI), read in worktree feat/note-surface-dna on 2026-07-29",
+    "observedAt": "2026-07-29"
+  },
+  "derivedFrom": {
+    "collectionId": "note-surface",
+    "observationIds": ["obs-mew-stream", "obs-evernote-contrast"],
+    "factIds": [
+      "obs-mew-stream/f4",
+      "obs-evernote-contrast/f4"
+    ]
+  },
+  "ruleApplicability": {
+    "applies": true,
+    "appliesWhenSatisfied": [
+      "the surface's value depends on catching transient input — the editor's own placeholder states the job ('Write notes that compound with future runs...'), and the empty state routes the reader toward writing the first block"
+    ],
+    "doesNotApplyWhenChecked": [
+      {
+        "clause": "compliance-bound intake where classification is legally prior (the trust-surfaces contract governs those forms)",
+        "fires": false,
+        "note": "Nothing on this surface is a compliance intake; notes carry no legally-prior classification and the editor accepts free text."
+      }
+    ]
+  },
+  "scale": {
+    "min": 0,
+    "max": 4,
+    "anchors": {
+      "0": "capture gated behind a destination-type choice before text is accepted — obs-evernote-contrast/f4's Note/Task/Event buttons",
+      "1": "capture requires navigating structure and creating a container before a first keystroke, though no type question is asked",
+      "2": "capture is one mode change away from the reading state, with no classification question once inside; a global keystroke exists but toggles a mode rather than arming an input",
+      "3": "one global keystroke lands the user in a focused, armed editor from any state; a residual mode concept remains visible",
+      "4": "capture is armed in every state — one keystroke on desktop, persistent floating control on mobile, zero classification — obs-mew-stream/f4"
+    }
+  },
+  "criteria": [
+    {
+      "id": "c1-capture-without-mode-change",
+      "question": "Is the capture affordance reachable from every state without a mode change, and does it accept text without asking a classification question first?",
+      "score": 2,
+      "citations": [
+        {
+          "observationId": "obs-evernote-contrast",
+          "factIds": ["f4"],
+          "relation": "exceeds",
+          "withinRuleDerivation": true,
+          "note": "No classification question exists anywhere on the path: the empty state's single action is 'Open Live notebook', EntityNoteEditor defaults to the rich editor with no type/destination prompt, and the Editor/Markdown toggle is a preselected preference, not a gate. The subject clears the Evernote counterexample outright."
+        },
+        {
+          "observationId": "obs-mew-stream",
+          "factIds": ["f4"],
+          "relation": "falls-short-of",
+          "withinRuleDerivation": true,
+          "note": "Mew's cmd+k adds a note to the top of the stream from anywhere. NodeBench's global keystroke (Cmd/Ctrl+E in ViewModeToggle.tsx:35) toggles the read/edit view mode rather than arming an input, and the read-only notebook tab interposes one decision — the 'Open Live notebook' button or the mode toggle — between intent and first keystroke. Whether focus lands in an editable block after that mode change (EntityNotebookLive autoFocus is conditional on isFocused) is not verifiable from source alone."
+        }
+      ],
+      "finding": "One mode change, zero classification. The path is: reading state, one action (Open Live / Cmd+E), then an editor that accepts text without questions. That is anchor 2 exactly — better than a destination-gated intake, short of an always-armed input. Whether the post-toggle editor arrives focused is recorded as not assessed rather than guessed."
+    }
+  ],
+  "score": 2,
+  "scoreBasis": "Single criterion, so the receipt score is the criterion score. Absence of any classification question clears anchors 0 and 1; the mode change between the reading state and an armed editor blocks anchor 3.",
+  "notScored": [
+    "Zero-to-first-keystroke timing — a temporal property of the running app; no live instance was launched in this environment, so it is not assessed rather than approximated from code.",
+    "Whether focus arrives in an editable block after 'Open Live' or Cmd+E — depends on runtime focus state (EntityNotebookLive's conditional autoFocus) and was not observed.",
+    "Mobile capture (obs-mew-stream/f6's persistent FAB standard) — no mobile-specific capture affordance was found in the five target files, but the app shell outside them was not swept, so absence here is not asserted as absence in the product.",
+    "The chat-driven capture path ('Start a chat to generate a brief') — a different modality this rule was not derived against."
+  ],
+  "boundary": "Scored from component source at a pinned commit, not from a running page. Structural facts (what handlers exist, what the empty state offers, whether any dialog interposes) are reliable from source; temporal and focus behavior are not, and every such point is filed under notScored instead of scored.",
+  "scoredBy": "note-surface DNA application pass, feat/note-surface-dna, scored against rule-capture-always-armed unmodified",
+  "scoredAt": "2026-07-29"
+}

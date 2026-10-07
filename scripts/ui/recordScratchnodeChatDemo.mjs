@@ -40,18 +40,135 @@ async function smoothScroll(page, totalPx, steps, perStepMs) {
   }
 }
 
+const roomReadyStates = [
+  { selector: "#feed .row", state: "populated_feed" },
+  { selector: "#feed .ans", state: "agent_answer" },
+  { selector: ".empty", state: "empty_feed" },
+  { selector: "#ci[placeholder*='Live room unavailable']", state: "unavailable_composer" },
+  { selector: ".c-box", state: "composer_shell" },
+  { selector: ".h-code", state: "room_header" },
+];
+
+async function firstVisibleSelector(page, candidates, timeoutMs) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    for (const candidate of candidates) {
+      const locator = page.locator(candidate.selector).first();
+      const count = await locator.count().catch(() => 0);
+      if (count < 1) continue;
+      const visible = await locator.isVisible().catch(() => false);
+      if (visible) return candidate;
+    }
+    await sleep(250);
+  }
+  return null;
+}
+
+async function captureLayoutSignal(page) {
+  return page.evaluate(() => {
+    const composer = document.querySelector(".c");
+    const rect = composer ? composer.getBoundingClientRect() : null;
+    const isVisible = (el) => {
+      if (!el) return false;
+      const style = window.getComputedStyle(el);
+      const box = el.getBoundingClientRect();
+      return style.display !== "none"
+        && style.visibility !== "hidden"
+        && Number(style.opacity || "1") > 0
+        && box.width > 0
+        && box.height > 0
+        && box.bottom > 0
+        && box.top < window.innerHeight
+        && box.right > 0
+        && box.left < window.innerWidth;
+    };
+    const chipSelectors = [
+      ".h-live",
+      ".h-code",
+      ".h-menu",
+      ".sn-room-toggle",
+      ".id-set",
+      ".id-notes",
+      ".about-link",
+      ".event-strip .ev-mode",
+      ".event-strip .ev-cap",
+      ".event-strip .la-toggle",
+      ".event-strip .ev-link",
+    ];
+    const chipNodes = Array.from(document.querySelectorAll(chipSelectors.join(",")))
+      .filter(isVisible);
+    const labelFor = (el) => {
+      const text = (el.textContent || "").replace(/\s+/g, " ").trim();
+      if (text) return text.slice(0, 48);
+      const aria = (el.getAttribute("aria-label") || "").replace(/\s+/g, " ").trim();
+      if (aria) return aria.slice(0, 48);
+      if (el.id) return `#${el.id}`.slice(0, 48);
+      const className = typeof el.className === "string" ? el.className : "";
+      return className ? `.${className.split(/\s+/).filter(Boolean).join(".")}`.slice(0, 48) : el.tagName.toLowerCase();
+    };
+    const headerChrome = {
+      liveVisible: isVisible(document.querySelector(".h-live")),
+      roomCodeVisible: isVisible(document.querySelector(".h-code")),
+      eventTitleVisible:
+        isVisible(document.querySelector("#sn-event-title-hero"))
+        || isVisible(document.querySelector("#sn-event-title-strip")),
+      visibleChipCount: chipNodes.length,
+      visibleChipLabels: chipNodes.map(labelFor),
+    };
+    const viewport = {
+      width: Math.round(window.innerWidth),
+      height: Math.round(window.innerHeight),
+    };
+    const bottomDeltaPx = rect ? Math.round(viewport.height - rect.bottom) : null;
+    return {
+      pageMode: document.body?.dataset?.pageMode || null,
+      scrollY: Math.round(window.scrollY),
+      viewport,
+      composer: rect
+        ? {
+            top: Math.round(rect.top),
+            bottom: Math.round(rect.bottom),
+            height: Math.round(rect.height),
+          }
+        : null,
+      composerPosition: composer ? window.getComputedStyle(composer).position : null,
+      composerBottomDeltaPx: bottomDeltaPx,
+      composerPinnedToViewportBottom: bottomDeltaPx == null ? null : Math.abs(bottomDeltaPx) <= 2,
+      headerChrome,
+    };
+  });
+}
+
 async function waitForChat(page, label) {
-  // Feed must have rendered at least one decorated row (avatar = the redesign).
-  try {
-    await page.waitForSelector("#feed .row", { timeout: 25000 });
-  } catch {
-    throw new Error(`[${label}] #feed .row never appeared — room did not load at ${URL}`);
+  const ready = await firstVisibleSelector(page, roomReadyStates, 25000);
+  if (!ready) {
+    const selectors = roomReadyStates.map((candidate) => candidate.selector).join(", ");
+    throw new Error(`[${label}] no room-ready selector appeared (${selectors}) - room did not load at ${URL}`);
   }
   // Give decorateRow + Convex a beat to paint avatars/grouping.
   await sleep(2500);
+  const feedRows = await page.locator("#feed .row").count();
+  const answerCards = await page.locator("#feed .ans").count();
   const avatars = await page.locator("#feed .row-avatar").count();
   const ansBots = await page.locator("#feed .ans-bot").count();
-  return { avatars, ansBots };
+  const emptyFeed = await page.locator(".empty").first().isVisible().catch(() => false);
+  const unavailableComposer = (await page.locator("#ci[placeholder*='Live room unavailable']").count()) > 0;
+  await page.evaluate(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  });
+  await sleep(250);
+  const layout = await captureLayoutSignal(page);
+  return {
+    state: ready.state,
+    readySelector: ready.selector,
+    feedRows,
+    answerCards,
+    avatars,
+    ansBots,
+    emptyFeed,
+    unavailableComposer,
+    layout,
+  };
 }
 
 async function recordViewport({ browser, name, viewport, mobile }) {
@@ -67,7 +184,7 @@ async function recordViewport({ browser, name, viewport, mobile }) {
   page.on("console", (m) => {
     if (m.type() === "error") consoleErrors.push(m.text().slice(0, 200));
   });
-  let signal = { avatars: 0, ansBots: 0 };
+  let signal = { state: "unknown", avatars: 0, ansBots: 0 };
   let videoPath = null;
   try {
     await page.goto(URL, { waitUntil: "domcontentloaded", timeout: 30000 });

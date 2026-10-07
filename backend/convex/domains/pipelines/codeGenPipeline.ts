@@ -1,0 +1,504 @@
+/**
+ * Code Generation Pipeline (pi-ai)
+ *
+ * Four-step deterministic pipeline:
+ *
+ *   1. spec.parse     — pi-ai parses the user's spec into structured
+ *                       sections (goal, constraints, files, acceptance).
+ *   2. scaffold.plan  — pi-ai produces the file tree + per-file role.
+ *   3. scaffold.write — pi-ai emits each file's content in turn.
+ *   4. verify.review  — pi-ai (or AI SDK fallback) reviews the bundle
+ *                       against the original spec; emits a verdict.
+ *
+ * Each step writes a `pipelineSteps` row with real input/output tokens,
+ * estimated cost, and a clamped scratchpad. Telemetry is emitted to
+ * `traceAuditEntries` via `emitTraceEntry` so the existing operator
+ * dashboards (per pipeline_operational_standard.md) work unchanged.
+ *
+ * Pi-ai is the primary path; if `@mariozechner/pi-ai` isn't installed,
+ * `runPiOrAiSdkCompletion` falls back to the existing Vercel AI SDK
+ * resolver — meaning the pipeline ships green even before the dep
+ * lands. This is deliberate: hackathon constraint > local-only deps.
+ *
+ * Pattern: orchestrator-workers (Anthropic, 2024) with deterministic
+ * step order. Output is a single JSON bundle persisted on the run.
+ */
+
+"use node";
+
+import { v } from "convex/values";
+import { internalAction } from "../../_generated/server";
+import { internal } from "../../_generated/api";
+import type { Id } from "../../_generated/dataModel";
+import { resolvePipelineModelSelection } from "../agents/mcp_tools/models/modelResolver";
+import { runPiOrAiSdkCompletion } from "./piRuntime";
+import { appendPipelineTraceEntry } from "./pipelineTrace";
+import { buildPipelineIdempotencyKey } from "./pipelineAttempt";
+
+// ── Helpers ────────────────────────────────────────────────────────────
+
+function newRunId(): string {
+  return `pipeline_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function trimScratchpad(input: string, max = 32_000): string {
+  return input.length > max ? input.slice(0, max - 3) + "..." : input;
+}
+
+interface SpecParseResult {
+  goal: string;
+  constraints: string[];
+  acceptanceCriteria: string[];
+  preferredFiles: string[];
+}
+
+interface ScaffoldPlanFile {
+  path: string;
+  role: string; // brief description
+}
+
+interface ScaffoldBundle {
+  files: Array<{ path: string; content: string }>;
+  notes: string;
+}
+
+interface ReviewVerdict {
+  // Mirrors agent_run_verdict_workflow's bounded enum.
+  tier: "verified" | "provisionally_verified" | "needs_review" | "failed";
+  passing: number;
+  failing: number;
+  notes: string[];
+}
+
+// ── Pipeline ──────────────────────────────────────────────────────────
+
+export const runCodeGenPipeline = internalAction({
+  args: {
+    spec: v.string(),
+    title: v.optional(v.string()),
+    modelId: v.optional(v.string()),
+    ownerKey: v.optional(v.string()),
+    /** Force-rerun even if idempotency key matches an existing run. */
+    forceFresh: v.optional(v.boolean()),
+    attemptKey: v.optional(v.string()),
+    workflowExecutionKey: v.string(),
+  },
+  returns: v.object({
+    runId: v.string(),
+    pipelineRunId: v.id("pipelineRuns"),
+    status: v.string(),
+    verdict: v.optional(v.string()),
+    bundle: v.optional(
+      v.object({
+        files: v.array(v.object({ path: v.string(), content: v.string() })),
+        notes: v.string(),
+      }),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    if (args.forceFresh && !args.attemptKey) {
+      throw new Error("forceFresh pipeline execution requires an attemptKey");
+    }
+    const pipelineKind = "code_gen" as const;
+    const modelSelection = resolvePipelineModelSelection(args.modelId);
+    const modelId = modelSelection.resolvedModelId;
+    const title = args.title ?? args.spec.slice(0, 80);
+    const idempotencyKey = buildPipelineIdempotencyKey({
+      pipelineKind,
+      spec: args.spec,
+      ownerKey: args.ownerKey,
+      attemptKey: args.attemptKey,
+    });
+    const runId = newRunId();
+
+    // Step 0: idempotency-aware run creation.
+    const create = await ctx.runMutation(
+      internal.domains.pipelines.pipelineRunsMutations.createOrGetRun,
+      {
+        pipelineKind,
+        title,
+        spec: args.spec,
+        modelId,
+        ownerKey: args.ownerKey,
+        runId,
+        attemptKey: args.attemptKey,
+        workflowExecutionKey: args.workflowExecutionKey,
+        idempotencyKey,
+      },
+    );
+    const pipelineRunId: Id<"pipelineRuns"> = create.pipelineRunId;
+    const effectiveRunId = create.runId;
+    const executionGeneration = create.executionGeneration;
+    const executionFence = {
+      workflowExecutionKey: args.workflowExecutionKey,
+      executionGeneration,
+    };
+
+    // Another workflow already owns this logical attempt (or it completed).
+    if (!create.acquired) {
+      return {
+        runId: effectiveRunId,
+        pipelineRunId,
+        status: create.status,
+        verdict: undefined,
+        bundle: undefined,
+      };
+    }
+
+    let totalIn = 0;
+    let totalOut = 0;
+    let totalUsd = 0;
+    let traceSeq = 0;
+
+    const recordStep = async (
+      name: string,
+      status: "ok" | "error" | "skipped",
+      input: { startedAt: number; tokens?: { in?: number; out?: number; usd?: number } },
+      scratchpad?: string,
+      errorMessage?: string,
+      traceChoiceType: "gather_info" | "execute_data_op" | "execute_output" | "finalize" = "execute_data_op",
+      traceDescription?: string,
+    ) => {
+      const durationMs = Date.now() - input.startedAt;
+      totalIn += input.tokens?.in ?? 0;
+      totalOut += input.tokens?.out ?? 0;
+      totalUsd += input.tokens?.usd ?? 0;
+      await ctx.runMutation(
+        internal.domains.pipelines.pipelineRunsMutations.appendStep,
+        {
+          pipelineRunId,
+          ...executionFence,
+          runId: effectiveRunId,
+          name,
+          status,
+          durationMs,
+          inputTokens: input.tokens?.in,
+          outputTokens: input.tokens?.out,
+          estimatedUsd: input.tokens?.usd,
+          modelId,
+          scratchpad,
+          errorMessage,
+        },
+      );
+      // Mirror to traceAuditEntries so the operator standard dashboards
+      // pick up pipeline events alongside linkedin / chat / forecast runs.
+      await appendPipelineTraceEntry({
+        ctx,
+        runId: effectiveRunId,
+        seq: traceSeq++,
+        toolName: name,
+        description: traceDescription ?? name,
+        choiceType: traceChoiceType,
+        durationMs,
+        success: status === "ok",
+        errorMessage,
+        originalRequest: traceSeq === 1 ? args.spec.slice(0, 280) : undefined,
+      });
+    };
+
+    try {
+      // ── Step 1: spec.parse ─────────────────────────────────────────
+      const parseStart = Date.now();
+      const parsePrompt = [
+        "You are a senior staff engineer. Parse the following code-gen spec into",
+        "STRICT JSON with shape:",
+        "{ \"goal\": string,",
+        "  \"constraints\": string[],",
+        "  \"acceptanceCriteria\": string[],",
+        "  \"preferredFiles\": string[] }",
+        "",
+        "Output ONLY the JSON. No prose.",
+        "",
+        "SPEC:",
+        args.spec,
+      ].join("\n");
+
+      const parseRes = await runPiOrAiSdkCompletion({
+        model: modelId,
+        prompt: parsePrompt,
+        temperature: 0.1,
+        maxOutputTokens: 1200,
+        timeoutMs: 45_000,
+      });
+
+      let parsed: SpecParseResult;
+      try {
+        const cleaned = parseRes.text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+        parsed = JSON.parse(cleaned);
+      } catch {
+        parsed = {
+          goal: args.spec.slice(0, 200),
+          constraints: [],
+          acceptanceCriteria: [],
+          preferredFiles: [],
+        };
+      }
+
+      await recordStep(
+        "spec.parse",
+        "ok",
+        {
+          startedAt: parseStart,
+          tokens: {
+            in: parseRes.usage.inputTokens,
+            out: parseRes.usage.outputTokens,
+            usd: parseRes.usage.estimatedUsd,
+          },
+        },
+        trimScratchpad(JSON.stringify({ raw: parseRes.text, parsed })),
+        undefined,
+        "gather_info",
+        `Parsed spec into ${parsed.constraints.length} constraints, ${parsed.acceptanceCriteria.length} acceptance criteria`,
+      );
+
+      // ── Step 2: scaffold.plan ───────────────────────────────────────
+      const planStart = Date.now();
+      const planPrompt = [
+        "Given the parsed spec below, propose a minimal file tree and the",
+        "role of each file. Output STRICT JSON: { \"files\": [ { \"path\": string,",
+        "\"role\": string } ] }. Keep ≤ 12 files. No prose.",
+        "",
+        "PARSED SPEC:",
+        JSON.stringify(parsed, null, 2),
+      ].join("\n");
+
+      const planRes = await runPiOrAiSdkCompletion({
+        model: modelId,
+        prompt: planPrompt,
+        temperature: 0.2,
+        maxOutputTokens: 1500,
+        timeoutMs: 45_000,
+      });
+
+      let planFiles: ScaffoldPlanFile[];
+      try {
+        const cleaned = planRes.text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+        const obj = JSON.parse(cleaned);
+        planFiles = Array.isArray(obj.files) ? obj.files.slice(0, 12) : [];
+      } catch {
+        planFiles = parsed.preferredFiles.map((p) => ({ path: p, role: "" }));
+      }
+
+      await recordStep(
+        "scaffold.plan",
+        planFiles.length > 0 ? "ok" : "error",
+        {
+          startedAt: planStart,
+          tokens: {
+            in: planRes.usage.inputTokens,
+            out: planRes.usage.outputTokens,
+            usd: planRes.usage.estimatedUsd,
+          },
+        },
+        trimScratchpad(JSON.stringify({ raw: planRes.text, planFiles })),
+        planFiles.length === 0 ? "no_files_planned" : undefined,
+        "gather_info",
+        `Planned ${planFiles.length} file(s)`,
+      );
+
+      if (planFiles.length === 0) {
+        await ctx.runMutation(
+          internal.domains.pipelines.pipelineRunsMutations.transitionRunStatus,
+          {
+            pipelineRunId,
+            ...executionFence,
+            status: "failed",
+            verdict: "failed",
+            errorMessage: "scaffold.plan returned no files",
+            inputTokens: totalIn,
+            outputTokens: totalOut,
+            estimatedUsd: totalUsd,
+          },
+        );
+        return { runId: effectiveRunId, pipelineRunId, status: "failed", verdict: "failed", bundle: undefined };
+      }
+
+      // ── Step 3: scaffold.write ──────────────────────────────────────
+      const writeStart = Date.now();
+      const bundle: ScaffoldBundle = { files: [], notes: "" };
+      let writeIn = 0;
+      let writeOut = 0;
+      let writeUsd = 0;
+
+      for (const f of planFiles) {
+        const filePrompt = [
+          `Write the contents of \`${f.path}\` (role: ${f.role}). Honor the spec's`,
+          "constraints and acceptance criteria. Output ONLY the file content,",
+          "no markdown fences, no commentary.",
+          "",
+          "PARSED SPEC:",
+          JSON.stringify(parsed, null, 2),
+          "",
+          "FILE TREE:",
+          planFiles.map((x) => `- ${x.path}`).join("\n"),
+        ].join("\n");
+        const res = await runPiOrAiSdkCompletion({
+          model: modelId,
+          prompt: filePrompt,
+          temperature: 0.2,
+          maxOutputTokens: 4000,
+          timeoutMs: 60_000,
+        });
+        bundle.files.push({
+          path: f.path,
+          content: res.text.replace(/^```[a-zA-Z]*\s*/i, "").replace(/\s*```$/i, ""),
+        });
+        writeIn += res.usage.inputTokens;
+        writeOut += res.usage.outputTokens;
+        writeUsd += res.usage.estimatedUsd;
+      }
+
+      await recordStep(
+        "scaffold.write",
+        "ok",
+        {
+          startedAt: writeStart,
+          tokens: { in: writeIn, out: writeOut, usd: writeUsd },
+        },
+        trimScratchpad(JSON.stringify({ files: bundle.files.map((f) => ({ path: f.path, len: f.content.length })) })),
+        undefined,
+        "execute_data_op",
+        `Wrote ${bundle.files.length} file(s) (${bundle.files.reduce((s, f) => s + f.content.length, 0)} chars)`,
+      );
+
+      // ── Step 4: verify.review ───────────────────────────────────────
+      const reviewStart = Date.now();
+      const reviewPrompt = [
+        "You are reviewing a generated code bundle against the original spec.",
+        "Output STRICT JSON: { \"tier\": \"verified\"|\"provisionally_verified\"|\"needs_review\"|\"failed\",",
+        "\"passing\": number, \"failing\": number, \"notes\": string[] }.",
+        "",
+        "SPEC:",
+        args.spec,
+        "",
+        "BUNDLE FILE LIST:",
+        bundle.files.map((f) => `${f.path} (${f.content.length} chars)`).join("\n"),
+        "",
+        "FIRST FILE PREVIEW (first 800 chars):",
+        bundle.files[0]?.content?.slice(0, 800) ?? "(empty)",
+      ].join("\n");
+
+      const reviewRes = await runPiOrAiSdkCompletion({
+        model: modelId,
+        prompt: reviewPrompt,
+        temperature: 0.0,
+        maxOutputTokens: 800,
+        timeoutMs: 30_000,
+      });
+
+      let verdict: ReviewVerdict;
+      try {
+        const cleaned = reviewRes.text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+        verdict = JSON.parse(cleaned);
+      } catch {
+        verdict = {
+          tier: "needs_review",
+          passing: 0,
+          failing: 0,
+          notes: ["judge returned non-JSON; manual review required"],
+        };
+      }
+
+      await recordStep(
+        "verify.review",
+        "ok",
+        {
+          startedAt: reviewStart,
+          tokens: {
+            in: reviewRes.usage.inputTokens,
+            out: reviewRes.usage.outputTokens,
+            usd: reviewRes.usage.estimatedUsd,
+          },
+        },
+        trimScratchpad(JSON.stringify({ raw: reviewRes.text, verdict })),
+        undefined,
+        "finalize",
+        `Verdict: ${verdict.tier} (passing=${verdict.passing} failing=${verdict.failing})`,
+      );
+
+      const verdictTier =
+        verdict.tier === "verified"
+          ? "verified"
+          : verdict.tier === "provisionally_verified"
+            ? "provisionally_verified"
+            : verdict.tier === "failed"
+              ? "failed"
+              : "needs_review";
+
+      // ── Step 5: bundle.persist — store as Convex storage blob (zip-able)
+      const persistStart = Date.now();
+      let outputZipStorageId: Id<"_storage"> | undefined = undefined;
+      try {
+        const bundleJson = JSON.stringify(
+          {
+            runId: effectiveRunId,
+            pipelineKind,
+            spec: args.spec,
+            verdict,
+            files: bundle.files,
+          },
+          null,
+          2,
+        );
+        const blob = new Blob([bundleJson], { type: "application/json" });
+        outputZipStorageId = await ctx.storage.store(blob);
+      } catch (e) {
+        console.warn(
+          "[codeGenPipeline] bundle.persist failed (non-fatal):",
+          e instanceof Error ? e.message : String(e),
+        );
+      }
+      await recordStep(
+        outputZipStorageId ? "bundle.persist" : "bundle.persist",
+        outputZipStorageId ? "ok" : "skipped",
+        { startedAt: persistStart },
+        outputZipStorageId
+          ? `storage_id=${outputZipStorageId}`
+          : "storage_failed",
+        outputZipStorageId ? undefined : "no_storage_id",
+        "execute_output",
+        outputZipStorageId
+          ? `Persisted bundle to Convex storage (${bundle.files.length} files)`
+          : "Skipped bundle persistence",
+      );
+
+      await ctx.runMutation(
+        internal.domains.pipelines.pipelineRunsMutations.transitionRunStatus,
+        {
+          pipelineRunId,
+          ...executionFence,
+          status: verdictTier === "failed" ? "failed" : "succeeded",
+          verdict: verdictTier as any,
+          inputTokens: totalIn,
+          outputTokens: totalOut,
+          estimatedUsd: totalUsd,
+          outputZipStorageId,
+        },
+      );
+
+      return {
+        runId: effectiveRunId,
+        pipelineRunId,
+        status: verdictTier === "failed" ? "failed" : "succeeded",
+        verdict: verdictTier,
+        bundle,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await ctx.runMutation(
+        internal.domains.pipelines.pipelineRunsMutations.transitionRunStatus,
+        {
+          pipelineRunId,
+          ...executionFence,
+          status: "failed",
+          verdict: "failed",
+          errorMessage: message,
+          inputTokens: totalIn,
+          outputTokens: totalOut,
+          estimatedUsd: totalUsd,
+        },
+      );
+      return { runId: effectiveRunId, pipelineRunId, status: "failed", verdict: "failed", bundle: undefined };
+    }
+  },
+});

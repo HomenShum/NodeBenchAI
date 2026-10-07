@@ -20,7 +20,7 @@ npx vite build
 npx vite preview --host 127.0.0.1 --port 4173 &
 
 # 3. Capture screenshots via e2e test
-BASE_URL=http://127.0.0.1:4173 npx playwright test tests/e2e/full-ui-dogfood.spec.ts --project=chromium --workers=1
+BASE_URL=http://127.0.0.1:4173 npx playwright test evals/e2e/full-ui-dogfood.spec.ts --project=chromium --workers=1
 
 # 4. Publish screenshots to public/dogfood/
 npm run dogfood:publish
@@ -92,9 +92,9 @@ Pattern: **Pro → Flash → Flash → Flash → Pro → Flash → Flash → Fla
 - 60% cost reduction while maintaining Pro-quality baseline analysis
 
 ### Config files
-- `convex/domains/dogfood/screenshotQa.ts` — Screenshot QA action
-- `convex/domains/dogfood/videoQa.ts` — Video QA action
-- `convex/domains/dogfood/videoQaQueries.ts` — `getLatestProAnalysis` query for reference injection
+- `backend/convex/domains/dogfood/screenshotQa.ts` — Screenshot QA action
+- `backend/convex/domains/dogfood/videoQa.ts` — Video QA action
+- `backend/convex/domains/dogfood/videoQaQueries.ts` — `getLatestProAnalysis` query for reference injection
 
 ## Multi-Variant Coverage
 
@@ -125,12 +125,12 @@ This returns the step-by-step workflow chain with tool references and shell comm
 
 | File | Purpose |
 |------|---------|
-| `convex/domains/dogfood/screenshotQa.ts` | Screenshot QA action (Gemini Flash + Jony Ive prompts) |
-| `convex/domains/dogfood/videoQa.ts` | Video QA action (Gemini Flash + Jony Ive prompts) |
+| `backend/convex/domains/dogfood/screenshotQa.ts` | Screenshot QA action (Gemini Flash + Jony Ive prompts) |
+| `backend/convex/domains/dogfood/videoQa.ts` | Video QA action (Gemini Flash + Jony Ive prompts) |
 | `scripts/ui/runDogfoodGeminiQa.mjs` | CLI orchestrator for QA pipeline |
 | `scripts/ui/recordDogfoodWalkthrough.mjs` | Playwright video recorder |
 | `scripts/ui/publishDogfoodGallery.mjs` | Screenshot publisher (variant-aware manifest) |
-| `tests/e2e/full-ui-dogfood.spec.ts` | E2e 4-variant screenshot capture test |
+| `evals/e2e/full-ui-dogfood.spec.ts` | E2e 4-variant screenshot capture test |
 | `public/dogfood/qa-results.json` | QA score history |
 | `.tmp/dogfood-gemini-qa/*.json` | Latest QA results (screens + video) |
 | `shared/llm/modelCatalog.ts` | Model catalog with Gemini defaults |

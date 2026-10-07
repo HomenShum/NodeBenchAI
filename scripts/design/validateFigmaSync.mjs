@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * validateFigmaSync.mjs — Compare Figma design tokens against src/index.css
+ * validateFigmaSync.mjs — Compare Figma design tokens against apps/web/src/index.css
  *
  * Usage:
  *   node scripts/design/validateFigmaSync.mjs [--figma-file <fileKey>] [--json]
@@ -9,7 +9,7 @@
  *   FIGMA_ACCESS_TOKEN env var (or .env.local)
  *
  * What it does:
- * 1. Extracts CSS custom properties from src/index.css (:root + .dark)
+ * 1. Extracts CSS custom properties from apps/web/src/index.css (:root + .dark)
  * 2. Calls Figma Variables API to get published variables
  * 3. Compares the two and reports drift:
  *    - Tokens in code but not in Figma (code-only)
@@ -20,6 +20,10 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
+import {
+  DESIGN_TOKEN_SOURCE,
+  resolveDesignTokenPath,
+} from "../lib/standardTreePaths.mjs";
 
 // ── CLI Args ──────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
@@ -48,7 +52,7 @@ async function loadEnv() {
 
 // ── Extract CSS custom properties from index.css ──────────────────────
 async function extractCssTokens() {
-  const cssPath = path.join(process.cwd(), "src", "index.css");
+  const cssPath = resolveDesignTokenPath(process.cwd());
   const css = await fs.readFile(cssPath, "utf8");
 
   const tokens = { light: {}, dark: {} };
@@ -198,6 +202,7 @@ async function main() {
     // Still output code tokens summary even without Figma
     const result = {
       status: "code-only",
+      source: DESIGN_TOKEN_SOURCE,
       message: figmaResult.error,
       codeTokens: {
         lightCount: Object.keys(codeTokens.light).length,
@@ -214,6 +219,7 @@ async function main() {
       console.log("\n  Figma Sync Validation");
       console.log("  " + "=".repeat(40));
       console.log(`\n  ${figmaResult.error}`);
+      console.log(`\n  Code source: ${DESIGN_TOKEN_SOURCE}`);
       console.log(`\n  Code tokens extracted: ${codeCount}`);
       console.log(`    Light: ${Object.keys(codeTokens.light).length}`);
       console.log(`    Dark:  ${Object.keys(codeTokens.dark).length}`);
@@ -228,6 +234,7 @@ async function main() {
   if (jsonOutput) {
     console.log(JSON.stringify({
       status: "compared",
+      source: DESIGN_TOKEN_SOURCE,
       codeTokenCount: codeCount,
       figmaTokenCount: Object.keys(figmaResult.tokens.light).length + Object.keys(figmaResult.tokens.dark).length,
       matched: report.matched,
@@ -238,6 +245,7 @@ async function main() {
   } else {
     console.log("\n  Figma Sync Validation");
     console.log("  " + "=".repeat(40));
+    console.log(`  Code source:  ${DESIGN_TOKEN_SOURCE}`);
     console.log(`  Code tokens:  ${codeCount}`);
     console.log(`  Figma tokens: ${Object.keys(figmaResult.tokens.light).length + Object.keys(figmaResult.tokens.dark).length}`);
     console.log(`  Matched:      ${report.matched}`);

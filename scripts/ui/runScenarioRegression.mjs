@@ -115,7 +115,7 @@ async function main() {
 
     // eslint-disable-next-line no-console
     console.log(`Running scenario regression suite (BASE_URL=${baseURL})...`);
-    const scenCmd = `${npxCmd} playwright test tests/e2e/scenario-regression.spec.ts --project=chromium --workers=1`;
+    const scenCmd = `${npxCmd} playwright test evals/e2e/scenario-regression.spec.ts --project=chromium --workers=1`;
     const scen = spawn(scenCmd, {
       cwd: repoRoot,
       stdio: "inherit",

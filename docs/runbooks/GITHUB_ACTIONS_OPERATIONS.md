@@ -121,8 +121,14 @@ After merge:
 
 ```powershell
 git fetch origin main
-npm run deploy:convex
+$run = gh run list --workflow "Convex Deploy" --branch main --limit 1 --json databaseId,status,conclusion,url | ConvertFrom-Json
+$run
+if ($run.databaseId) { gh run watch $run.databaseId --exit-status }
 ```
+
+Never run `npm run deploy:convex`, `npx convex deploy`, or `deploy:prod`
+out-of-band against the shared production deployment. The reviewed `main` workflow is
+the only release path; monitor it and stop on failure.
 
 Verify production:
 

@@ -1,0 +1,156 @@
+{
+  "schemaVersion": "portfolio.portable-probe-supplement/v1",
+  "at": "2026-09-05T09:03:27.569503+00:00",
+  "verdict": "PORTABLE_ADAPTER_SYNTAX_AND_ARGUMENT_RESOLUTION_PASS",
+  "sourceJudgeSha256": "9fd0782ad6bd1396a3a3f52396d931d4ad6bcd7a2d90f7c02610a82ea8860675",
+  "files": {
+    "E4f_NODEBENCH_RETURN_LEAF_SOURCE_JUDGE.md": {
+      "sha256": "4f5bfd564f5c2e3e78a6ae91db4ccc9a00e79cb4a6ebf66691f70143fc2dce6f",
+      "bytes": 5392
+    },
+    "E4f_NODEBENCH_RETURN_LEAF_SOURCE_JUDGE.json": {
+      "sha256": "9fd0782ad6bd1396a3a3f52396d931d4ad6bcd7a2d90f7c02610a82ea8860675",
+      "bytes": 13119
+    },
+    "E4f_NODEBENCH_RETURN_LEAF_PORTABILITY.md": {
+      "sha256": "c853e84f673046bad02d7817cda1201ff7331a66e52b862287040b467418401d",
+      "bytes": 4255
+    },
+    "E4f-replay-provider-return-contract.mjs": {
+      "sha256": "048b99bd7577ecad092709aa5773e0248b5e9526f5e14a2be46dc841c0f3953b",
+      "bytes": 12777
+    },
+    "E4f-provider-return-source-probe.mjs": {
+      "sha256": "cb8ac456afb35c547bad1316362faec1a504dce9395379511f09102b60f04c0f",
+      "bytes": 12112
+    },
+    "E4f-provider-return-source-review/executed-probe.mjs.txt": {
+      "sha256": "cb8ac456afb35c547bad1316362faec1a504dce9395379511f09102b60f04c0f",
+      "bytes": 12112
+    },
+    "E4f-provider-return-portable-resolution/baseline.stderr.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "E4f-provider-return-portable-resolution/baseline.stdout.txt": {
+      "sha256": "8f83b254aa41d9ad9839b1fba9f42ea7999ea7a99c25c6c1e17694795155cbe8",
+      "bytes": 4259
+    },
+    "E4f-provider-return-portable-resolution/current-source.stderr.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "E4f-provider-return-portable-resolution/current-source.stdout.txt": {
+      "sha256": "535b0fc7d32885af31f7a2f26c7b22786089819b2af0cff64672b2bccd5084a5",
+      "bytes": 4272
+    },
+    "E4f-provider-return-portable-resolution/receipt.json": {
+      "sha256": "b75a6274b2d31ab92adc62dbbd4e0211d8d5b79002fdbfed22992bcde837e13d",
+      "bytes": 3596
+    },
+    "E4f-provider-return-portable-resolution/syntax.stderr.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "E4f-provider-return-portable-resolution/syntax.stdout.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "E4f_NODEBENCH_RETURN_LEAF_PORTABILITY.json": {
+      "sha256": "d1f6f49ebbfc8898c21ab054b5e72fc9d25c8ffba4b1b98f31d6f807ec3f6351",
+      "bytes": 3242
+    },
+    "E4e-real-api-partition/module-local-contract-declaration.d.ts.txt": {
+      "sha256": "afb876cdff23623111b5400d1ee77fd4e7a0536d60ac816956a43e0bbb8d9bc5",
+      "bytes": 592735
+    },
+    "E4e-real-api-partition/module-local-contract-fixture.ts.txt": {
+      "sha256": "4a6d9ca5c33eb2ebe046d309fee79af43d0fdbeb6960499e4553065430972396",
+      "bytes": 1540
+    },
+    "E4e-real-api-partition/return-leaf-diagnosis.json": {
+      "sha256": "fe40beebcbb730cfa5919c051792f418d3ab78d9d3f401890ca7c7f159191261",
+      "bytes": 5039
+    },
+    "E4e-real-api-partition/module-local-contract-report.json": {
+      "sha256": "d41e6b4e36e45d2d4ff26718d78d49961e18a72808807755c54402f8201caa5b",
+      "bytes": 3389
+    },
+    "E4e-real-api-partition/module-local-contract-diagnostics.json": {
+      "sha256": "871223bfe62c2504874c627369b0555e98202d6494914b32e51a28a173fcb58d",
+      "bytes": 940714
+    }
+  },
+  "commands": [
+    [
+      "node",
+      "--check",
+      "./E4f-replay-provider-return-contract.mjs"
+    ],
+    [
+      "node",
+      "./E4f-replay-provider-return-contract.mjs",
+      "--repo",
+      "<checkout-path>",
+      "--fixtures",
+      "./E4e-real-api-partition",
+      "--output",
+      "./fresh-replay",
+      "--base",
+      "673ba7dc4ed7bf90fab839322d832511550b8bbc",
+      "--mode",
+      "current-source",
+      "--resolve-only"
+    ],
+    [
+      "node",
+      "--max-old-space-size=6144",
+      "./E4f-replay-provider-return-contract.mjs",
+      "--repo",
+      "<checkout-path>",
+      "--fixtures",
+      "./E4e-real-api-partition",
+      "--output",
+      "./fresh-replay",
+      "--base",
+      "673ba7dc4ed7bf90fab839322d832511550b8bbc",
+      "--mode",
+      "baseline"
+    ],
+    [
+      "node",
+      "--max-old-space-size=6144",
+      "./E4f-replay-provider-return-contract.mjs",
+      "--repo",
+      "<checkout-path>",
+      "--fixtures",
+      "./E4e-real-api-partition",
+      "--output",
+      "./fresh-replay",
+      "--base",
+      "673ba7dc4ed7bf90fab839322d832511550b8bbc",
+      "--mode",
+      "current-source"
+    ]
+  ],
+  "checks": {
+    "syntaxExit0": true,
+    "baselineInputResolutionExit0": true,
+    "currentSourceInputResolutionExit0": true,
+    "providerOverrideBaselineOnly": true,
+    "exactReviewedProviderHashResolved": true,
+    "executedProbeCopyExact": true,
+    "oldSourceJudgmentAndReportsPreserved": true,
+    "compilerProgramsCreatedForPortability": 0,
+    "replayOutputCreatedForPortability": false,
+    "all7480InputsAnd18NamedBindingsStillExact": true
+  },
+  "limits": [
+    "Only syntax and argument/read resolution were run for this adapter; the original complete compiler runs retain their original probe identity.",
+    "The generated module-local API declaration remains an in-memory fixture. Actual generated API/project graph and whole-app typing remain unresolved.",
+    "The adapter intentionally checks the exact reviewed provider bytes and two-declaration diff against the explicit baseline ref. It is a reproduction for this patch, not an arbitrary provider migration tool.",
+    "Baseline intentionally accepts five wrong return contracts; inspect baseline and current reports, not a zero exit code alone.",
+    "Run from the copied proof directory, retain the five fixture files and use a fresh output directory. When publishing original Markdown as .md.txt, preserve its bytes and link the packet README to that copied guide.",
+    "Provider I/O timeout is unchanged; no end-to-end audit-mutation timeout claim."
+  ]
+}

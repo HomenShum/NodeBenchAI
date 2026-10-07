@@ -13,7 +13,7 @@
 import dotenv from "dotenv";
 import { spawnSync } from "node:child_process";
 import { ConvexHttpClient } from "convex/browser";
-import { api } from "../convex/_generated/api";
+import { api } from "../backend/convex/_generated/api";
 import { writeFileSync } from "fs";
 import { join } from "path";
 

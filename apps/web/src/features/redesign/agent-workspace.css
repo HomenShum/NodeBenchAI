@@ -1,0 +1,1012 @@
+/* Agent workspace overrides are intentionally isolated from the legacy
+   all-surface primitive sheet. Structure first; decoration stays quiet. */
+
+[data-redesign] .rd-shell--chat-focus {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+[data-redesign] .rd-shell--chat-v3 .rd-shell__main {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+[data-redesign] .rd-shell--chat-v3 .rd-shell__main > .rd-pane:first-child {
+  align-items: stretch;
+  padding: 0;
+  overflow: hidden;
+  border-right: none;
+}
+
+[data-redesign] .rd-shell--chat-v3 .rd-surface-content {
+  width: 100%;
+  height: 100%;
+}
+
+[data-redesign] .rd-chat-workspace {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto auto;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--rd-paper);
+}
+
+[data-redesign] .rd-chat-workspace > * {
+  min-width: 0;
+}
+
+[data-redesign] .rd-chat-workspace[data-continuation="true"] {
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+}
+
+[data-redesign] .rd-continuation-context {
+  width: min(100% - 32px, 840px);
+  box-sizing: border-box;
+  margin: 12px auto 0;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--rd-accent-ring);
+  border-radius: var(--rd-r-md);
+  background: var(--rd-accent-tint);
+  color: var(--rd-ink);
+}
+
+[data-redesign] .rd-continuation-context p {
+  margin: 3px 0 0;
+  color: var(--rd-ink-mute);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+[data-redesign] .rd-continuation-context[data-state="unavailable"] {
+  border-color: var(--rd-amber-ring, var(--rd-line));
+  background: var(--rd-amber-tint, var(--rd-panel));
+}
+
+[data-redesign] .rd-chat-transcript {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+[data-redesign] .rd-chat-transcript__content {
+  width: min(100%, 840px);
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 100%;
+  margin: 0 auto;
+  padding: clamp(20px, 4vw, 44px) clamp(18px, 4vw, 40px) 48px;
+  gap: 18px;
+}
+
+/* JSON / Markdown-table answer bodies (json/table response shapes). Mono
+   block with its own horizontal scroll so wide tables never stretch the
+   workspace column. */
+[data-redesign] .rd-answer-structured {
+  margin: 0;
+  padding: 12px 14px;
+  color: var(--rd-ink-strong);
+  font-family: var(--rd-font-mono, ui-monospace, monospace);
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre;
+  overflow-x: auto;
+  background: var(--rd-surface-sunken, rgba(127, 127, 127, 0.06));
+  border: 1px solid var(--rd-line-faint);
+  border-radius: 8px;
+}
+
+[data-redesign] .rd-answer-copy {
+  margin: 0;
+  color: var(--rd-ink-strong);
+  font-family: var(--rd-font-display);
+  font-size: var(--rd-type-answer);
+  font-weight: var(--rd-weight-answer);
+  letter-spacing: 0;
+  line-height: var(--rd-leading-answer);
+  white-space: pre-wrap;
+}
+
+[data-redesign] .rd-chat-scroll-btn {
+  bottom: 16px;
+  z-index: 4;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--rd-line);
+  border-radius: 999px;
+  background: var(--rd-panel);
+  color: var(--rd-ink);
+  box-shadow: var(--rd-shadow-sm);
+}
+
+[data-redesign] .rd-composer-dock {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  bottom: auto;
+  z-index: 5;
+  padding: 10px clamp(14px, 4vw, 40px) max(14px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--rd-line-faint);
+  background: color-mix(in srgb, var(--rd-paper) 96%, transparent);
+  box-shadow: none;
+}
+
+[data-redesign] .rd-composer-shell {
+  width: min(100%, 840px);
+  min-width: 0;
+  margin: 0 auto;
+}
+
+.rd-account-trigger {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: var(--rd-accent-soft);
+  color: var(--rd-accent-strong);
+  font-family: var(--rd-font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.rd-account-trigger:focus-visible {
+  outline: 2px solid var(--rd-accent);
+  outline-offset: 2px;
+}
+
+.rd-account-menu {
+  width: min(340px, calc(100vw - 24px));
+  border-color: var(--rd-line);
+  background: var(--rd-panel);
+  color: var(--rd-ink);
+  font-family: var(--rd-font-sans);
+}
+
+.rd-account-menu .rd-account-voice {
+  margin: 4px;
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: none;
+}
+
+[data-redesign] .rd-composer-submit {
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  /* .rd-btn transitions `all`, which includes transform; this button is a
+     motion.dev PressButton whose spring owns transform, so narrow the
+     transitioned properties to keep CSS off that channel. */
+  transition-property: color, background-color, border-color, box-shadow, opacity;
+}
+
+[data-redesign] .rd-launch-context {
+  display: grid;
+  gap: 4px;
+  width: min(100%, 840px);
+  margin: 0 auto 12px;
+  padding: 11px 13px;
+  border: 1px solid var(--rd-line-faint);
+  border-left: 2px solid var(--rd-accent);
+  border-radius: var(--rd-r-sm);
+  background: var(--rd-paper-warm);
+}
+
+[data-redesign] .rd-launch-context strong {
+  color: var(--rd-ink-strong);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+[data-redesign] .rd-launch-context p {
+  margin: 0;
+  color: var(--rd-ink-mute);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+[data-redesign] .rd-run-scope {
+  margin: 0 4px 8px;
+  color: var(--rd-ink-mute);
+  font-size: 12px;
+}
+
+[data-redesign] .rd-run-scope > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  cursor: pointer;
+  list-style-position: inside;
+}
+
+[data-redesign] .rd-run-scope__icon {
+  flex: 0 0 auto;
+  color: var(--rd-green);
+}
+
+[data-redesign] .rd-run-scope > summary span:first-of-type {
+  min-width: 0;
+  /* Size to content, shrink with ellipsis under pressure. flex: 1 reserved a
+     36ch column sized for the old title-bearing string, which left the
+     trailing "Review" span floating mid-row once the title moved to the
+     context chip. */
+  flex: 0 1 auto;
+  max-width: 36ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-redesign] .rd-run-scope > summary span:last-of-type {
+  flex: 0 0 auto;
+  color: var(--rd-ink-soft);
+  white-space: nowrap;
+}
+
+[data-redesign] .rd-run-scope dl {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--rd-line-faint);
+  border-radius: var(--rd-r-sm);
+  background: var(--rd-paper-warm);
+}
+
+[data-redesign] .rd-run-scope dl > div {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 10px;
+}
+
+[data-redesign] .rd-run-scope dt {
+  color: var(--rd-ink-soft);
+  font-weight: 600;
+}
+
+[data-redesign] .rd-run-scope dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+[data-redesign] .rd-chat-empty {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  width: min(100%, 840px);
+  min-height: 0;
+  height: 100%;
+  margin: auto;
+  padding: 28px 0;
+}
+
+/* ── Ember threads — the landing's signature composition ──────────────────
+   Motion identity: one easing ("settle"), three durations. Draw-in runs once
+   on arrival (staggered, < 1s total), then the whole constellation drifts
+   almost imperceptibly. Composer focus warms the threads — the evidence
+   leans in. Reduced motion flattens everything to the static composition. */
+[data-redesign] {
+  --rd-ease-settle: cubic-bezier(0.22, 1, 0.36, 1);
+  --rd-dur-quick: 240ms;
+  --rd-dur-move: 480ms;
+  --rd-dur-enter: 840ms;
+}
+
+[data-redesign] .rd-ember {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  color: var(--rd-ink-mute);
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.5;
+  transition: opacity var(--rd-dur-move) var(--rd-ease-settle);
+  animation: rd-ember-drift 12s var(--rd-ease-settle) infinite alternate;
+}
+
+[data-redesign] .rd-chat-empty__hero,
+[data-redesign] .rd-chat-empty__chips {
+  position: relative;
+  z-index: 1;
+}
+
+[data-redesign] .rd-ember__thread {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+  opacity: 0.26;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: rd-ember-draw var(--rd-dur-enter) var(--rd-ease-settle) both;
+  animation-delay: calc(var(--i) * 110ms);
+}
+
+[data-redesign] .rd-ember__node {
+  fill: var(--rd-accent);
+  opacity: 0.85;
+  animation: rd-ember-node var(--rd-dur-move) var(--rd-ease-settle) both;
+  animation-delay: calc(var(--i) * 110ms);
+}
+
+/* The evidence leans in when the user commits attention to the composer. */
+[data-redesign] .rd-chat-workspace:focus-within .rd-ember {
+  opacity: 0.85;
+}
+
+@keyframes rd-ember-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes rd-ember-node {
+  from { opacity: 0; transform: scale(0.4); transform-origin: center; transform-box: fill-box; }
+  to { opacity: 0.85; transform: scale(1); transform-origin: center; transform-box: fill-box; }
+}
+
+@keyframes rd-ember-drift {
+  from { transform: translateY(0); }
+  to { transform: translateY(-7px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-redesign] .rd-ember,
+  [data-redesign] .rd-ember__thread,
+  [data-redesign] .rd-ember__node {
+    animation: none;
+  }
+}
+
+/* ── Answer arrival — the threads deliver ────────────────────────────────
+   The packet settles in on the same easing the landing draws with, and each
+   section eyebrow carries a small terracotta ember tick that sweeps in: the
+   recurring motif that evidence, not decoration, underlines every claim. */
+[data-redesign] .rd-answer-arrive {
+  animation: rd-answer-settle var(--rd-dur-move) var(--rd-ease-settle) both;
+}
+
+[data-redesign] .rd-answer-arrive .rd-eyebrow {
+  position: relative;
+  padding-bottom: 3px;
+}
+
+[data-redesign] .rd-answer-arrive .rd-eyebrow::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 24px;
+  height: 1px;
+  background: var(--rd-accent);
+  transform-origin: left center;
+  animation: rd-ember-sweep var(--rd-dur-move) var(--rd-ease-settle) both;
+  animation-delay: 180ms;
+}
+
+@keyframes rd-answer-settle {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes rd-ember-sweep {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* Thinking = the thread being drawn. A hairline grows beneath the phase
+   label on the settle easing, ember-tipped; the dots become embers. */
+[data-redesign] .rd-chat-thinking {
+  position: relative;
+  padding-bottom: 6px;
+}
+
+[data-redesign] .rd-chat-thinking::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 72px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--rd-accent), transparent);
+  transform-origin: left center;
+  animation: rd-thinking-thread 1.6s var(--rd-ease-settle) infinite;
+}
+
+[data-redesign] .rd-chat-thinking__dots span {
+  background: var(--rd-accent);
+}
+
+@keyframes rd-thinking-thread {
+  0% { transform: scaleX(0); opacity: 0.9; }
+  70% { transform: scaleX(1); opacity: 0.9; }
+  100% { transform: scaleX(1); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-redesign] .rd-answer-arrive,
+  [data-redesign] .rd-answer-arrive .rd-eyebrow::after,
+  [data-redesign] .rd-chat-thinking::after {
+    animation: none;
+  }
+}
+
+/* ── Run theater — the thread being spun, stage by stage ─────────────────
+   The research checklist's stage dots are joined by a vertical ember thread:
+   solid behind completed stages, actively drawing beside the running stage,
+   dashed-faint ahead of it. Progress reads as the thread advancing — the
+   same motif as the landing constellation and the answer ticks. */
+[data-redesign] .rd-run-thread li {
+  position: relative;
+}
+
+[data-redesign] .rd-run-thread li::before {
+  content: "";
+  position: absolute;
+  left: 7.5px;
+  top: calc(-50% + 5px);
+  width: 1px;
+  height: calc(100% - 4px);
+  pointer-events: none;
+}
+
+[data-redesign] .rd-run-thread li:first-child::before {
+  display: none;
+}
+
+[data-redesign] .rd-run-thread li[data-state="done"]::before {
+  background: var(--rd-accent);
+  opacity: 0.45;
+}
+
+[data-redesign] .rd-run-thread li[data-state="running"]::before {
+  background: linear-gradient(180deg, var(--rd-accent), transparent);
+  transform-origin: top center;
+  animation: rd-thread-spin 1.4s var(--rd-ease-settle) infinite;
+}
+
+[data-redesign] .rd-run-thread li[data-state="waiting"]::before {
+  background: repeating-linear-gradient(
+    180deg,
+    var(--rd-ink-mute) 0 3px,
+    transparent 3px 7px
+  );
+  opacity: 0.25;
+}
+
+@keyframes rd-thread-spin {
+  0% { transform: scaleY(0); opacity: 0.9; }
+  75% { transform: scaleY(1); opacity: 0.9; }
+  100% { transform: scaleY(1); opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-redesign] .rd-run-thread li[data-state="running"]::before {
+    animation: none;
+    transform: scaleY(1);
+  }
+}
+
+/* Quiet proof link beneath the starter chips — one click to a real persisted
+   answer with receipts, no account, no spend. */
+[data-redesign] .rd-chat-empty__example {
+  position: relative;
+  z-index: 1;
+  align-self: center;
+  margin-top: 18px;
+  color: var(--rd-ink-mute);
+  font-size: 13px;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: color var(--rd-dur-quick) var(--rd-ease-settle),
+    border-color var(--rd-dur-quick) var(--rd-ease-settle);
+}
+
+[data-redesign] .rd-chat-empty__example:hover,
+[data-redesign] .rd-chat-empty__example:focus-visible {
+  color: var(--rd-accent-strong);
+  border-bottom-color: var(--rd-accent);
+}
+
+/* Narrow viewports: quieter constellation, and the two low side nodes give
+   their space back to the stacked chips. */
+@media (max-width: 760px) {
+  [data-redesign] .rd-ember {
+    opacity: 0.35;
+  }
+  [data-redesign] .rd-ember path:nth-of-type(5),
+  [data-redesign] .rd-ember path:nth-of-type(6),
+  [data-redesign] .rd-ember circle:nth-of-type(5),
+  [data-redesign] .rd-ember circle:nth-of-type(6) {
+    display: none;
+  }
+}
+
+[data-redesign] .rd-chat-empty__hero {
+  margin-bottom: 28px;
+}
+
+[data-redesign] .rd-chat-empty__h {
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 620;
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+}
+
+[data-redesign] .rd-chat-empty__tag {
+  margin: 10px 0 0;
+  color: var(--rd-ink-mute);
+  font-size: 15px;
+  letter-spacing: 0.01em;
+}
+
+[data-redesign] .rd-chat-empty__tag em {
+  font-style: normal;
+  color: var(--rd-accent-strong);
+}
+
+[data-redesign] .rd-chat-empty__chips {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  max-width: none;
+}
+
+[data-redesign] .rd-chat-empty__chip {
+  min-width: 0;
+  min-height: 56px;
+  padding: 12px;
+}
+
+[data-redesign] .rd-chat-empty__chip-title {
+  font-size: 14px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+[data-redesign] .rd-chat-empty__chip-hint {
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  [data-redesign] .rd-continuation-context {
+    width: calc(100% - 24px);
+    margin-top: 8px;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  [data-redesign] .rd-run-scope > summary span:first-of-type {
+    display: block;
+    min-width: 0;
+    flex: 1;
+    max-width: none;
+  }
+
+  [data-redesign] .rd-run-scope > summary span:last-of-type {
+    flex: 0 0 auto;
+  }
+
+  [data-redesign] .rd-chat-transcript__content {
+    padding: var(--rd-s-3) var(--rd-s-3) var(--rd-s-6);
+  }
+
+  [data-redesign] .rd-composer-dock {
+    padding: 8px 10px max(10px, env(safe-area-inset-bottom));
+  }
+
+  [data-redesign] .rd-chat-empty {
+    padding: 18px 0;
+  }
+
+  [data-redesign] .rd-chat-empty__chips {
+    grid-template-columns: 1fr;
+  }
+
+  [data-redesign] .rd-chat-empty__chip {
+    min-height: 48px;
+  }
+}
+
+/* ── One chat interface — prose-led assistant message (ChatAssistantMessage) ──
+   The ai-elements <Message>/<MessageContent> frame is restyled here so the
+   terracotta / Manrope DNA wins over the primitives. The avatar-less assistant
+   Message reuses the .rd-chat-msg class (so the [data-hover-cite] evidence
+   binding in primitives.css still resolves) but overrides its 32px-avatar grid
+   via the higher-specificity .rd-chat-msg.rd-chat-assistant selector. */
+[data-redesign] .rd-chat-msg.rd-chat-assistant {
+  display: flex;
+  flex-direction: column;
+  grid-template-columns: none;
+  gap: var(--rd-s-2);
+  width: 100%;
+  max-width: 100%;
+}
+[data-redesign] .rd-chat-assistant__content {
+  width: 100%;
+  max-width: 100%;
+  gap: var(--rd-s-2);
+  padding: var(--rd-s-2) var(--rd-s-3);
+  background: var(--rd-paper-warm);
+  border-radius: var(--rd-r-md);
+  border-bottom-left-radius: 4px;
+  color: var(--rd-ink);
+}
+/* User turns keep their own right-aligned bubble; the Message wrapper must not
+   clamp it to the primitive's 95% column. */
+[data-redesign] .rd-user-message {
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Row 1 — receipt line */
+[data-redesign] .rd-answer-receipt {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+[data-redesign] .rd-answer-receipt__line {
+  font-size: 11px;
+  color: var(--rd-ink-faint);
+  letter-spacing: 0.02em;
+}
+[data-redesign] .rd-answer-receipt__when {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--rd-ink-soft);
+}
+[data-redesign] .rd-answer-badges {
+  margin-top: 2px;
+}
+
+/* Row 2 — prose leads. shortAnswer + whyItMatters flow as one body; the
+   secondary paragraph keeps .rd-answer-copy's white-space: pre-wrap. */
+[data-redesign] .rd-answer-prose {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+[data-redesign] .rd-answer-copy--secondary {
+  font-size: max(13.5px, calc(var(--rd-type-answer) - 3px));
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--rd-ink-mute);
+}
+
+/* Markdown-rich adopted turns (Phase C): streamdown output flows as normal
+   block HTML, so the pre-wrap that plain prose needs is reset here. Every
+   wide child (tables, code blocks) scrolls inside its own container. No
+   animation is introduced — nothing to gate on prefers-reduced-motion. */
+[data-redesign] .rd-answer-copy--markdown {
+  white-space: normal;
+  font-size: max(14px, calc(var(--rd-type-answer) - 2px));
+  line-height: 1.6;
+}
+[data-redesign] .rd-answer-copy--markdown h1,
+[data-redesign] .rd-answer-copy--markdown h2,
+[data-redesign] .rd-answer-copy--markdown h3,
+[data-redesign] .rd-answer-copy--markdown h4 {
+  margin: 12px 0 4px;
+  color: var(--rd-ink-strong);
+  font-family: var(--rd-font-display);
+  font-weight: 620;
+  line-height: 1.3;
+}
+[data-redesign] .rd-answer-copy--markdown h1 { font-size: 1.15em; }
+[data-redesign] .rd-answer-copy--markdown h2 { font-size: 1.08em; }
+[data-redesign] .rd-answer-copy--markdown h3,
+[data-redesign] .rd-answer-copy--markdown h4 { font-size: 1em; }
+[data-redesign] .rd-answer-copy--markdown p {
+  margin: 0 0 8px;
+}
+[data-redesign] .rd-answer-copy--markdown ul,
+[data-redesign] .rd-answer-copy--markdown ol {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+[data-redesign] .rd-answer-copy--markdown li {
+  margin: 2px 0;
+}
+[data-redesign] .rd-answer-copy--markdown code {
+  font-family: var(--rd-font-mono, ui-monospace, monospace);
+  font-size: 0.86em;
+}
+[data-redesign] .rd-answer-copy--markdown pre {
+  overflow-x: auto;
+  border-radius: 8px;
+}
+[data-redesign] .rd-answer-copy--markdown table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+[data-redesign] .rd-answer-copy--markdown th,
+[data-redesign] .rd-answer-copy--markdown td {
+  padding: 4px 10px;
+  border: 1px solid var(--rd-line-faint);
+  text-align: left;
+}
+[data-redesign] .rd-answer-copy--markdown a {
+  color: var(--rd-accent, #d97757);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Streamdown renders markdown links as <button class="… underline"> for its
+   hover-preview affordance. The app's global base styles bare buttons as
+   filled primary chips with a 44px touch-target minimum, which turned every
+   markdown link into a shouting terracotta pill (polish pass, 2026-07-18).
+   Reset them to read as links: prose speaks, one accent underlines. The
+   .underline discriminator spares the table/code chrome buttons. */
+[data-redesign] .rd-answer-copy--markdown button.underline {
+  min-height: 0;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--rd-accent, #d97757);
+  font: inherit;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+[data-redesign] .rd-answer-copy--markdown blockquote {
+  margin: 0 0 8px;
+  padding-left: 12px;
+  border-left: 2px solid var(--rd-line-faint);
+  color: var(--rd-ink-mute);
+}
+
+/* Row 3 — risks callout + nextAction */
+[data-redesign] .rd-answer-risks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-left: 2px solid var(--rd-line);
+  border-radius: var(--rd-r-sm);
+  background: var(--rd-surface-sunken, rgba(127, 127, 127, 0.05));
+}
+[data-redesign] .rd-answer-risks__label {
+  color: var(--rd-ink-soft);
+}
+[data-redesign] .rd-answer-risks__list {
+  gap: 6px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+[data-redesign] .rd-answer-risks__item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 13px;
+  color: var(--rd-ink-mute);
+}
+[data-redesign] .rd-answer-risks__item .rd-dot {
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+[data-redesign] .rd-answer-next {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--rd-accent-tint);
+  border: 1px solid var(--rd-accent-ring);
+  border-radius: var(--rd-r-sm);
+}
+[data-redesign] .rd-answer-next__text {
+  margin: 0;
+  color: var(--rd-ink);
+  font-size: 14px;
+  line-height: 1.5;
+}
+[data-redesign] .rd-answer-next__label {
+  margin-right: 4px;
+  color: var(--rd-accent-strong);
+}
+
+/* Row 4 — collapsed-by-default disclosures (Reasoning / Tool / Sources).
+   Each trigger is a full-width row with an ember-ticked eyebrow label, a mono
+   meta count, and a rotating chevron. */
+[data-redesign] .rd-answer-disclosure {
+  margin: 0;
+  width: 100%;
+  max-width: 100%;
+}
+[data-redesign] .rd-answer-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+[data-redesign] .rd-answer-tool {
+  border: 1px solid var(--rd-line-faint);
+  border-radius: var(--rd-r-sm);
+  background: var(--rd-surface-sunken, rgba(127, 127, 127, 0.03));
+}
+[data-redesign] .rd-answer-disclose {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 6px;
+  color: var(--rd-ink-mute);
+  background: transparent;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+[data-redesign] .rd-answer-disclose:hover {
+  color: var(--rd-ink);
+}
+[data-redesign] .rd-answer-disclose:focus-visible {
+  outline: 2px solid var(--rd-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+[data-redesign] .rd-answer-disclose__label {
+  flex: 0 0 auto;
+  position: relative;
+  padding-bottom: 3px;
+  color: var(--rd-accent-strong);
+}
+[data-redesign] .rd-answer-disclose__meta {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--rd-ink-soft);
+}
+[data-redesign] .rd-answer-disclose::after {
+  content: "\25B8"; /* ▸ */
+  flex: 0 0 auto;
+  font-size: 9px;
+  color: var(--rd-ink-soft);
+  transition: transform var(--rd-dur-quick) var(--rd-ease-settle);
+}
+[data-redesign] .rd-answer-disclose[data-state="open"]::after {
+  transform: rotate(90deg);
+}
+[data-redesign] .rd-answer-disclosure__body {
+  padding: 4px 4px 10px;
+}
+[data-redesign] .rd-answer-sources .rd-answer-disclosure__body {
+  width: 100%;
+  max-width: 100%;
+}
+[data-redesign] .rd-answer-trace__label {
+  color: var(--rd-ink-soft);
+}
+[data-redesign] .rd-answer-trace__list {
+  margin-top: 10px;
+  gap: 4px;
+  list-style: none;
+  padding: 0;
+}
+[data-redesign] .rd-answer-trace__row {
+  gap: 12px;
+  font-size: 12px;
+  padding: 6px 8px;
+}
+
+/* Evidence rows inside <Sources>. The grid layout moved from inline styles to
+   classes; the highlight binding (data-active / [data-hover-cite]) stays in
+   primitives.css. */
+[data-redesign] .rd-evidence-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+[data-redesign] .rd-answer-sources .rd-evidence-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: start;
+  border-radius: var(--rd-r-sm);
+}
+[data-redesign] .rd-evidence-row__main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+[data-redesign] .rd-evidence-row__quote {
+  margin: 0;
+  font-size: 13px;
+}
+[data-redesign] .rd-evidence-row__badge {
+  font-size: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+[data-redesign] .rd-evidence-row__link {
+  font-size: 10.5px;
+  color: var(--rd-accent-strong);
+  text-decoration: none;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-redesign] .rd-evidence-row__src {
+  font-size: 10.5px;
+  color: var(--rd-ink-soft);
+}
+
+/* Message-level action toolbar (<MessageActions>) — copy / thumbs / promote /
+   compare / share. Always visible; the prior AnswerPacket hid these behind a
+   dead prop. */
+[data-redesign] .rd-answer-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px solid var(--rd-line-faint);
+}
+[data-redesign] .rd-answer-action {
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  border-radius: 8px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 13px;
+  color: var(--rd-ink-mute);
+  background: transparent;
+  border: 1px solid transparent;
+}
+[data-redesign] .rd-answer-action:hover {
+  color: var(--rd-accent-strong);
+  background: var(--rd-accent-soft);
+}
+[data-redesign] .rd-answer-action:focus-visible {
+  outline: 2px solid var(--rd-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-redesign] .rd-answer-disclose::after {
+    transition: none;
+  }
+}
+
+@media (max-width: 760px) {
+  [data-redesign] .rd-answer-receipt__when {
+    margin-left: 0;
+  }
+  [data-redesign] .rd-answer-sources .rd-evidence-row {
+    grid-template-columns: auto 1fr;
+  }
+  [data-redesign] .rd-evidence-row__link,
+  [data-redesign] .rd-evidence-row__src {
+    grid-column: 2;
+    max-width: 100%;
+  }
+}

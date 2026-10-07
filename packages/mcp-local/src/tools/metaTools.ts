@@ -208,7 +208,7 @@ const METHODOLOGY_CONTENT: Record<string, Record<string, any>> = {
           "Verify keyboard navigation (Tab order, Enter/Space activation). Check aria-labels on interactive elements. Run Storybook a11y addon panel for automated axe checks. Run Lighthouse accessibility audit.",
         tools: ["run_quality_gate"],
         action:
-          "Tab through the changed UI. Check Storybook's Accessibility panel for axe violations. Run `npm run perf:lighthouse` for accessibility score. Record results.",
+          "Tab through the changed UI. Check Storybook's Accessibility panel for axe violations. Record results.",
       },
       {
         step: 4,
@@ -244,7 +244,6 @@ const METHODOLOGY_CONTENT: Record<string, Record<string, any>> = {
       component_tests: "npm run test:run",
       e2e_tests: "npm run test:e2e",
       storybook: "npm run storybook",
-      lighthouse: "npm run perf:lighthouse",
       bundle_analysis: "npm run perf:bundle",
     },
   },

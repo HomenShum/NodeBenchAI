@@ -66,7 +66,7 @@ async function main() {
   if (!existsSync(SRC_DIR)) {
     throw new Error(
       `Missing ${SRC_DIR}. Run the dogfood e2e first:\n` +
-        `  npx playwright test tests/e2e/full-ui-dogfood.spec.ts --project=chromium --workers=1`,
+        `  npx playwright test evals/e2e/full-ui-dogfood.spec.ts --project=chromium --workers=1`,
     );
   }
 
@@ -74,7 +74,7 @@ async function main() {
   if (files.length === 0) {
     throw new Error(
       `No screenshots found in ${SRC_DIR}. Run the dogfood e2e first:\n` +
-        `  npx playwright test tests/e2e/full-ui-dogfood.spec.ts --project=chromium --workers=1`,
+        `  npx playwright test evals/e2e/full-ui-dogfood.spec.ts --project=chromium --workers=1`,
     );
   }
 

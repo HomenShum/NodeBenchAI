@@ -2,7 +2,7 @@
  * Test the getEntityContext query (with type)
  */
 import { ConvexHttpClient } from "convex/browser";
-import { api } from "../convex/_generated/api";
+import { api } from "../backend/convex/_generated/api";
 
 const CONVEX_URL = process.env.CONVEX_URL || "https://agile-caribou-964.convex.cloud";
 

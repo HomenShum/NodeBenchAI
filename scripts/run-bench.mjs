@@ -28,7 +28,7 @@ console.log("Personas: Daily Driver, Continuation Seeker, Drifter, New User");
 console.log("═══════════════════════════════════════════════════════════\n");
 
 try {
-  const { internal } = await import("../convex/_generated/api.js");
+  const { internal } = await import("../backend/convex/_generated/api.js");
   const result = await client.action(
     internal.domains.product.wikiDreamingEvalProduction.runFullBenchmark,
     { ownerKey, runsPerScenario }

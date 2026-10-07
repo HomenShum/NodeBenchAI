@@ -1,0 +1,17 @@
+{
+  "name": "Active Graph",
+  "package": "activegraph",
+  "repository": "https://github.com/yoheinakajima/activegraph",
+  "license": "Apache-2.0",
+  "pinned_version": "1.10.0",
+  "release_tag": "v1.10.0",
+  "release_commit": "148e12c2969f18fa12a1a3c2e75f3affd9aa0616",
+  "annotated_tag_object": "3fbcd8fc56a45ae68622d4e2b18a6d5844180527",
+  "inspected_ref": "8aedb1866cf5dce056af97529152ffd6f468a1ed",
+  "inspected_at": "2026-07-28T00:00:00Z",
+  "test_dependencies": {
+    "jsonschema": "4.26.0",
+    "pytest": "9.1.1"
+  },
+  "scope": "Deterministic, test-only graph-hop fork-and-diff canary"
+}

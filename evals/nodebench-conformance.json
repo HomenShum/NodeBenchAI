@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "nodeagent.evaluation-binding/v1",
+  "id": "nodebench-conformance",
+  "status": "legacy-mapped",
+  "command": "npx playwright test evals/e2e/ui-contract-runner.spec.ts --project=chromium --workers=1",
+  "sources": [
+    "evals/e2e/ui-contract-runner.spec.ts",
+    "proof/ui-contract/surfaces"
+  ]
+}

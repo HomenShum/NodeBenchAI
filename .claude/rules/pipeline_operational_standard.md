@@ -34,7 +34,7 @@ instrument → judge → persist → surface → measure → regress.
 `reportsTokenCounts`, `capturedSources`, `emitStatusIsTerminal`.
 
 Order is stable — dashboards rely on it. Add a gate by extending `GATE_ORDER`
-in `server/pipeline/diligenceJudge.ts`.
+in `workers/node/pipeline/diligenceJudge.ts`.
 
 ## Verdict tiers (bounded enum)
 - `verified` — 0 failures, ≤ 2 skipped
@@ -45,7 +45,7 @@ in `server/pipeline/diligenceJudge.ts`.
 ## Verification floor
 1. `npx convex codegen`
 2. `npx tsc --noEmit`
-3. `npx vitest run server/pipeline/diligenceJudge.test.ts server/pipeline/diligenceProjectionWriter.test.ts`
+3. `npx vitest run workers/node/pipeline/diligenceJudge.test.ts workers/node/pipeline/diligenceProjectionWriter.test.ts`
 4. `npm run build`
 5. `npm run dogfood:verify:smoke` when the UI changed
 

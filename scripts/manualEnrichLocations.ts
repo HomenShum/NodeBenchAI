@@ -4,9 +4,9 @@
  * Quick manual population of known company locations from analysis
  */
 
-import { api } from "../convex/_generated/api";
+import { api } from "../backend/convex/_generated/api";
 import { ConvexHttpClient } from "convex/browser";
-import type { Id } from "../convex/_generated/dataModel";
+import type { Id } from "../backend/convex/_generated/dataModel";
 
 const client = new ConvexHttpClient(process.env.CONVEX_URL!);
 

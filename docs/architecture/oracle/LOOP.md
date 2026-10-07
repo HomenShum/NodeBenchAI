@@ -22,8 +22,8 @@ There is no one-shot delivery mode for Oracle work. In other words: no one-shot.
 - If claiming parity or superiority to an industry tool, compare against a concrete external baseline instead of asserting it.
 
 ## Required verification floor
-- `npx tsc -p convex -noEmit --pretty false`
-- `npx tsc -p . -noEmit --pretty false`
+- `npx tsc -p convex --noEmit --pretty false`
+- `npx tsc -p . --noEmit --pretty false`
 - `npm run build`
 - `npm run test:run`
 - `npm run dogfood:verify`

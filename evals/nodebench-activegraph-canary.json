@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "nodeagent.evaluation-binding/v1",
+  "id": "nodebench-activegraph-canary",
+  "status": "offline-shadow",
+  "command": "python -m pytest evals/activegraph/tests -q",
+  "sources": [
+    "backend/convex/domains/operations/taskManager/nodeKitRunEvents.ts",
+    "backend/convex/domains/operations/taskManager/nodeKitRunExport.ts",
+    "backend/convex/domains/operations/taskManager/nodeKitRunRetention.ts",
+    "backend/convex/schema.ts",
+    "scripts/nodekit/runActiveGraphCanary.mjs",
+    "evals/activegraph"
+  ]
+}

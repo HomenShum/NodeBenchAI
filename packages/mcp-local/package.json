@@ -21,7 +21,7 @@
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && node --max-old-space-size=6144 ../../node_modules/typescript/bin/tsc -p tsconfig.json",
     "dev": "tsx src/index.ts",
-    "test": "node --max-old-space-size=6144 ../../node_modules/vitest/vitest.mjs run src/__tests__/analytics.test.ts src/__tests__/autonomousDeliveryTools.test.ts src/__tests__/dynamicLoading.test.ts src/__tests__/tools.test.ts src/__tests__/presetRealWorldBench.test.ts src/__tests__/runtimeConfig.test.ts src/__tests__/coreWorkflowTools.test.ts src/__tests__/packageInfo.test.ts",
+    "test": "node --max-old-space-size=6144 ../../node_modules/vitest/vitest.mjs run src/__tests__/analytics.test.ts src/__tests__/autonomousDeliveryTools.test.ts src/__tests__/dynamicLoading.test.ts src/__tests__/tools.test.ts src/__tests__/presetRealWorldBench.test.ts src/__tests__/runtimeConfig.test.ts src/__tests__/coreWorkflowTools.test.ts src/__tests__/packageInfo.test.ts src/__tests__/toonCodec.test.ts",
     "test:full": "node --max-old-space-size=6144 ../../node_modules/vitest/vitest.mjs run --maxWorkers=1",
     "test:delta:dogfood": "vitest run src/__tests__/deltaDogfoodGate.test.ts src/__tests__/deltaTools.test.ts src/__tests__/founderDirectionAssessment.test.ts",
     "test:open-dataset": "vitest run src/__tests__/openDatasetParallelEval.test.ts",
@@ -94,7 +94,7 @@
   "author": "HomenShum",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@toon-format/toon": "^2.1.0",
+    "@toon-format/toon": "^2.3.1",
     "ws": "^8.18.3"
   },
   "optionalDependencies": {
@@ -105,7 +105,7 @@
     "pdf-parse": "^2.4.5",
     "playwright": "^1.57.0",
     "read-excel-file": "^9.0.6",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.0",
     "tesseract.js": "^7.0.0",
     "yauzl": "^3.3.0"
   },
@@ -117,7 +117,7 @@
     "exceljs": "^4.4.0",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.6"
   },
   "overrides": {
     "@hono/node-server": "^1.19.13",

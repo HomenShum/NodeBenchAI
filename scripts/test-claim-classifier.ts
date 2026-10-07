@@ -13,8 +13,8 @@ import {
   verifyPersonDepth,
   rankAlternativeInterpretations,
   checkTemporalConsistency,
-} from "../convex/domains/agents/dueDiligence/deepResearch/claimClassifier";
-import type { Claim, ResearchSource } from "../convex/domains/agents/dueDiligence/deepResearch/types";
+} from "../backend/convex/domains/agents/dueDiligence/deepResearch/claimClassifier";
+import type { Claim, ResearchSource } from "../backend/convex/domains/agents/dueDiligence/deepResearch/types";
 
 console.log("=".repeat(80));
 console.log("CLAIM CLASSIFIER TESTS");

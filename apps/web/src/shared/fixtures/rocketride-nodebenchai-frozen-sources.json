@@ -1,0 +1,45 @@
+{
+  "fixtureId": "nodebenchai-frozen-sources-v1",
+  "app": "nodebenchai",
+  "workflow": "frozen-source-report",
+  "appCommit": "6ed0a58eeda993ff2a937ea4bacc2856756dd521",
+  "concurrency": 4,
+  "deadlineMs": 10000,
+  "delayMs": 20,
+  "units": [
+    { "id": "source-frozen-1", "scope": "research-run-1" },
+    { "id": "source-frozen-2", "scope": "research-run-1" },
+    { "id": "claim-extraction", "scope": "research-run-1" },
+    { "id": "report-compilation", "scope": "research-run-1" }
+  ],
+  "candidate": {
+    "kind": "answer-report-packet",
+    "outputs": [
+      {
+        "id": "report-1",
+        "l1": "generated_artifact",
+        "l2": "meeting_brief",
+        "l3": "artifact.team_meeting_summary",
+        "target": { "artifactId": "candidate-report-1", "traceId": "trace-1" },
+        "visibility": "workspace",
+        "sourceRefs": ["source:frozen-1", "source:frozen-2"],
+        "citationRefs": ["source:frozen-1", "source:frozen-2"],
+        "traceRef": "trace-1",
+        "producedBy": {
+          "runId": "nodebenchai-study",
+          "skill": "frozen-source-report",
+          "toolChain": ["retrieve_frozen_source", "compile_report"]
+        },
+        "version": {},
+        "output": {
+          "summary": "The frozen sources support the benchmark finding.",
+          "actionItems": ["Review the evidence bindings before persistence."]
+        }
+      }
+    ],
+    "evidenceBindings": [
+      { "claimId": "claim-1", "sourceRefs": ["source:frozen-1"] },
+      { "claimId": "claim-2", "sourceRefs": ["source:frozen-2"] }
+    ]
+  }
+}

@@ -16,7 +16,7 @@ Before extraction, check source quality:
 - **medium**: 1-2 snippets — extract conservatively, flag as limited
 - **low**: 0 snippets — return "insufficient data" template, do NOT generate
 
-Implementation: `retrievalConfidence` in `server/routes/search.ts`
+Implementation: `retrievalConfidence` in `workers/node/routes/search.ts`
 
 ### Layer 2: Claim-Level Grounding Filter
 After Gemini extraction, verify each claim against source text:
@@ -57,7 +57,7 @@ Implementation: `sourceIdx` field on signals, changes, risks in response
 - If judge variance exceeds 10% across runs, use majority vote (3x calls)
 
 ## Key files
-- `server/routes/search.ts` — Layers 1-2 and 4 (retrieval, filter, citations)
+- `workers/node/routes/search.ts` — Layers 1-2 and 4 (retrieval, filter, citations)
 - `packages/mcp-local/src/benchmarks/searchQualityEval.ts` — Layer 3 (grounded judge)
 - `packages/mcp-local/src/benchmarks/llmJudgeEval.ts` — Chain coherence criterion
 

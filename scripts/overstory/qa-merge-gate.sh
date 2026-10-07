@@ -182,10 +182,12 @@ if [ -f "$MANIFEST" ]; then
     console.log((data.items || []).length);
   " 2>/dev/null || echo "0")
 
-  if [ "$SCREENSHOT_COUNT" -lt 30 ]; then
-    FAILURES+=("LOW_COVERAGE: Only $SCREENSHOT_COUNT screenshots (need >= 30)")
+  # One product surface: 4 responsive/theme variants, 2 interaction states,
+  # and 1 settings/theme state. More routes would reward UI sprawl.
+  if [ "$SCREENSHOT_COUNT" -lt 7 ]; then
+    FAILURES+=("LOW_COVERAGE: Only $SCREENSHOT_COUNT screenshots (need >= 7)")
     PASS=false
-    echo "  FAIL: Only $SCREENSHOT_COUNT screenshots (need >= 30)"
+    echo "  FAIL: Only $SCREENSHOT_COUNT screenshots (need >= 7)"
   else
     echo "  OK: $SCREENSHOT_COUNT screenshots"
   fi

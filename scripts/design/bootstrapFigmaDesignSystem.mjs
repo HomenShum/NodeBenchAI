@@ -2,7 +2,7 @@
 /**
  * bootstrapFigmaDesignSystem.mjs — Create the NodeBench Design System file in Figma
  *
- * This script extracts all design tokens from src/index.css and creates a
+ * This script extracts all design tokens from apps/web/src/index.css and creates a
  * structured Figma design system file via the Figma REST API.
  *
  * Prerequisites:
@@ -14,7 +14,7 @@
  *   node scripts/design/bootstrapFigmaDesignSystem.mjs --json       # Output token manifest as JSON
  *
  * What it does:
- * 1. Parses src/index.css to extract all CSS custom properties (light + dark)
+ * 1. Parses apps/web/src/index.css to extract all CSS custom properties (light + dark)
  * 2. Parses type scale classes (.type-*) and component classes (.nb-*, .btn-*)
  * 3. Generates a structured manifest of all design tokens
  * 4. Creates Figma variables via the Variables API (POST /v1/files/:key/variables)
@@ -29,6 +29,10 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
+import {
+  DESIGN_TOKEN_SOURCE,
+  resolveDesignTokenPath,
+} from "../lib/standardTreePaths.mjs";
 
 // ── CLI Args ──────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
@@ -62,7 +66,7 @@ async function loadEnv() {
  * Extract all CSS custom properties from :root and .dark blocks
  */
 async function extractColorTokens() {
-  const cssPath = path.join(process.cwd(), "src", "index.css");
+  const cssPath = resolveDesignTokenPath(process.cwd());
   const css = await fs.readFile(cssPath, "utf8");
 
   const tokens = { light: {}, dark: {} };
@@ -94,7 +98,7 @@ async function extractColorTokens() {
  * Extract typography classes (.type-*) with their Tailwind definitions
  */
 async function extractTypographyTokens() {
-  const cssPath = path.join(process.cwd(), "src", "index.css");
+  const cssPath = resolveDesignTokenPath(process.cwd());
   const css = await fs.readFile(cssPath, "utf8");
 
   const typeStyles = [];
@@ -116,7 +120,7 @@ async function extractTypographyTokens() {
  * Extract component classes (.nb-*, .btn-*)
  */
 async function extractComponentTokens() {
-  const cssPath = path.join(process.cwd(), "src", "index.css");
+  const cssPath = resolveDesignTokenPath(process.cwd());
   const css = await fs.readFile(cssPath, "utf8");
 
   const components = [];
@@ -179,11 +183,11 @@ async function buildManifest() {
   return {
     version: "1.0.0",
     generatedAt: new Date().toISOString(),
-    source: "src/index.css",
+    source: DESIGN_TOKEN_SOURCE,
     pages: {
       colorPalette: {
         name: "Color Palette",
-        description: "All CSS custom properties from src/index.css (light + dark modes)",
+        description: `All CSS custom properties from ${DESIGN_TOKEN_SOURCE} (light + dark modes)`,
         sections: {
           core: {
             label: "Core (shadcn/ui primitives)",

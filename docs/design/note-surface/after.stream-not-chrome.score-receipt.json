@@ -1,0 +1,109 @@
+{
+  "schemaVersion": "nodekit.score-receipt/v1",
+  "receiptId": "score-nodebench-entity-notebook-after-stream-not-chrome",
+  "ruleId": "rule-stream-not-chrome",
+  "subject": {
+    "id": "nodebench-entity-notebook-after",
+    "name": "NodeBench AI entity notebook surface — after note-surface DNA application",
+    "kind": "platform-surface",
+    "surface": "apps/web/src/features/entities/components/EntityNotebookView.tsx and EntityNoteEditor.tsx after the feat/note-surface-dna diff; other target files unchanged by this rule's fixes",
+    "evidenceBasis": "recorded-observation",
+    "evidenceRef": "source in worktree feat/note-surface-dna (branched from 24a09f36) after the diff, 2026-07-29; border/rounded-card/shadow hits in EntityNotebookView.tsx fell 84 to 47, and the survivors are predominantly border-b dividers and border-dashed row rules — the approved separation mechanism",
+    "observedAt": "2026-07-29"
+  },
+  "derivedFrom": {
+    "collectionId": "note-surface",
+    "observationIds": ["obs-mew-stream", "obs-evernote-contrast"],
+    "factIds": [
+      "obs-mew-stream/f1",
+      "obs-mew-stream/f5",
+      "obs-evernote-contrast/f1",
+      "obs-evernote-contrast/f2"
+    ]
+  },
+  "ruleApplicability": {
+    "applies": true,
+    "appliesWhenSatisfied": [
+      "the surface's primary job is capture or review-in-time-order — unchanged by the diff",
+      "entries are short and heterogeneous — unchanged by the diff",
+      "organization is emergent (tags, links) rather than upfront — unchanged by the diff"
+    ],
+    "doesNotApplyWhenChecked": [
+      {
+        "clause": "long-form documents with internal heading hierarchy (obs-fabric-contrast/f1)",
+        "fires": false,
+        "note": "Unchanged: no document modal, no dimmed workspace."
+      },
+      {
+        "clause": "workflows where retrieval at 10k+ items dominates capture (obs-evernote-contrast/f1)",
+        "fires": false,
+        "note": "Unchanged: one entity's notebook at a time."
+      },
+      {
+        "clause": "multi-user triage queues where list-vs-detail is load-bearing",
+        "fires": false,
+        "note": "Unchanged: single column, no panes."
+      }
+    ]
+  },
+  "scale": {
+    "min": 0,
+    "max": 4,
+    "anchors": {
+      "0": "notes themselves are bordered cards in a dedicated list pane, editing opens another pane — obs-evernote-contrast/f2",
+      "1": "note bodies render stream-like, but the page leads with bordered chrome panels before the first entry, and entry-like content (evidence, backlinks, related items) is bordered cards",
+      "2": "the stream leads the page; auxiliary entry-like content still renders as bordered cards",
+      "3": "one column, divider separation for all entry-like content; a single residual bordered container remains",
+      "4": "divider-only single column end-to-end, with onboarding/meta content living as ordinary stream entries — obs-mew-stream/f1 and f5"
+    }
+  },
+  "criteria": [
+    {
+      "id": "c1-divider-stream-not-cards",
+      "question": "Does the notebook render one column of entries separated by dividers — no cards, no list-pane/editor-pane split, no bordered chrome ahead of the entries?",
+      "score": 3,
+      "citations": [
+        {
+          "observationId": "obs-mew-stream",
+          "factIds": ["f1"],
+          "relation": "meets",
+          "withinRuleDerivation": true,
+          "note": "Every entry-like element is now divider-separated: the header card became a border-b block, the three provenance panels became border-b disclosure rows that default closed, backlinks and related entities became divide-y rows with hover backgrounds, and evidence blocks became inline links. Notes end at a rule, not a card edge."
+        },
+        {
+          "observationId": "obs-evernote-contrast",
+          "factIds": ["f2"],
+          "relation": "exceeds",
+          "withinRuleDerivation": true,
+          "note": "No bordered note-card treatment remains on entry-like content anywhere in EntityNotebookView. The bordered-card pattern that matched this counterexample at baseline (evidence chips, backlink cards, related-entity cards, linked-entity pills) is gone from all four sites."
+        },
+        {
+          "observationId": "obs-evernote-contrast",
+          "factIds": ["f1"],
+          "relation": "exceeds",
+          "withinRuleDerivation": true,
+          "note": "Chrome-before-content is reduced structurally, not just visually: routingOpen and planOpen now initialize false, so the reader's path is header divider, three closed one-line disclosures, then the stream — instead of a workspace card plus two open panels of run telemetry."
+        },
+        {
+          "observationId": "obs-mew-stream",
+          "factIds": ["f5"],
+          "relation": "falls-short-of",
+          "withinRuleDerivation": true,
+          "note": "Held back from 4 honestly: provenance meta still lives in dedicated disclosure sections above the stream rather than as stream-resident entries, the opened panels keep their bg-black/20 inset slabs, and EntityNoteEditor's editing container remains a rounded-lg bordered card. Mew's bar — meta content as ordinary notes in the stream — is not met."
+        }
+      ],
+      "finding": "Anchor 3 earned by the diff: divider separation for all entry-like content, chrome panels demoted to closed one-line disclosures, zero bordered cards left on entries. Residuals keeping it from 4: disclosure insets when opened, provenance-as-panels rather than provenance-as-stream-entries, and the editor's own bordered container."
+    }
+  ],
+  "score": 3,
+  "scoreBasis": "Single criterion, so the receipt score is the criterion score. Divider separation everywhere entry-like clears anchors 1 and 2; the surviving bordered/inset containers (disclosure interiors, editor card) and the non-stream-resident meta block anchor 4.",
+  "notScored": [
+    "EntityNotebookLive.tsx — still ungraded; the live editor's boundary treatment was outside this diff.",
+    "EntityNotebookMeta.tsx's nb-panel-inset sections — deliberately untouched; a meta surface beside the editor, not the note stream.",
+    "Density at scale — same absence as at baseline; nothing in the diff produces evidence about 1,000+ blocks.",
+    "Runtime rendering — the isolated worktree has no Convex deployment or .env.local, so the app was not launched; no visual verification is claimed, only class-level verification plus the passing suite (23 files, 247 tests, identical before and after)."
+  ],
+  "boundary": "Scored from the post-diff component source in the same worktree, method identical to the baseline receipt so the delta is attributable to the diff alone. The score moved only where a specific edit moved the mechanism: every citation names the structural change (divider, default-closed state, inline link) that earned it.",
+  "scoredBy": "note-surface DNA application pass, feat/note-surface-dna, scored against rule-stream-not-chrome unmodified",
+  "scoredAt": "2026-07-29"
+}

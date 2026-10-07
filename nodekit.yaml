@@ -1,0 +1,54 @@
+# NodeBenchAI brownfield registration. The standard tree is physically present,
+# while the production agent runtime remains the repo-local migration source.
+schemaVersion: nodekit.repo/v1
+repository: HomenShum/NodeBenchAI
+lifecycle: production
+support: active
+role: domain-application
+commandProfile: untracked
+
+# NodeBenchAI is not a canonical platform-contract owner. Runtime, trace,
+# memory, and proof ownership remain external targets.
+canonicalFor: []
+consumes:
+  - nodeagent.policy-context
+
+commands:
+  dev:
+    script: dev
+    mode: service
+  check:
+    script: test:run
+    mode: finite
+  proof:
+    script: verify-live
+    mode: finite
+
+noKey:
+  status: missing
+  command: null
+  externalAccountsRequired: 2
+  disclosure: >-
+    The production-backed NodeBench application currently requires a configured
+    Convex deployment and Google model credentials. Local fixtures and tests are
+    not presented as a deterministic no-key application demo.
+
+environment:
+  contractVersion: nodeplatform.env/v1
+  status: legacy
+
+proof:
+  command: npm run verify-live
+  receiptSchema: null
+
+# This DeepTrace type is a domain specialization that happens to share the
+# canonical PolicyContext signature; it is not a second runtime policy owner.
+contractDeclarations:
+  - concept: nodeagent.policy-context
+    signature: policy-context
+    path: backend/convex/domains/deepTrace/dimensionModel.ts
+    mode: domain-specialization
+    origin: nodeagent.policy-context
+    reason: DeepTrace scoring context, not the NodeAgent runtime policy contract.
+
+architectureExceptions: []

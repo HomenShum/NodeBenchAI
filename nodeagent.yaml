@@ -1,0 +1,58 @@
+# NodeBenchAI application composition. NodeKit resolves and hashes this authored
+# projection; the existing NodeBench runtime remains authoritative in production.
+schemaVersion: nodeagent.application/v1
+
+application:
+  id: nodebench-entity-intelligence
+  name: NodeBench Entity Intelligence
+  purpose: >-
+    Produce source-grounded company, market, and research intelligence through
+    the durable NodeBench application and its entity-intelligence capability.
+
+authoring:
+  directory: ./agent
+
+runtime:
+  engine: repo-local-nodebench
+  profile: production
+
+provider:
+  adapter: repo-local-google-gemini-rest
+  model:
+    provider: google
+    id: gemini-3.5-flash
+  secretRef: GEMINI_API_KEY
+
+backend:
+  adapter: convex
+  config:
+    functionsDirectory: ./backend/convex
+    layoutStatus: standard-tree-phase-2
+
+orchestration:
+  planner: orchestrator-workers
+  implementationSources:
+    - ./backend/convex/domains/redesign/chatRuns.ts
+    - ./backend/convex/domains/agents
+    - ./workers/node/pipeline
+  maxConcurrentSubagents: 10
+  migrationTarget: nodeagent-native
+
+packs:
+  - ./packs/entity-intelligence/pack.yaml
+
+policies:
+  directory: ./agent/policies
+  enforcement: legacy-code-and-ci
+
+evaluations:
+  required:
+    - nodebench-conformance
+    - nodebench-smoke
+    - nodebench-entity-intelligence
+    - nodebench-production
+    - nodebench-activegraph-canary
+
+contracts:
+  event: nodeagent.event/v1
+  trace: nodeagent.trace/v1

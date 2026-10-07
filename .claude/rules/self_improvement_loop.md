@@ -1,13 +1,13 @@
 # Self-Improvement Loop — Operating Manual
 
 The agent brain for NodeBench's continuous improvement flywheel. Read this on every loop cycle
-(manual or scheduled). The deterministic substrate is `scripts/improvement-loop/`; this rule is
+(manual or scheduled). The deterministic substrate is `adw/improvement-loop/`; this rule is
 how the agent drives it. Canonical design: `docs/architecture/SELF_IMPROVEMENT_LOOP.md`.
 
 ## Operating model: bounded + goal-driven (NOT "never stop")
 
-This loop is governed by the Self-Directed Development OS in [`goals/README.md`](../../goals/README.md)
-and the hard gates in [`goals/HARD_GATES.md`](../../goals/HARD_GATES.md). The lesson is **not**
+This loop is governed by the Self-Directed Development OS in [`adw/goals/README.md`](../../goals/README.md)
+and the hard gates in [`adw/goals/HARD_GATES.md`](../../goals/HARD_GATES.md). The lesson is **not**
 "let the agent run forever" — it is: closed goal, reviewable definition of done, focused subagents,
 hard gates, batch feedback.
 
@@ -18,7 +18,7 @@ hard gates, batch feedback.
 
 - **Cadence:** daily small-loop (propose ONE bounded next step; only tiny CI-gated detector fixes
   auto-ship, ≤3/day) + weekly self-review (propose issues/cuts/goals, never auto-add features).
-  Substantive work becomes a Goal Card (`goals/<surface>/NNN-slug.md`) the founder approves.
+  Substantive work becomes a Goal Card (`adw/goals/<surface>/NNN-slug.md`) the founder approves.
 - **Operating rule:** Human sets the *why* + boundary; agent explores the *how*; tests decide; docs preserve.
 - **Hard gates:** prod deploy, destructive migrations, auth, billing, public/private permission
   rules, data deletion, legal/privacy copy, wiki publish, host/mod privileges, secrets → propose only.
@@ -32,7 +32,7 @@ hard gates, batch feedback.
 
 ### 1. OBSERVE + SCORE
 ```bash
-node scripts/improvement-loop/run-cycle.mjs --effort-budget 3
+node adw/improvement-loop/run-cycle.mjs --effort-budget 3
 ```
 This runs `scan.mjs`, writes `backlog.latest.json`, selects the top auto-safe opportunity, and
 appends a cycle to `ledger.json`.
@@ -84,7 +84,7 @@ If the change would touch any of these, it is **human-gated** — queue it, do N
 - Shipping a fix for a false-positive scanner hit (validate first).
 - Auto-shipping a human-gated change.
 - Claiming "live" on a green build (live-DOM verify first — `live_dom_verification.md`).
-- Building a parallel loop instead of extending `scripts/improvement-loop/` + the existing dogfood/eval scripts.
+- Building a parallel loop instead of extending `adw/improvement-loop/` + the existing dogfood/eval scripts.
 
 ## Related rules
 - `flywheel_continuous` · `self_building_loop` · `eval_flywheel` · `analyst_diagnostic`

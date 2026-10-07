@@ -3,8 +3,8 @@
 
 # Areas with elevated release or security risk.
 /.github/ @HomenShum
-/convex/ @HomenShum
-/server/ @HomenShum
+/backend/convex/ @HomenShum
+/workers/node/ @HomenShum
 /api/ @HomenShum
 /apps/api-headless/ @HomenShum
 /packages/mcp-local/ @HomenShum
@@ -12,7 +12,7 @@
 /packages/mcp-power/ @HomenShum
 
 # Product UI and design parity surfaces.
-/src/ @HomenShum
+/apps/web/src/ @HomenShum
 /docs/runbooks/ @HomenShum
 /AGENTS.md @HomenShum
 /CLAUDE.md @HomenShum

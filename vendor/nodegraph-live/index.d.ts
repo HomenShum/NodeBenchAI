@@ -1,0 +1,3 @@
+export { buildGraph, patchGraph, edgeKey, edgeTypesPresent, edgeTypeCounts, isEvidenceEdgeType, isEdgeType, requireEdgeType, requireAssertionReceipt, EDGE_TYPES, EDGE_TYPE_ATTR, EVIDENCE_EDGE_TYPES, type EdgeTypeName, type EdgeKey, type GraphNode, type GraphEdge, type AssertionReceipt, type BuildOptions, type PatchResult, } from "./graph-model.js";
+export { GraphSession, type EntityRef, type SessionNode, type SessionSnapshot, type SessionLimits, type SessionStats, type EventOptions, } from "./session.js";
+//# sourceMappingURL=index.d.ts.map

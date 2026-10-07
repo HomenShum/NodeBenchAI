@@ -17,41 +17,41 @@ import {
   executeWithAdapter,
   routeQuery,
   clearRegistry,
-} from "../convex/domains/agents/adapters/registry";
+} from "../backend/convex/domains/agents/adapters/registry";
 
 import {
   createDeepReasoningAgent,
   createAnthropicReasoningAdapter,
-} from "../convex/domains/agents/adapters/anthropic/anthropicReasoningAdapter";
+} from "../backend/convex/domains/agents/adapters/anthropic/anthropicReasoningAdapter";
 
 import {
   createOpenAIAgentsAdapter,
   createTriageAgentSystem,
-} from "../convex/domains/agents/adapters/openai/openaiAgentsAdapter";
+} from "../backend/convex/domains/agents/adapters/openai/openaiAgentsAdapter";
 
 import {
   createVercelAiSdkAdapter,
-} from "../convex/domains/agents/adapters/vercel/vercelAiSdkAdapter";
+} from "../backend/convex/domains/agents/adapters/vercel/vercelAiSdkAdapter";
 
 import {
   createLangGraphAdapter,
-} from "../convex/domains/agents/adapters/langgraph/langgraphAdapter";
+} from "../backend/convex/domains/agents/adapters/langgraph/langgraphAdapter";
 
 import {
   createGoogleInteractionsAdapter,
   DEFAULT_GEMINI_DEEP_RESEARCH_AGENT,
-} from "../convex/domains/agents/adapters/google/googleInteractionsAdapter";
+} from "../backend/convex/domains/agents/adapters/google/googleInteractionsAdapter";
 
 import {
   detectSDKFromQuery,
   DEFAULT_SDK_CONFIG,
-} from "../convex/domains/agents/adapters/types";
+} from "../backend/convex/domains/agents/adapters/types";
 
 import {
   executeHandoff,
   serializeHandoffContext,
   findBestAdapterForTask,
-} from "../convex/domains/agents/adapters/handoffBridge";
+} from "../backend/convex/domains/agents/adapters/handoffBridge";
 
 // Test colors for console output
 const colors = {

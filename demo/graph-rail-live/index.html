@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NodeBench graph rail — LIVE Convex backend</title>
+    <style>
+      :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+      body { margin: 0; background: #0b0e12; color: #dfe5ea; }
+      main { width: min(1240px, calc(100% - 32px)); margin: 24px auto; }
+      h1 { font-size: 19px; margin: 0 0 4px; }
+      p { margin: 0 0 10px; color: #8b949d; font-size: 13px; line-height: 1.5; max-width: 980px; }
+      #stage { border: 1px solid #1d242c; border-radius: 12px; overflow: hidden; background: #0e1319; }
+      #status { color: #55606a; font-size: 12px; margin-top: 8px; }
+      code { color: #9ec5ee; }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@19.2.0",
+          "react/jsx-runtime": "https://esm.sh/react@19.2.0/jsx-runtime",
+          "react-dom/client": "https://esm.sh/react-dom@19.2.0/client",
+          "graphology": "https://esm.sh/graphology@0.26.0",
+          "graphology-layout-forceatlas2": "https://esm.sh/graphology-layout-forceatlas2@0.10.1",
+          "graphology-layout-forceatlas2/worker.js": "https://esm.sh/graphology-layout-forceatlas2@0.10.1/worker.js",
+          "sigma": "https://esm.sh/sigma@3.0.3",
+          "@sigma/node-border": "https://esm.sh/@sigma/node-border@3.0.0?deps=sigma@3.0.3",
+          "convex/browser": "https://esm.sh/convex@1.42.3/browser",
+          "convex/server": "https://esm.sh/convex@1.42.3/server"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <main>
+      <h1>NodeBench graph rail — live Convex backend</h1>
+      <p>
+        This page holds a reactive WebSocket subscription to a REAL Convex deployment running
+        NodeBench's actual backend functions (<code>domains/knowledge/entityContexts</code>).
+        When the repo's own seed script writes entity research contexts, the rail updates live —
+        no polling, no replay file. Entities carry no measured counts and sources carry no release,
+        so every edge is traversal — the trust grammar, stated as always.
+      </p>
+      <div id="stage"><div id="root"></div></div>
+      <p id="status">connecting…</p>
+    </main>
+    <script type="module" src="./live.js"></script>
+  </body>
+</html>

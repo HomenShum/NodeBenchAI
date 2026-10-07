@@ -1,0 +1,51 @@
+# Logical ownership manifest for the existing NodeBench entity-intelligence
+# capability. Implementations remain at their current standard-tree paths.
+schemaVersion: nodeagent.pack/v1
+id: entity-intelligence
+version: 0.1.0
+name: Entity Intelligence
+description: >-
+  Source-grounded company and market intelligence, diligence, reusable run
+  artifacts, narrative workflows, forecasting, and change monitoring.
+
+skill: ./SKILL.md
+
+prompts:
+  - ../../backend/convex/domains/redesign/chatRuns.ts
+
+artifacts:
+  - entity-intelligence-answer
+  - evidence-index
+  - redesign-chat-run-receipt
+
+tools:
+  - nodebench.mcp-tool-registry
+  - nodebench.entity-search
+  - nodebench.diligence
+
+jobs:
+  - nodebench.entity-intelligence-run
+
+validators:
+  - nodebench.grounding
+  - nodebench.citation-chain
+  - nodebench.response-policy
+
+policies:
+  - ../../agent/policies/approvals.yaml
+  - ../../agent/policies/budgets.yaml
+  - ../../agent/policies/egress.yaml
+
+renderers:
+  - nodebench.chat-assistant-message
+
+evals:
+  - ../../evals/nodebench-conformance.json
+  - ../../evals/nodebench-smoke.json
+  - ../../evals/nodebench-entity-intelligence.json
+  - ../../evals/nodebench-production.json
+
+permissions:
+  migrationStatus: logical-owner
+  runtimeAuthority: repo-local-nodebench
+  durableWrites: existing-policy-gated

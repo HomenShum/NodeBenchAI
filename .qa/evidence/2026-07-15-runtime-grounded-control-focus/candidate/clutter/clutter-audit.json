@@ -1,0 +1,679 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-15T23:13:39.958Z",
+  "privacy": {
+    "rawSelectors": false,
+    "rawPaths": false,
+    "sampledText": false
+  },
+  "states": [
+    {
+      "name": "desktop-light",
+      "url": {
+        "protocol": "http:",
+        "hostHash": "sha256-080fa7a25f216aabb194",
+        "pathnameHash": "sha256-48e47b4b0ab06a5eaef1",
+        "pathSegments": 1
+      },
+      "viewport": {
+        "width": 1512,
+        "height": 900
+      },
+      "scheme": "light",
+      "reducedMotion": false,
+      "auditIdentity": {
+        "fingerprint": "sha256-c85e5846e8e8ce327a9a",
+        "requestedUrl": {
+          "protocol": "http:",
+          "hostHash": "sha256-080fa7a25f216aabb194",
+          "pathnameHash": "sha256-48e47b4b0ab06a5eaef1",
+          "pathSegments": 1
+        },
+        "finalUrl": {
+          "protocol": "http:",
+          "hostHash": "sha256-080fa7a25f216aabb194",
+          "pathnameHash": "sha256-48e47b4b0ab06a5eaef1",
+          "pathSegments": 1
+        },
+        "responseStatus": 200,
+        "rootSelectorHash": "sha256-230d8358dc8e8890b4c5",
+        "readySelectorHash": "sha256-e9a21e57b99c7191b2d8",
+        "setupContract": [],
+        "viewport": {
+          "width": 1512,
+          "height": 900
+        },
+        "scheme": "light",
+        "reducedMotion": false,
+        "contextKeyHash": "sha256-7c3e5efb8379be679487",
+        "storageStateHash": null
+      },
+      "readiness": {
+        "rootFound": true,
+        "charset": "UTF-8",
+        "consoleErrorCount": 0,
+        "mojibakeCount": 0,
+        "setupClicks": [],
+        "asserts": [
+          {
+            "name": "agents-title",
+            "scope": "root",
+            "present": true
+          }
+        ]
+      },
+      "geometry": {
+        "documentWidth": 1512,
+        "documentHeight": 900,
+        "viewportWidth": 1512,
+        "viewportHeight": 900,
+        "scrollScreens": 1,
+        "hOverflow": false
+      },
+      "counts": {
+        "renderedElements": 81,
+        "semanticUnits": 42,
+        "interactive": 21,
+        "interactiveAboveFold": 19,
+        "enabled": 20,
+        "disabled": 1,
+        "headings": 1,
+        "media": 0,
+        "statuses": 2,
+        "closedDisclosures": 0,
+        "openDisclosures": 0
+      },
+      "densities": {
+        "semanticAboveFold": 39,
+        "controlsAboveFold": 19
+      },
+      "repetition": {
+        "duplicateActions": [],
+        "duplicateTextBlocks": []
+      },
+      "exposure": {
+        "controlClusters": [
+          {
+            "selector": "selector-sha256-a783fc7a8c450b6fc8fd",
+            "controls": 9,
+            "areaViewportFraction": 0.063,
+            "confidence": "low"
+          },
+          {
+            "selector": "selector-sha256-d61427643b77eb957a25",
+            "controls": 9,
+            "areaViewportFraction": 0.213,
+            "confidence": "low"
+          },
+          {
+            "selector": "selector-sha256-0367befb3b92e3db3c2b",
+            "controls": 21,
+            "areaViewportFraction": 1,
+            "confidence": "low"
+          },
+          {
+            "selector": "selector-sha256-582657ebe62fc608e52a",
+            "controls": 19,
+            "areaViewportFraction": 1,
+            "confidence": "low"
+          }
+        ]
+      },
+      "footprint": {
+        "largePassiveRegions": [],
+        "emptyRegions": [],
+        "fixedSticky": []
+      },
+      "reachability": {
+        "horizontalControlScrollers": [],
+        "clippedControls": [],
+        "unlabeledControls": []
+      },
+      "protectedInventory": [
+        {
+          "name": "primary-composer",
+          "selector": "selector-sha256-e9a21e57b99c7191b2d8",
+          "scope": "root",
+          "minCount": 1,
+          "count": 1,
+          "ok": true,
+          "assertText": []
+        },
+        {
+          "name": "send-control",
+          "selector": "selector-sha256-92c2d46b98881a9ca5a8",
+          "scope": "root",
+          "minCount": 1,
+          "count": 1,
+          "ok": true,
+          "assertText": []
+        }
+      ],
+      "candidates": [
+        {
+          "kind": "exposed-control-cluster",
+          "confidence": "low",
+          "selector": "selector-sha256-a783fc7a8c450b6fc8fd",
+          "controls": 9
+        },
+        {
+          "kind": "exposed-control-cluster",
+          "confidence": "low",
+          "selector": "selector-sha256-d61427643b77eb957a25",
+          "controls": 9
+        },
+        {
+          "kind": "exposed-control-cluster",
+          "confidence": "low",
+          "selector": "selector-sha256-0367befb3b92e3db3c2b",
+          "controls": 21
+        },
+        {
+          "kind": "exposed-control-cluster",
+          "confidence": "low",
+          "selector": "selector-sha256-582657ebe62fc608e52a",
+          "controls": 19
+        }
+      ],
+      "limitations": [
+        "Static rendered-DOM inventory; usefulness and handler liveness are not inferred.",
+        "Repeated names/text may be legitimate in lists, tables, or responsive duplicate navigation.",
+        "Large passive/empty region detection is low-confidence and requires pixel inspection.",
+        "Setup clicks are explicit; audited controls are never auto-clicked.",
+        "Lower counts are descriptive and cannot prove a better interface."
+      ]
+    },
+    {
+      "name": "desktop-dark",
+      "url": {
+        "protocol": "http:",
+        "hostHash": "sha256-080fa7a25f216aabb194",
+        "pathnameHash": "sha256-48e47b4b0ab06a5eaef1",
+        "pathSegments": 1
+      },
+      "viewport": {
+        "width": 1512,
+        "height": 900
+      },
+      "scheme": "dark",
+      "reducedMotion": false,
+      "auditIdentity": {
+        "fingerprint": "sha256-e8ecf93e5257689a2172",
+        "requestedUrl": {
+          "protocol": "http:",
+          "hostHash": "sha256-080fa7a25f216aabb194",
+          "pathnameHash": "sha256-48e47b4b0ab06a5eaef1",
+          "pathSegments": 1
+        },
+        "finalUrl": {
+          "protocol": "http:",
+          "hostHash": "sha256-080fa7a25f216aabb194",
+          "pathnameHash": "sha256-48e47b4b0ab06a5eaef1",
+          "pathSegments": 1
+        },
+        "responseStatus": 200,
+        "rootSelectorHash": "sha256-230d8358dc8e8890b4c5",
+        "readySelectorHash": "sha256-e9a21e57b99c7191b2d8",
+        "setupContract": [],
+        "viewport": {
+          "width": 1512,
+          "height": 900
+        },
+        "scheme": "dark",
+        "reducedMotion": false,
+        "contextKeyHash": "sha256-7c3e5efb8379be679487",
+        "storageStateHash": null
+      },
+      "readiness": {
+        "rootFound": true,
+        "charset": "UTF-8",
+        "consoleErrorCount": 0,
+        "mojibakeCount": 0,
+        "setupClicks": [],
+        "asserts": [
+          {
+            "name": "agents-title",
+            "scope": "root",
+            "present": true
+          }
+        ]
+      },
+      "geometry": {
+        "documentWidth": 1512,
+        "documentHeight": 900,
+        "viewportWidth": 1512,
+        "viewportHeight": 900,
+        "scrollScreens": 1,
+        "hOverflow": false
+      },
+      "counts": {
+        "renderedElements": 81,
+        "semanticUnits": 42,
+        "interactive": 21,
+        "interactiveAboveFold": 19,
+        "enabled": 20,
+        "disabled": 1,
+        "headings": 1,
+        "media": 0,
+        "statuses": 2,
+        "closedDisclosures": 0,
+        "openDisclosures": 0
+      },
+      "densities": {
+        "semanticAboveFold": 39,
+        "controlsAboveFold": 19
+      },
+      "repetition": {
+        "duplicateActions": [],
+        "duplicateTextBlocks": []
+      },
+      "exposure": {
+        "controlClusters": [
+          {
+            "selector": "selector-sha256-a783fc7a8c450b6fc8fd",
+            "controls": 9,
+            "areaViewportFraction": 0.063,
+            "confidence": "low"
+          },
+          {
+            "selector": "selector-sha256-d61427643b77eb957a25",
+            "controls": 9,
+            "areaViewportFraction": 0.213,
+            "confidence": "low"
+          },
+          {
+            "selector": "selector-sha256-0367befb3b92e3db3c2b",
+            "controls": 21,
+            "areaViewportFraction": 1,
+            "confidence": "low"
+          },
+          {
+            "selector": "selector-sha256-582657ebe62fc608e52a",
+            "controls": 19,
+            "areaViewportFraction": 1,
+            "confidence": "low"
+          }
+        ]
+      },
+      "footprint": {
+        "largePassiveRegions": [],
+        "emptyRegions": [],
+        "fixedSticky": []
+      },
+      "reachability": {
+        "horizontalControlScrollers": [],
+        "clippedControls": [],
+        "unlabeledControls": []
+      },
+      "protectedInventory": [
+        {
+          "name": "primary-composer",
+          "selector": "selector-sha256-e9a21e57b99c7191b2d8",
+          "scope": "root",
+          "minCount": 1,
+          "count": 1,
+          "ok": true,
+          "assertText": []
+        },
+        {
+          "name": "send-control",
+          "selector": "selector-sha256-92c2d46b98881a9ca5a8",
+          "scope": "root",
+          "minCount": 1,
+          "count": 1,
+          "ok": true,
+          "assertText": []
+        }
+      ],
+      "candidates": [
+        {
+          "kind": "exposed-control-cluster",
+          "confidence": "low",
+          "selector": "selector-sha256-a783fc7a8c450b6fc8fd",
+          "controls": 9
+        },
+        {
+          "kind": "exposed-control-cluster",
+          "confidence": "low",
+          "selector": "selector-sha256-d61427643b77eb957a25",
+          "controls": 9
+        },
+        {
+          "kind": "exposed-control-cluster",
+          "confidence": "low",
+          "selector": "selector-sha256-0367befb3b92e3db3c2b",
+          "controls": 21
+        },
+        {
+          "kind": "exposed-control-cluster",
+          "confidence": "low",
+          "selector": "selector-sha256-582657ebe62fc608e52a",
+          "controls": 19
+        }
+      ],
+      "limitations": [
+        "Static rendered-DOM inventory; usefulness and handler liveness are not inferred.",
+        "Repeated names/text may be legitimate in lists, tables, or responsive duplicate navigation.",
+        "Large passive/empty region detection is low-confidence and requires pixel inspection.",
+        "Setup clicks are explicit; audited controls are never auto-clicked.",
+        "Lower counts are descriptive and cannot prove a better interface."
+      ]
+    },
+    {
+      "name": "mobile-light",
+      "url": {
+        "protocol": "http:",
+        "hostHash": "sha256-080fa7a25f216aabb194",
+        "pathnameHash": "sha256-48e47b4b0ab06a5eaef1",
+        "pathSegments": 1
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "scheme": "light",
+      "reducedMotion": false,
+      "auditIdentity": {
+        "fingerprint": "sha256-0e956c46217a2c40862b",
+        "requestedUrl": {
+          "protocol": "http:",
+          "hostHash": "sha256-080fa7a25f216aabb194",
+          "pathnameHash": "sha256-48e47b4b0ab06a5eaef1",
+          "pathSegments": 1
+        },
+        "finalUrl": {
+          "protocol": "http:",
+          "hostHash": "sha256-080fa7a25f216aabb194",
+          "pathnameHash": "sha256-48e47b4b0ab06a5eaef1",
+          "pathSegments": 1
+        },
+        "responseStatus": 200,
+        "rootSelectorHash": "sha256-230d8358dc8e8890b4c5",
+        "readySelectorHash": "sha256-e9a21e57b99c7191b2d8",
+        "setupContract": [],
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scheme": "light",
+        "reducedMotion": false,
+        "contextKeyHash": "sha256-7c3e5efb8379be679487",
+        "storageStateHash": null
+      },
+      "readiness": {
+        "rootFound": true,
+        "charset": "UTF-8",
+        "consoleErrorCount": 0,
+        "mojibakeCount": 0,
+        "setupClicks": [],
+        "asserts": [
+          {
+            "name": "agents-title",
+            "scope": "root",
+            "present": true
+          }
+        ]
+      },
+      "geometry": {
+        "documentWidth": 390,
+        "documentHeight": 844,
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "scrollScreens": 1,
+        "hOverflow": false
+      },
+      "counts": {
+        "renderedElements": 53,
+        "semanticUnits": 21,
+        "interactive": 12,
+        "interactiveAboveFold": 12,
+        "enabled": 11,
+        "disabled": 1,
+        "headings": 1,
+        "media": 0,
+        "statuses": 1,
+        "closedDisclosures": 0,
+        "openDisclosures": 0
+      },
+      "densities": {
+        "semanticAboveFold": 20,
+        "controlsAboveFold": 12
+      },
+      "repetition": {
+        "duplicateActions": [],
+        "duplicateTextBlocks": []
+      },
+      "exposure": {
+        "controlClusters": [
+          {
+            "selector": "selector-sha256-0367befb3b92e3db3c2b",
+            "controls": 12,
+            "areaViewportFraction": 1,
+            "confidence": "low"
+          },
+          {
+            "selector": "selector-sha256-582657ebe62fc608e52a",
+            "controls": 10,
+            "areaViewportFraction": 1,
+            "confidence": "low"
+          }
+        ]
+      },
+      "footprint": {
+        "largePassiveRegions": [],
+        "emptyRegions": [],
+        "fixedSticky": [
+          {
+            "selector": "selector-sha256-9cb8dede580fd55777d3",
+            "position": "fixed",
+            "areaViewportFraction": 0.081
+          }
+        ]
+      },
+      "reachability": {
+        "horizontalControlScrollers": [],
+        "clippedControls": [],
+        "unlabeledControls": []
+      },
+      "protectedInventory": [
+        {
+          "name": "primary-composer",
+          "selector": "selector-sha256-e9a21e57b99c7191b2d8",
+          "scope": "root",
+          "minCount": 1,
+          "count": 1,
+          "ok": true,
+          "assertText": []
+        },
+        {
+          "name": "send-control",
+          "selector": "selector-sha256-92c2d46b98881a9ca5a8",
+          "scope": "root",
+          "minCount": 1,
+          "count": 1,
+          "ok": true,
+          "assertText": []
+        }
+      ],
+      "candidates": [
+        {
+          "kind": "exposed-control-cluster",
+          "confidence": "low",
+          "selector": "selector-sha256-0367befb3b92e3db3c2b",
+          "controls": 12
+        },
+        {
+          "kind": "exposed-control-cluster",
+          "confidence": "low",
+          "selector": "selector-sha256-582657ebe62fc608e52a",
+          "controls": 10
+        }
+      ],
+      "limitations": [
+        "Static rendered-DOM inventory; usefulness and handler liveness are not inferred.",
+        "Repeated names/text may be legitimate in lists, tables, or responsive duplicate navigation.",
+        "Large passive/empty region detection is low-confidence and requires pixel inspection.",
+        "Setup clicks are explicit; audited controls are never auto-clicked.",
+        "Lower counts are descriptive and cannot prove a better interface."
+      ]
+    },
+    {
+      "name": "mobile-dark",
+      "url": {
+        "protocol": "http:",
+        "hostHash": "sha256-080fa7a25f216aabb194",
+        "pathnameHash": "sha256-48e47b4b0ab06a5eaef1",
+        "pathSegments": 1
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "scheme": "dark",
+      "reducedMotion": false,
+      "auditIdentity": {
+        "fingerprint": "sha256-9ab6d65e33b112450d48",
+        "requestedUrl": {
+          "protocol": "http:",
+          "hostHash": "sha256-080fa7a25f216aabb194",
+          "pathnameHash": "sha256-48e47b4b0ab06a5eaef1",
+          "pathSegments": 1
+        },
+        "finalUrl": {
+          "protocol": "http:",
+          "hostHash": "sha256-080fa7a25f216aabb194",
+          "pathnameHash": "sha256-48e47b4b0ab06a5eaef1",
+          "pathSegments": 1
+        },
+        "responseStatus": 200,
+        "rootSelectorHash": "sha256-230d8358dc8e8890b4c5",
+        "readySelectorHash": "sha256-e9a21e57b99c7191b2d8",
+        "setupContract": [],
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scheme": "dark",
+        "reducedMotion": false,
+        "contextKeyHash": "sha256-7c3e5efb8379be679487",
+        "storageStateHash": null
+      },
+      "readiness": {
+        "rootFound": true,
+        "charset": "UTF-8",
+        "consoleErrorCount": 0,
+        "mojibakeCount": 0,
+        "setupClicks": [],
+        "asserts": [
+          {
+            "name": "agents-title",
+            "scope": "root",
+            "present": true
+          }
+        ]
+      },
+      "geometry": {
+        "documentWidth": 390,
+        "documentHeight": 844,
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "scrollScreens": 1,
+        "hOverflow": false
+      },
+      "counts": {
+        "renderedElements": 53,
+        "semanticUnits": 21,
+        "interactive": 12,
+        "interactiveAboveFold": 12,
+        "enabled": 11,
+        "disabled": 1,
+        "headings": 1,
+        "media": 0,
+        "statuses": 1,
+        "closedDisclosures": 0,
+        "openDisclosures": 0
+      },
+      "densities": {
+        "semanticAboveFold": 20,
+        "controlsAboveFold": 12
+      },
+      "repetition": {
+        "duplicateActions": [],
+        "duplicateTextBlocks": []
+      },
+      "exposure": {
+        "controlClusters": [
+          {
+            "selector": "selector-sha256-0367befb3b92e3db3c2b",
+            "controls": 12,
+            "areaViewportFraction": 1,
+            "confidence": "low"
+          },
+          {
+            "selector": "selector-sha256-582657ebe62fc608e52a",
+            "controls": 10,
+            "areaViewportFraction": 1,
+            "confidence": "low"
+          }
+        ]
+      },
+      "footprint": {
+        "largePassiveRegions": [],
+        "emptyRegions": [],
+        "fixedSticky": [
+          {
+            "selector": "selector-sha256-9cb8dede580fd55777d3",
+            "position": "fixed",
+            "areaViewportFraction": 0.081
+          }
+        ]
+      },
+      "reachability": {
+        "horizontalControlScrollers": [],
+        "clippedControls": [],
+        "unlabeledControls": []
+      },
+      "protectedInventory": [
+        {
+          "name": "primary-composer",
+          "selector": "selector-sha256-e9a21e57b99c7191b2d8",
+          "scope": "root",
+          "minCount": 1,
+          "count": 1,
+          "ok": true,
+          "assertText": []
+        },
+        {
+          "name": "send-control",
+          "selector": "selector-sha256-92c2d46b98881a9ca5a8",
+          "scope": "root",
+          "minCount": 1,
+          "count": 1,
+          "ok": true,
+          "assertText": []
+        }
+      ],
+      "candidates": [
+        {
+          "kind": "exposed-control-cluster",
+          "confidence": "low",
+          "selector": "selector-sha256-0367befb3b92e3db3c2b",
+          "controls": 12
+        },
+        {
+          "kind": "exposed-control-cluster",
+          "confidence": "low",
+          "selector": "selector-sha256-582657ebe62fc608e52a",
+          "controls": 10
+        }
+      ],
+      "limitations": [
+        "Static rendered-DOM inventory; usefulness and handler liveness are not inferred.",
+        "Repeated names/text may be legitimate in lists, tables, or responsive duplicate navigation.",
+        "Large passive/empty region detection is low-confidence and requires pixel inspection.",
+        "Setup clicks are explicit; audited controls are never auto-clicked.",
+        "Lower counts are descriptive and cannot prove a better interface."
+      ]
+    }
+  ]
+}

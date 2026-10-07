@@ -196,7 +196,7 @@ async function runTest() {
   console.log("Testing query decomposition locally...\n");
 
   // Import the query decomposer directly for unit testing
-  const { decomposeQuerySync } = await import("../convex/domains/agents/dueDiligence/deepResearch/queryDecomposer");
+  const { decomposeQuerySync } = await import("../backend/convex/domains/agents/dueDiligence/deepResearch/queryDecomposer");
 
   const decomposed = decomposeQuerySync(GROUND_TRUTH_QUERY);
 

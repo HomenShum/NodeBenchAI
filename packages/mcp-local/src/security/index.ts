@@ -2,7 +2,7 @@
  * security/ — NodeBench MCP Security Module
  *
  * Single import for all security primitives:
- *   import { safePath, safeExec, safeUrl, redactSecrets, auditLog } from '../security/index.js';
+ *   import { safePath, safeExec, safeUrl, redactSecrets, auditLog } from './index.js';
  *
  * Addresses Reddit concern: "how many out of these 260 tools steal passwords?"
  * Answer: Zero, with this module enforcing boundaries at 4 layers:

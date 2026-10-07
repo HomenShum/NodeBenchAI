@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nodebench.ai/schemas/nodekit-replay-output.v1.schema.json",
+  "title": "NodeKit ActiveGraph replay canary output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "activegraph",
+    "isolation",
+    "mode",
+    "run_id",
+    "input_export_sha256",
+    "event_count",
+    "nodekit_chain_head",
+    "replayed_events_sha256",
+    "persisted_reload_parity",
+    "verdict",
+    "limitations"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "nodebench.activegraph.nodekit-replay-output.v1"
+    },
+    "activegraph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "release_commit",
+        "annotated_tag_object",
+        "inspected_ref"
+      ],
+      "properties": {
+        "version": { "const": "1.10.0" },
+        "release_commit": {
+          "const": "148e12c2969f18fa12a1a3c2e75f3affd9aa0616"
+        },
+        "annotated_tag_object": {
+          "const": "3fbcd8fc56a45ae68622d4e2b18a6d5844180527"
+        },
+        "inspected_ref": {
+          "const": "8aedb1866cf5dce056af97529152ffd6f468a1ed"
+        }
+      }
+    },
+    "isolation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtime",
+        "image",
+        "network",
+        "rootFilesystem",
+        "writableMount",
+        "buildInputsHash",
+        "nodebenchCandidateCommit",
+        "upstreamHash",
+        "imageAttestationHash"
+      ],
+      "properties": {
+        "runtime": { "const": "docker" },
+        "image": {
+          "type": "string",
+          "pattern": "^(?:[a-z0-9._/-]+@)?sha256:[a-f0-9]{64}$"
+        },
+        "network": { "const": "none" },
+        "rootFilesystem": { "const": "read-only" },
+        "writableMount": { "const": "/evidence" },
+        "buildInputsHash": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "nodebenchCandidateCommit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "upstreamHash": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "imageAttestationHash": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+      }
+    },
+    "mode": { "const": "offline-observer" },
+    "run_id": { "type": "string", "minLength": 1 },
+    "input_export_sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "event_count": { "type": "integer", "minimum": 2 },
+    "nodekit_chain_head": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "replayed_events_sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "persisted_reload_parity": { "type": "boolean" },
+    "verdict": { "enum": ["pass", "fail"] },
+    "limitations": {
+      "type": "array",
+      "minItems": 3,
+      "items": { "type": "string", "minLength": 1 },
+      "contains": {
+        "const": "Offline observer only: this disposable SQLite history cannot answer, approve, mutate, or replace NodeBench state."
+      }
+    }
+  }
+}

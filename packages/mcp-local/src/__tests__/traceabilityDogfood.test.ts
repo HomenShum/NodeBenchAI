@@ -271,7 +271,7 @@ describe("Traceability: TRACE audit metadata fields", () => {
   it("convex schema includes originalRequest and deliverySummary in traceAuditEntries", async () => {
     const fs = await import("fs");
     const schema = fs.readFileSync(
-      path.resolve(REPO_ROOT, "convex", "schema.ts"),
+      path.resolve(REPO_ROOT, "backend", "convex", "schema.ts"),
       "utf-8"
     );
 
@@ -283,7 +283,7 @@ describe("Traceability: TRACE audit metadata fields", () => {
     const fs = await import("fs");
     const src = fs.readFileSync(
       path.resolve(
-        REPO_ROOT, "convex", "domains", "agents", "traceAuditLog.ts"
+        REPO_ROOT, "backend", "convex", "domains", "agents", "traceAuditLog.ts"
       ),
       "utf-8"
     );
@@ -298,7 +298,7 @@ describe("Traceability: TRACE audit metadata fields", () => {
     const fs = await import("fs");
     const src = fs.readFileSync(
       path.resolve(
-        REPO_ROOT, "convex", "domains", "agents", "traceOrchestrator.ts"
+        REPO_ROOT, "backend", "convex", "domains", "agents", "traceOrchestrator.ts"
       ),
       "utf-8"
     );
@@ -317,7 +317,7 @@ describe("Traceability: frontend components", () => {
     const fs = await import("fs");
     const src = fs.readFileSync(
       path.resolve(
-        REPO_ROOT, "src", "features", "agents", "components",
+        REPO_ROOT, "apps", "web", "src", "features", "agents", "components",
         "FastAgentPanel", "FastAgentPanel.TraceAuditPanel.tsx"
       ),
       "utf-8"
@@ -332,7 +332,7 @@ describe("Traceability: frontend components", () => {
     const fs = await import("fs");
     const src = fs.readFileSync(
       path.resolve(
-        REPO_ROOT, "src", "features", "agents", "components",
+        REPO_ROOT, "apps", "web", "src", "features", "agents", "components",
         "FastAgentPanel", "FastAgentPanel.ExportMenu.tsx"
       ),
       "utf-8"
@@ -346,7 +346,7 @@ describe("Traceability: frontend components", () => {
     const fs = await import("fs");
     const src = fs.readFileSync(
       path.resolve(
-        REPO_ROOT, "src", "features", "agents", "components",
+        REPO_ROOT, "apps", "web", "src", "features", "agents", "components",
         "FastAgentPanel", "FastAgentPanel.MessageStream.tsx"
       ),
       "utf-8"

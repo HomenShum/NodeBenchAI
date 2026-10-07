@@ -19,7 +19,7 @@
  */
 
 import { ConvexHttpClient } from "convex/browser";
-import { api } from "../convex/_generated/api";
+import { api } from "../backend/convex/_generated/api";
 
 function hasFlag(flag: string): boolean {
   return process.argv.includes(flag);

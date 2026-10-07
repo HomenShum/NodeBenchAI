@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "nodeagent.evaluation-binding/v1",
+  "id": "nodebench-smoke",
+  "status": "legacy-mapped",
+  "command": "npm run dogfood:verify:smoke",
+  "sources": ["scripts/ui/runSegmentedDogfoodVerify.mjs"]
+}

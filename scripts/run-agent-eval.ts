@@ -13,7 +13,7 @@
  */
 
 import { ConvexHttpClient } from "convex/browser";
-import { api } from "../convex/_generated/api";
+import { api } from "../backend/convex/_generated/api";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CONFIGURATION

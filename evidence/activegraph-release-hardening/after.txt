@@ -1,0 +1,117 @@
+CHANGE
+  Harden the NodeKit run-event/export retention and offline ActiveGraph boundary.
+
+SOURCE STATE
+  Docker anchor commit: 309c71d82e481ac2a2465efbd87644a4a109693f
+  Branch: codex/activegraph-canary
+  No push, merge, Convex deploy, or production mutation was performed during
+  this capture.
+
+ROOT-CAUSE FIXES
+  - Terminal event type and payload status must agree.
+  - Event recordedAt values must be nondecreasing.
+  - Admission reserves enough event capacity to close every open span and append
+    one terminal event, preventing a valid run from becoming unclosable.
+  - Retention starts only at terminal events; expired terminal lookup cannot be
+    starved by legacy nonterminal rows.
+  - Stale running traces close or purge in bounded batches; 300 legacy open spans
+    drain over continuations instead of accumulating forever.
+  - Retention deletes whole owner-verified chains only and stops when a corrupt
+    full batch makes no progress.
+  - Export without canonical history returns run_history_unavailable rather than
+    inferring a legacy trace.
+  - Child execution, source, report, SQLite, and attestation reads are bounded.
+  - Replay is bound to an immutable image digest, canonical build-input hash,
+    candidate commit, pinned ActiveGraph release/tag object, and exact image
+    labels. The local attestation is explicitly not a signed supply-chain proof.
+
+SCENARIO TESTS
+COMMAND
+  npx vitest run backend/convex/domains/operations/taskManager/nodeKitRunExport.test.ts backend/convex/domains/operations/taskManager/nodeKitRunRetention.test.ts backend/convex/domains/operations/taskManager/taskManagerOwnership.auth.test.ts scripts/__tests__/nodekitActiveGraphCanary.test.ts scripts/__tests__/releaseWorkflowContracts.test.ts --reporter=dot --pool=threads --maxWorkers=1 --minWorkers=1
+EXIT
+  0
+RESULT
+  5 files passed; 61 tests passed; 3 integration cases skipped because the
+  checkout's convex-test 0.0.53 peer requires Convex >=1.32 while the repository
+  resolves Convex 1.31.5. The two source guards in that suite pass.
+  Coverage includes owner isolation, whole-chain deletion, corrupt-chain
+  fail-closed behavior, stale closure/purge, multi-continuation span draining,
+  terminal-backlog draining, no-progress termination, terminal/timestamp
+  semantics, input/output/storage bounds, timeout behavior, and image
+  attestation rejection.
+
+PYTHON SCENARIO TESTS
+COMMAND
+  .tmp/venvs/activegraph-canary/Scripts/python.exe -m pytest evals/activegraph/tests -q
+EXIT
+  0
+RESULT
+  48 passed in 1.97s.
+
+TYPECHECK
+COMMANDS
+  npx tsc -p backend/convex --noEmit --pretty false
+  npx tsc --noEmit --pretty false
+EXIT
+  0
+
+PRODUCTION BUILD
+COMMAND
+  npm run build
+EXIT
+  0
+RESULT
+  Vite transformed 7,354 modules and built successfully; PWA artifacts generated.
+  Existing non-blocking warnings: stale caniuse-lite data and a PostCSS plugin
+  without the from option.
+
+DEPENDENCY AND FORMAT HYGIENE
+COMMANDS
+  .tmp/venvs/activegraph-canary/Scripts/python.exe -m pip check
+  npx prettier --check <claimed ActiveGraph TypeScript/JavaScript/JSON files>
+  git diff --check
+RESULT
+  No broken Python requirements; all targeted files match Prettier; diff check
+  passed. The only diff-check output was a pre-existing CRLF warning for
+  .serena/project.yml, which this task did not modify.
+
+REAL DOCKER
+COMMAND
+  docker build --file evals/activegraph/Dockerfile <exact emitted build args>
+  node scripts/nodekit/runActiveGraphCanary.mjs --attestation-output <path>
+    --sandbox-image <immutable image ID>
+  node scripts/nodekit/runActiveGraphCanary.mjs --input .tmp/nodekit-export.json
+    --evidence-root <exclusive root> --sandbox-image <immutable image ID>
+    --image-attestation <path>
+EXIT
+  0
+RESULT
+  PASS. Docker Desktop 4.78.0 / Engine 29.5.3.
+  Image:
+    sha256:56d547ad379e88ed71632ec34692cc79e8908a26f9bac10a58aefabd770f64b3
+  Build inputs:
+    sha256:d2b144ab0bceeb3eee05ba998a23a782227d909c6427f223385be519e6bbc105
+  Upstream record:
+    sha256:37482a57c2a6417fa756977e0dc05e39320470dc613e4c6af93397b3db519e75
+  Image attestation:
+    sha256:c9f736fd412e14ecdf0b60fe3a8e00f27866aa1417e5f8928beaeb1024fb1982
+  Canonical 9-event NodeKit export:
+    sha256:cd7f691ed8c459354e51db73a8f455f8cf16548db992132740c404b4c6fb485b
+  Replay verdict: pass.
+  Persisted/reload parity: true.
+  Isolation report: Docker runtime, network none, read-only root, only
+  /evidence writable. The exclusive run directory contained exactly the export,
+  report, and 69,632-byte SQLite database.
+
+INDEPENDENT REVIEW
+  A read-only Codex review attempt timed out after 300 seconds and returned no
+  verdict. It is not counted as approval. Manual liveness review found and fixed
+  the lifecycle-capacity wedge and corrupt-full-batch continuation loop before
+  the final green test run.
+
+REMAINING RELEASE GATES
+  1. Amend the documentation/evidence-only delta and repeat metadata,
+     attestation, and network-none replay against the final PR head.
+  2. Push and review through CI.
+  3. Any production deployment requires separate live DOM/API verification;
+     none occurred in this task.

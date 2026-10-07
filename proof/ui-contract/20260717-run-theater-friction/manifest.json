@@ -1,0 +1,12 @@
+{
+  "schema": "nodebench-ui-contract-v1",
+  "capturedAt": "2026-07-17T23:05:00Z",
+  "slice": "run-theater-friction",
+  "app": "nodebench-ai (decision workspace, /redesign/chat)",
+  "notes": "Two changes. (1) Run theater: the research checklist's stage dots are joined by a vertical ember thread - solid behind completed stages, actively drawing beside the running stage, dashed-faint ahead - progress reads as the thread being spun, same motif as the landing constellation and answer ticks; reduced-motion gets the static drawn state. (2) Friction: 'See a real answered example, receipts included' link under the starter chips routes one click, zero auth, zero spend to the persisted production receipt /r/36imyvtrf0d3, which carries the real answer INTO a live composer (continued-conversation) - value before identity. after-one-click-journey-destination.png is the actual click-through destination captured from the landing. No before pairs: the link did not exist and the thread joins previously-unconnected dots; landing before-state is in 20260717-ember-landing/.",
+  "pages": [
+    { "route": "/redesign/chat", "viewport": { "width": 1440, "height": 900 }, "theme": "dark", "after": "after-landing-example-link.png" },
+    { "route": "/redesign/chat?qaState=answer", "viewport": { "width": 1440, "height": 900 }, "theme": "dark", "after": "after-run-thread-complete.png" },
+    { "route": "/redesign/chat/r/36imyvtrf0d3", "viewport": { "width": 1440, "height": 900 }, "theme": "dark", "after": "after-one-click-journey-destination.png" }
+  ]
+}

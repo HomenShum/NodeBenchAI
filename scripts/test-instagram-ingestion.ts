@@ -11,7 +11,7 @@
  */
 
 import { ConvexHttpClient } from "convex/browser";
-import { api, internal } from "../convex/_generated/api";
+import { api, internal } from "../backend/convex/_generated/api";
 
 const CONVEX_URL = process.env.CONVEX_URL || "https://formal-shepherd-851.convex.cloud";
 const TEST_INSTAGRAM_URL = process.env.TEST_INSTAGRAM_URL || "https://www.instagram.com/p/C1234example/";

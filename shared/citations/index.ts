@@ -12,8 +12,6 @@ export {
 
 export {
   fnv1a32Hex,
-  injectWebSourceCitationsIntoText,
   makeWebSourceCitationId,
-  renderWebSourceCitationTokens,
   type WebSourceLike,
 } from "./webSourceCitations";

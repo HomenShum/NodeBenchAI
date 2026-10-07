@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { buildVercelBypassHeaders } from "./lib/vercelProtection.mjs";
+
 /**
  * verify-live.ts — mechanical verifier for the Live-DOM Verification rule
  * (.claude/rules/live_dom_verification.md).
@@ -148,7 +150,7 @@ const CHECKS: ReadonlyArray<Check> = [
   //       - CDN-cached stale HTML (bundle hash mismatch on rerun)
   //   - For section-level checks (e.g. "footnotes count ≥ 8",
   //     "capability dot grids non-empty"), use Tier B in
-  //     `tests/e2e/live-smoke.spec.ts`.
+  //     `evals/e2e/live-smoke.spec.ts`.
   // ─────────────────────────────────────────────────────────────────
   {
     name: "/redesign editorial home reachable",
@@ -183,7 +185,13 @@ async function runCheck(baseUrl: string, check: Check): Promise<Result> {
     const timeout = setTimeout(() => controller.abort(), 15_000);
     const response = await fetch(url, {
       redirect: "follow",
-      headers: { "user-agent": "nodebench-verify-live/1.0" },
+      headers: {
+        "user-agent": "nodebench-verify-live/1.0",
+        ...buildVercelBypassHeaders(
+          url,
+          process.env.VERCEL_AUTOMATION_BYPASS_SECRET,
+        ),
+      },
       signal: controller.signal,
     });
     clearTimeout(timeout);

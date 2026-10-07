@@ -1,0 +1,13 @@
+NodeKit stage-local runtime integration — before
+Date: 2026-07-29
+
+The first contract-first test run proved the missing integration seams:
+
+- the native session identity module did not exist;
+- stage-local graph event types were rejected by the trace contract;
+- the MCP-local graph-event tool did not exist; and
+- six focused scenarios failed while two legacy assertions passed.
+
+The existing run-event/export path was trace-centric. It could not bind a
+NodeKit current-stage graph, runnable frontier, exact edge binding, verifier
+review context, or persistent owner/workspace/native-session identity.

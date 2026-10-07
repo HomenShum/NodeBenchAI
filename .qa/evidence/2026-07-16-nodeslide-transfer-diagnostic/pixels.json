@@ -1,0 +1,22 @@
+{
+  "repo": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai",
+  "url": "https://nodebench-ai.vercel.app/redesign/chat?fresh=1",
+  "outDir": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai/.qa/evidence/2026-07-16-nodeslide-transfer-diagnostic",
+  "assert": ["AGENT WORKSPACE", "Waiting for a request.", "Run research"],
+  "shots": [
+    {
+      "name": "desktop-light",
+      "scheme": "light",
+      "fullPage": false,
+      "viewport": { "width": 1280, "height": 720 },
+      "waitMs": 1200
+    },
+    {
+      "name": "mobile-light",
+      "scheme": "light",
+      "fullPage": false,
+      "viewport": { "width": 390, "height": 844 },
+      "waitMs": 1200
+    }
+  ]
+}

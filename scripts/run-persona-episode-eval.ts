@@ -18,7 +18,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ConvexHttpClient } from "convex/browser";
-import { api } from "../convex/_generated/api";
+import { api } from "../backend/convex/_generated/api";
 import {
   findOpenAiModelPricing,
   loadOrFetchOpenAiApiPricingSnapshot,
@@ -34,7 +34,7 @@ import {
   loadOrFetchGoogleGeminiApiPricingSnapshot,
   readGoogleGeminiApiPricingSnapshotFromFile,
 } from "./pricing/googleGeminiApiPricing";
-import { APPROVED_MODELS, MODEL_UI_INFO, type Provider } from "../src/shared/llm/approvedModels";
+import { APPROVED_MODELS, MODEL_UI_INFO, type Provider } from "../apps/web/src/shared/llm/approvedModels";
 import { modelPricing as sharedModelPricing } from "../shared/llm/modelCatalog";
 
 dotenv.config({ path: ".env.local" });

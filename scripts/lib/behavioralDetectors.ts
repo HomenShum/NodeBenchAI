@@ -85,7 +85,7 @@ export function detectDominantJobViolations(audit: SurfaceAudit): DetectorFindin
         title: `${audit.surface}: Multiple competing primary actions`,
         evidence: competingIssues[0],
         fix: "Identify the ONE primary action. Visually demote everything else. Use size, color, and position hierarchy — not equal-weight cards.",
-        fileTargets: [`src/features/${audit.surface}/views/${capitalize(audit.surface)}Home.tsx`],
+        fileTargets: [`apps/web/src/features/${audit.surface}/views/${capitalize(audit.surface)}Home.tsx`],
         metric: "single_primary_cta_visible_above_fold",
       });
     }
@@ -101,7 +101,7 @@ export function detectDominantJobViolations(audit: SurfaceAudit): DetectorFindin
         title: `${audit.surface}: "${comp.name}" competes for primary attention`,
         evidence: comp.reasoning,
         fix: `${comp.verdict} this component. ${comp.verdict === "remove" ? "Delete it." : comp.verdict === "simplify" ? "Reduce to a single line or chip." : "Move below fold or into a secondary rail."}`,
-        fileTargets: [`src/features/${audit.surface}/views/${capitalize(audit.surface)}Home.tsx`],
+        fileTargets: [`apps/web/src/features/${audit.surface}/views/${capitalize(audit.surface)}Home.tsx`],
         metric: "components_with_competing_role_count",
       });
     }
@@ -143,8 +143,8 @@ export function detectChromeViolations(audit: SurfaceAudit): DetectorFinding[] {
         evidence: chromeIssues[0],
         fix: "Replace nb-panel borders with spacing gaps. Use font-weight and text-size for hierarchy instead of box borders. Keep borders only on interactive cards and inputs.",
         fileTargets: [
-          `src/features/${audit.surface}/views/${capitalize(audit.surface)}Home.tsx`,
-          "src/index.css",
+          `apps/web/src/features/${audit.surface}/views/${capitalize(audit.surface)}Home.tsx`,
+          "apps/web/src/index.css",
         ],
         metric: "bordered_container_count_per_viewport",
       });
@@ -161,7 +161,7 @@ export function detectChromeViolations(audit: SurfaceAudit): DetectorFinding[] {
         title: `${audit.surface}: "${comp.name}" is decorative chrome`,
         evidence: comp.reasoning,
         fix: "Remove this component or merge its content into an adjacent section.",
-        fileTargets: [`src/features/${audit.surface}/views/${capitalize(audit.surface)}Home.tsx`],
+        fileTargets: [`apps/web/src/features/${audit.surface}/views/${capitalize(audit.surface)}Home.tsx`],
         metric: "decorative_component_count",
       });
     }
@@ -198,8 +198,8 @@ export function detectContextCompoundingGaps(audit: SurfaceAudit): DetectorFindi
       ) || `Context compounding score is ${score}/10 — surface feels static.`,
       fix: "Add visible signals: 'Based on your N recent searches', 'Using N saved reports', 'Your preferred lens: Founder'. Show what the system knows and how it helps.",
       fileTargets: [
-        `src/features/${audit.surface}/views/${capitalize(audit.surface)}Home.tsx`,
-        "src/features/product/lib/productSession.ts",
+        `apps/web/src/features/${audit.surface}/views/${capitalize(audit.surface)}Home.tsx`,
+        "apps/web/src/features/product/lib/productSession.ts",
       ],
       metric: "visible_personalization_signal_count",
     });
@@ -235,8 +235,8 @@ export function detectSpeedBehaviorGaps(audit: SurfaceAudit): DetectorFinding[] 
       ) || `Speed behavior score is ${score}/10.`,
       fix: "Add skeleton placeholders for async content. Show classify result immediately, source chips while searching, answer blocks streaming progressively.",
       fileTargets: [
-        `src/features/${audit.surface}/views/${capitalize(audit.surface)}Home.tsx`,
-        "src/components/skeletons/Skeleton.tsx",
+        `apps/web/src/features/${audit.surface}/views/${capitalize(audit.surface)}Home.tsx`,
+        "apps/web/src/components/skeletons/Skeleton.tsx",
       ],
       metric: "skeleton_coverage_percentage",
     });
@@ -251,7 +251,7 @@ export function detectSpeedBehaviorGaps(audit: SurfaceAudit): DetectorFinding[] 
       title: `${audit.surface}: Major layout shifts detected`,
       evidence: "Layout stability rated as 'major-shifts'.",
       fix: "Reserve space with min-height on async containers. Use CSS contain:content on independent sections.",
-      fileTargets: [`src/features/${audit.surface}/views/${capitalize(audit.surface)}Home.tsx`],
+      fileTargets: [`apps/web/src/features/${audit.surface}/views/${capitalize(audit.surface)}Home.tsx`],
       metric: "cls_score",
     });
   }
@@ -280,7 +280,7 @@ export function detectVisibleReasoningGaps(audit: SurfaceAudit): DetectorFinding
       title: `${audit.surface}: Insufficient trust signals (sources, stages, evidence)`,
       evidence: `Visible reasoning score is ${score}/10. Users can't verify or trust the output.`,
       fix: "Attach source citations to every claim. Show processing stages. Add confidence indicators. Make reasoning transparent.",
-      fileTargets: [`src/features/${audit.surface}/views/${capitalize(audit.surface)}Home.tsx`],
+      fileTargets: [`apps/web/src/features/${audit.surface}/views/${capitalize(audit.surface)}Home.tsx`],
       metric: "trust_signal_count_per_answer_block",
     });
   }
@@ -320,8 +320,8 @@ export function detectQualityDisciplineGaps(audit: SurfaceAudit): DetectorFindin
         evidence: papercuts[0],
         fix: "Standardize spacing tokens (gap-3/gap-4/gap-5). Standardize typography (nb-section-kicker for all headers). Check alignment grid.",
         fileTargets: [
-          `src/features/${audit.surface}/views/${capitalize(audit.surface)}Home.tsx`,
-          "src/index.css",
+          `apps/web/src/features/${audit.surface}/views/${capitalize(audit.surface)}Home.tsx`,
+          "apps/web/src/index.css",
         ],
         metric: "papercut_count_per_surface",
       });

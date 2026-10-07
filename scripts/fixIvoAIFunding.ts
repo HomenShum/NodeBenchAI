@@ -11,7 +11,7 @@
  * 4. Creates the correct Ivo AI funding record
  */
 
-import { internalMutation, internalQuery } from "../convex/_generated/server";
+import { internalMutation, internalQuery } from "../backend/convex/_generated/server";
 import { v } from "convex/values";
 
 /**

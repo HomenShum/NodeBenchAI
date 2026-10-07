@@ -1,0 +1,289 @@
+{
+  "url": "http://127.0.0.1:4178/redesign/chat?qa=prettify",
+  "scheme": "light",
+  "viewport": {
+    "width": 1512,
+    "height": 900
+  },
+  "when": "2026-07-16T10:21:06.978Z",
+  "signals": {
+    "counts": {
+      "visibleElements": 106,
+      "textElements": 33
+    },
+    "fontSizes": {
+      "unique": 11,
+      "scale": [
+        10,
+        11,
+        11.5,
+        12,
+        12.5,
+        13,
+        13.5,
+        15,
+        16,
+        22,
+        26
+      ],
+      "histogram": {
+        "10": 1,
+        "11": 12,
+        "12": 2,
+        "13": 6,
+        "15": 2,
+        "16": 3,
+        "22": 1,
+        "26": 1,
+        "13.5": 3,
+        "12.5": 1,
+        "11.5": 1
+      }
+    },
+    "fontWeights": {
+      "unique": 6,
+      "values": [
+        400,
+        500,
+        510,
+        590,
+        600,
+        700
+      ]
+    },
+    "textColors": {
+      "unique": 7,
+      "offAllowlistCount": 0,
+      "offAllowlist": [],
+      "histogram": {
+        "#5c5955": 10,
+        "#6b6862": 8,
+        "#0d0c0a": 5,
+        "#1a1916": 4,
+        "#ffffff": 3,
+        "#963e22": 2,
+        "#b04a2a": 1
+      }
+    },
+    "spacing": {
+      "uniqueValues": 22,
+      "scale": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        12,
+        14,
+        16,
+        18,
+        24,
+        28,
+        30,
+        40,
+        44,
+        48,
+        296,
+        321
+      ],
+      "totalDecls": 165,
+      "offGrid4Count": 76,
+      "offGrid4Rate": 0.461,
+      "offGrid8Count": 76
+    },
+    "radii": {
+      "unique": 6,
+      "values": [
+        4,
+        6,
+        12,
+        14,
+        16,
+        50
+      ]
+    },
+    "shadows": {
+      "unique": 1
+    },
+    "icons": {
+      "uniqueSizes": 5,
+      "sizes": [
+        "15x15",
+        "11x11",
+        "9x9",
+        "14x14",
+        "12x12"
+      ]
+    },
+    "contrast": {
+      "flagged": 0,
+      "worst": []
+    },
+    "alignment": {
+      "distinctLeftEdges": 34,
+      "strayRate": 0.446
+    },
+    "motion": {
+      "reducedMotionActive": false,
+      "animatedInfinite": 0,
+      "transitionsWithDuration": 30,
+      "over400ms": 0,
+      "over400msSamples": []
+    },
+    "focus": {
+      "focusVisibleRules": 115,
+      "focusRules": 123
+    }
+  },
+  "rubric": {
+    "V1": {
+      "name": "Type-scale discipline",
+      "score": 0,
+      "why": "11 distinct font-sizes (<=7 disciplined, >10 sprawl)"
+    },
+    "V2": {
+      "name": "Spacing / grid rhythm",
+      "score": 0,
+      "why": "off-4px rate 0.461 (<=0.10 good), 22 distinct spacing values (<=12 good)"
+    },
+    "V3": {
+      "name": "Color restraint & token adherence",
+      "score": 2,
+      "why": "7 distinct text colors (<=12 good)"
+    },
+    "V4": {
+      "name": "Hierarchy (weight + size + value)",
+      "score": 2,
+      "why": "6 distinct font-weights (>=2 needed for weight hierarchy)"
+    },
+    "V5": {
+      "name": "Contrast / legibility (WCAG)",
+      "score": 2,
+      "why": "0 text nodes below WCAG floor (0 = pass)"
+    },
+    "V6": {
+      "name": "Radius / shadow / elevation consistency",
+      "score": 1,
+      "why": "6 radii, 1 shadows, 5 icon sizes (each <=4 = defined levels)"
+    },
+    "V7": {
+      "name": "Alignment / edge discipline",
+      "score": 1,
+      "why": "0.446 of block elements off the 8 dominant left-edges (<=0.25 good)"
+    },
+    "V8": {
+      "name": "State polish (empty / loading / error)",
+      "score": null,
+      "why": "vision-judge only — capture empty+loading+error PNGs; not derivable from one static DOM read"
+    },
+    "V9": {
+      "name": "Motion restraint",
+      "score": 2,
+      "why": "0 transitions >400ms, 0 infinite animations"
+    }
+  },
+  "targets": [
+    {
+      "id": "V1",
+      "name": "Type-scale discipline",
+      "score": 0,
+      "why": "11 distinct font-sizes (<=7 disciplined, >10 sprawl)",
+      "evidence": {
+        "scale": [
+          10,
+          11,
+          11.5,
+          12,
+          12.5,
+          13,
+          13.5,
+          15,
+          16,
+          22,
+          26
+        ]
+      }
+    },
+    {
+      "id": "V2",
+      "name": "Spacing / grid rhythm",
+      "score": 0,
+      "why": "off-4px rate 0.461 (<=0.10 good), 22 distinct spacing values (<=12 good)",
+      "evidence": {
+        "offGrid4Rate": 0.461,
+        "offGrid4Count": 76,
+        "uniqueValues": 22,
+        "scale": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          12,
+          14,
+          16,
+          18,
+          24,
+          28,
+          30,
+          40,
+          44,
+          48,
+          296,
+          321
+        ]
+      }
+    },
+    {
+      "id": "V6",
+      "name": "Radius / shadow / elevation consistency",
+      "score": 1,
+      "why": "6 radii, 1 shadows, 5 icon sizes (each <=4 = defined levels)",
+      "evidence": {
+        "radii": [
+          4,
+          6,
+          12,
+          14,
+          16,
+          50
+        ],
+        "shadows": 1,
+        "iconSizes": [
+          "15x15",
+          "11x11",
+          "9x9",
+          "14x14",
+          "12x12"
+        ]
+      }
+    },
+    {
+      "id": "V7",
+      "name": "Alignment / edge discipline",
+      "score": 1,
+      "why": "0.446 of block elements off the 8 dominant left-edges (<=0.25 good)",
+      "evidence": {
+        "strayRate": 0.446,
+        "distinctLeftEdges": 34
+      }
+    }
+  ],
+  "focusOk": true,
+  "aggregate": {
+    "measuredDims": 8,
+    "score": 10,
+    "max": 16,
+    "pct": 63
+  }
+}

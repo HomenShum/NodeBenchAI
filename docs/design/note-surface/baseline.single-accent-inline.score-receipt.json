@@ -1,0 +1,103 @@
+{
+  "schemaVersion": "nodekit.score-receipt/v1",
+  "receiptId": "score-nodebench-entity-notebook-baseline-single-accent-inline",
+  "ruleId": "rule-single-accent-inline",
+  "subject": {
+    "id": "nodebench-entity-notebook-baseline",
+    "name": "NodeBench AI entity notebook surface — baseline before note-surface DNA application",
+    "kind": "platform-surface",
+    "surface": "apps/web/src/features/entities/components/EntityNotebookView.tsx and EntityNoteEditor.tsx — accent usage across the read-only notebook and the note editor's mode toggle",
+    "evidenceBasis": "recorded-observation",
+    "evidenceRef": "source at commit 24a09f36 (origin/main of HomenShum/NodeBenchAI), read in worktree feat/note-surface-dna on 2026-07-29; measured 28 accent-primary occurrences in EntityNotebookView.tsx and 2 hardcoded #d97757 literals in EntityNoteEditor.tsx",
+    "observedAt": "2026-07-29"
+  },
+  "derivedFrom": {
+    "collectionId": "note-surface",
+    "observationIds": ["obs-mew-tokens", "obs-mew-stream"],
+    "factIds": [
+      "obs-mew-tokens/f1",
+      "obs-mew-tokens/f3",
+      "obs-mew-tokens/f5",
+      "obs-mew-stream/f2"
+    ]
+  },
+  "ruleApplicability": {
+    "applies": true,
+    "appliesWhenSatisfied": [
+      "text-dominant surface where inline metadata must be scannable — the notebook body is prose blocks carrying inline citations ([s1]) and evidence links the reader must pick out while reading",
+      "dark-first product where saturation fatigues quickly — every class carries a dark: variant and the provenance panels sit on bg-black/20 insets, so the dark rendering is a first-class target"
+    ],
+    "doesNotApplyWhenChecked": [
+      {
+        "clause": "data visualization surfaces needing categorical palettes (dataviz skill governs there)",
+        "fires": false,
+        "note": "No chart or categorical series renders on this surface; the only numeric displays are inline badges."
+      },
+      {
+        "clause": "status-heavy dashboards where semantic red/amber/green carry meaning the accent cannot",
+        "fires": false,
+        "note": "The surface is a reading notebook, not a status dashboard. Its emerald/amber/red confidence and status tints are inline indicators inside the notebook, and this receipt treats those semantic tints as indicators rather than as accent violations."
+      }
+    ]
+  },
+  "scale": {
+    "min": 0,
+    "max": 4,
+    "anchors": {
+      "0": "multiple accent hues washed across containers, headers and body text with no reserved meaning",
+      "1": "one accent hue exists and inline meaning carriers use it, but the same hue also decorates chrome broadly — panel badges, decorative icons, container tints — so color cannot function as a retrieval signal",
+      "2": "accent on inline carriers; chrome accent reduced to a small number of control states",
+      "3": "accent only on inline meaning carriers plus the primary capture affordance; all other chrome achromatic",
+      "4": "accent exclusively on inline meaningful elements (tags, links, live indicators), chrome achromatic and hue-linked to the accent, elevation under 8px blur at low alpha — obs-mew-tokens/f1 and f3, obs-mew-stream/f2"
+    }
+  },
+  "criteria": [
+    {
+      "id": "c1-accent-only-inline-meaning",
+      "question": "Is the single accent hue carried only by meaningful inline elements (tags, links, live indicators), with the rest of the chrome achromatic?",
+      "score": 1,
+      "citations": [
+        {
+          "observationId": "obs-mew-stream",
+          "factIds": ["f2"],
+          "relation": "falls-short-of",
+          "withinRuleDerivation": true,
+          "note": "The inline citation chips ([s1], EntityNotebookView.tsx:667) and evidence link icons (line 630) do carry the accent, which is the correct half. But of 28 accent-primary occurrences in the file, roughly 20 sit on chrome: the routing summary pill (line 220), the routing mode badge (line 251), plan-trace tool names and their 'parallel' badges (lines 295-298), decorative Network and Sparkles icons on linked/related entities (lines 464, 473, 503, 516). In Mew, hashtags and links are the only colored elements in body text."
+        },
+        {
+          "observationId": "obs-mew-tokens",
+          "factIds": ["f1"],
+          "relation": "falls-short-of",
+          "withinRuleDerivation": true,
+          "note": "A single accent hue does exist — var(--accent-primary) #d97757, NodeBench's own — but EntityNoteEditor.tsx hardcodes the literal #d97757 twice on the mode-toggle selected state (lines 516, 527), bypassing the token and spending the accent on a chrome control."
+        },
+        {
+          "observationId": "obs-mew-tokens",
+          "factIds": ["f3"],
+          "relation": "falls-short-of",
+          "withinRuleDerivation": true,
+          "note": "Chrome grays are stock neutral Tailwind grays (gray-200/400/500), not hue-linked to the accent as Mew's teal-tinted #7f8b8b/#667373 grays are. Not fixed in this pass — recorded so the shortfall stays on the books."
+        },
+        {
+          "observationId": "obs-mew-tokens",
+          "factIds": ["f5"],
+          "relation": "meets",
+          "withinRuleDerivation": true,
+          "note": "Elevation already conforms: the only shadow on the surface is a single shadow-sm on the header card, within Mew's under-8px-blur low-alpha envelope."
+        }
+      ],
+      "finding": "The accent is spent as decoration. Inline carriers (citations, evidence links) use it correctly, but the same hue tints the routing pill, mode badge, tool names, parallel badges and four decorative icons, so a terracotta mark on this page does not reliably mean 'inline metadata'. One criterion element (elevation) already meets. Anchor 1."
+    }
+  ],
+  "score": 1,
+  "scoreBasis": "Single criterion, so the receipt score is the criterion score. One hue with inline carriers colored clears anchor 0; the roughly 20 chrome sites carrying the same hue block anchor 2.",
+  "notScored": [
+    "The emerald/amber/red confidence, status and cost tints — graded as semantic indicators under the rule's own indicator allowance rather than accent violations; whether cost deserves a semantic hue at all is left open.",
+    "The agent/user author avatars (accent/emerald 3.5px dots) — identity indicators, two characters wide; not counted for or against.",
+    "EntityNotebookLive.tsx and the wider app shell — accent discipline outside the five named files is ungraded.",
+    "Hue-linking the gray ramp to the accent (obs-mew-tokens/f3) — measured as a shortfall but declared out of scope for the fix pass, since retinting the app's gray scale is a token-system change, not a note-surface change."
+  ],
+  "boundary": "Scored from component source at a pinned commit, not from a running page — no computed-style audit or contrast measurement was run. Counting accent occurrences in class strings is exact; judging which occurrences read as 'decoration' at runtime is an inference from the JSX structure.",
+  "scoredBy": "note-surface DNA application pass, feat/note-surface-dna, scored against rule-single-accent-inline unmodified",
+  "scoredAt": "2026-07-29"
+}

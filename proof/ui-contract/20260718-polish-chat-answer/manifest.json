@@ -1,0 +1,11 @@
+{
+  "schema": "nodebench-ui-contract-v1",
+  "capturedAt": "2026-07-18T22:30:00Z",
+  "slice": "polish-chat-answer",
+  "app": "nodebench-ai (FastAgentPanel canonical answer harness, panel-canonical-answer-harness.html)",
+  "notes": "Examine-then-polish pass over the unified chat answer anatomy before final presentation. Three root-caused fixes: (1) streamdown markdown links render as <button class='text-primary underline'>, and the light-mode WCAG block's [class*='primary'] substring shotgun force-filled them into terracotta pills - narrowed to bg-primary/rd-btn--primary plus a scoped link reset in agent-workspace.css; (2) ALL eight @media (prefers-color-scheme: light) hardening blocks keyed off the OS scheme while the app themes via data-redesign-theme, so an OS-light user with the app toggled dark received near-black inks on dark surfaces (invisible table headers via [class*='muted'] matching Tailwind's bg-muted, unreadable code lines, vanished run-summary meta, darkened accent) - every selector now guards with :where(:not([data-redesign-theme='dark'])), zero added specificity so light cascade is unchanged; (3) evidence rows with an honestly-empty quote rendered an empty paragraph that shoved the source label - quote now gated on content. Before = origin/main e2aebecb + harness index.css import only; after = fix branch. Captured against vite dev 127.0.0.1:4194, Playwright default (OS-light) color scheme with html.dark toggled for dark - deliberately the worst-case combination that reproduced the theme-mismatch bug.",
+  "pages": [
+    { "route": "/src/features/agents/components/FastAgentPanel/__harness__/panel-canonical-answer-harness.html", "viewport": { "width": 760, "height": 1000 }, "theme": "light", "before": "polish-before-light.png", "after": "polish-after-light.png" },
+    { "route": "/src/features/agents/components/FastAgentPanel/__harness__/panel-canonical-answer-harness.html", "viewport": { "width": 760, "height": 1000 }, "theme": "dark", "before": "polish-before-dark.png", "after": "polish-after-dark.png" }
+  ]
+}

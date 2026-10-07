@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "nodekit.design-rule/v1",
+  "ruleId": "rule-single-accent-inline",
+  "derivedFrom": {
+    "collectionId": "note-surface",
+    "observationIds": ["obs-mew-tokens", "obs-mew-stream"],
+    "factIds": [
+      "obs-mew-tokens/f1",
+      "obs-mew-tokens/f3",
+      "obs-mew-tokens/f5",
+      "obs-mew-stream/f2"
+    ]
+  },
+  "statement": "Inside a note body, use one accent family for semantic links and mentions, while keeping non-semantic body chrome on neutral tokens.",
+  "mechanismHypothesis": "A shared accent family lets inline relationships remain identifiable without giving nearby formatting and metadata controls the same semantic weight.",
+  "confidence": "medium",
+  "confidenceBasis": "The Mew editor source binds mentions and links to one teal family, but the same application also uses teal for a floating capture action, so the evidence licenses only the note-body boundary.",
+  "appliesWhen": [
+    "The subject is the editable or readable note body.",
+    "Links and mentions are semantic navigation targets."
+  ],
+  "doesNotApplyWhen": [
+    "The subject is global navigation, selection state, status, or a primary capture action.",
+    "Multiple accent families encode distinct domain semantics that cannot be represented by text or shape.",
+    "The control must expose a destructive or trust-sensitive state."
+  ],
+  "counterexampleNote": "Mew's floating capture action uses teal-9, so applying this rule to the whole application would overstate the source.",
+  "problemTags": [
+    "semantic-link-recognition",
+    "body-control-competition",
+    "accent-scope"
+  ],
+  "intentTags": ["edit-note", "follow-link"],
+  "firstSeenAt": "2026-07-29",
+  "lastVerifiedAt": "2026-07-29",
+  "reVerifyAfterDays": 30,
+  "reVerifyReason": "The source observation is pinned, but the candidate must be rescored whenever its editor token mapping changes.",
+  "evidenceTier": "M2",
+  "tierLadder": "M2 source inspection establishes exact shipped token declarations; no M3 audience-task evidence was collected."
+}

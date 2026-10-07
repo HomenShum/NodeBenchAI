@@ -1,0 +1,71 @@
+{
+  "at": "2026-09-05T09:00:27.488786+00:00",
+  "kind": "Portability-only adapter validation, not a repeated compiler proof",
+  "wrapperSha256": "048b99bd7577ecad092709aa5773e0248b5e9526f5e14a2be46dc841c0f3953b",
+  "executedProbeSha256": "cb8ac456afb35c547bad1316362faec1a504dce9395379511f09102b60f04c0f",
+  "executedCopyExact": true,
+  "frozenSourceJudgeSha256": "9fd0782ad6bd1396a3a3f52396d931d4ad6bcd7a2d90f7c02610a82ea8860675",
+  "runs": [
+    {
+      "name": "syntax",
+      "args": [
+        "node",
+        "--check",
+        "C:\\Users\\hshum\\.codex\\worktrees\\5dba\\nodebench-ai\\docs\\plans\\portfolio-recovery-20260904\\E4f-replay-provider-return-contract.mjs"
+      ],
+      "exitCode": 0,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "baseline",
+      "args": [
+        "node",
+        "C:\\Users\\hshum\\.codex\\worktrees\\5dba\\nodebench-ai\\docs\\plans\\portfolio-recovery-20260904\\E4f-replay-provider-return-contract.mjs",
+        "--repo",
+        "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.worktrees\\portfolio-provider-20260904",
+        "--fixtures",
+        "C:\\Users\\hshum\\.codex\\worktrees\\5dba\\nodebench-ai\\docs\\plans\\portfolio-recovery-20260904\\E4e-real-api-partition",
+        "--output",
+        "C:\\Users\\hshum\\.codex\\worktrees\\5dba\\nodebench-ai\\docs\\plans\\portfolio-recovery-20260904\\E4f-portable-unused-output",
+        "--base",
+        "673ba7dc4ed7bf90fab839322d832511550b8bbc",
+        "--mode",
+        "baseline",
+        "--resolve-only"
+      ],
+      "exitCode": 0,
+      "stdoutSha256": "8f83b254aa41d9ad9839b1fba9f42ea7999ea7a99c25c6c1e17694795155cbe8",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "current-source",
+      "args": [
+        "node",
+        "C:\\Users\\hshum\\.codex\\worktrees\\5dba\\nodebench-ai\\docs\\plans\\portfolio-recovery-20260904\\E4f-replay-provider-return-contract.mjs",
+        "--repo",
+        "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.worktrees\\portfolio-provider-20260904",
+        "--fixtures",
+        "C:\\Users\\hshum\\.codex\\worktrees\\5dba\\nodebench-ai\\docs\\plans\\portfolio-recovery-20260904\\E4e-real-api-partition",
+        "--output",
+        "C:\\Users\\hshum\\.codex\\worktrees\\5dba\\nodebench-ai\\docs\\plans\\portfolio-recovery-20260904\\E4f-portable-unused-output",
+        "--base",
+        "673ba7dc4ed7bf90fab839322d832511550b8bbc",
+        "--mode",
+        "current-source",
+        "--resolve-only"
+      ],
+      "exitCode": 0,
+      "stdoutSha256": "535b0fc7d32885af31f7a2f26c7b22786089819b2af0cff64672b2bccd5084a5",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "compilerProgramsCreated": 0,
+  "providerCalls": 0,
+  "replayOutputCreated": false,
+  "limits": [
+    "Frozen source judgment remains bound to the original executed probe. Portable adapter has syntax and argument/input resolution verification only; no second complete compile was run.",
+    "All baseline/core compiler/contract/emit logic is retained; changes are explicit path/ref arguments, fresh-output protection and resolution-only early exit.",
+    "The reviewed provider hash is deliberately fixed. Use the exact reviewed checkout/provider for this bounded reproduction."
+  ]
+}

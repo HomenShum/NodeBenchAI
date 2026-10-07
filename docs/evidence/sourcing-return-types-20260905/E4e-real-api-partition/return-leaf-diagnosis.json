@@ -1,0 +1,133 @@
+{
+  "at": "2026-09-05T06:20:22.655Z",
+  "sourceMode": "Unchanged actual source; exact retained module-local-contract declaration substituted in compiler memory",
+  "rows": [
+    {
+      "file": "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.worktrees\\portfolio-provider-20260904\\nodebench-readonly-api-contract.ts",
+      "name": "publicRef",
+      "declared": {
+        "type": "FunctionReference<\"action\", \"public\", { model?: string | undefined; threadId: string; prompt: string; }, { runId: string; }, string | undefined>",
+        "any": false,
+        "never": false
+      },
+      "initializer": {
+        "type": "FunctionReference<\"action\", \"public\", { model?: string | undefined; threadId: string; prompt: string; }, { runId: string; }, string | undefined>",
+        "any": false,
+        "never": false
+      }
+    },
+    {
+      "file": "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.worktrees\\portfolio-provider-20260904\\nodebench-readonly-api-contract.ts",
+      "name": "privateRef",
+      "declared": {
+        "type": "FunctionReference<\"action\", \"internal\", { userId: string; projectId: string; requestId: string; expectedRevision: number; inputHash: string; inputJson: string; }, { draft: SourcingDraft; receipt: { ...; }; }, string | undefined>",
+        "any": false,
+        "never": false
+      },
+      "initializer": {
+        "type": "FunctionReference<\"action\", \"internal\", { userId: string; projectId: string; requestId: string; expectedRevision: number; inputHash: string; inputJson: string; }, { draft: SourcingDraft; receipt: { ...; }; }, string | undefined>",
+        "any": false,
+        "never": false
+      }
+    },
+    {
+      "file": "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.worktrees\\portfolio-provider-20260904\\nodebench-readonly-api-contract.ts",
+      "name": "validPrivateReturn",
+      "declared": {
+        "type": "string",
+        "any": false,
+        "never": false
+      },
+      "initializer": {
+        "type": "any",
+        "any": true,
+        "never": false
+      }
+    },
+    {
+      "file": "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.worktrees\\portfolio-provider-20260904\\nodebench-readonly-api-contract.ts",
+      "name": "wrongPrivateReturn",
+      "declared": {
+        "type": "number",
+        "any": false,
+        "never": false
+      },
+      "initializer": {
+        "type": "any",
+        "any": true,
+        "never": false
+      }
+    },
+    {
+      "file": "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.worktrees\\portfolio-provider-20260904\\backend\\convex\\domains\\mcp\\mcpSourcingDraft.ts",
+      "name": "model",
+      "declared": {
+        "type": "string",
+        "any": false,
+        "never": false
+      },
+      "initializer": {
+        "type": "string",
+        "any": false,
+        "never": false
+      }
+    },
+    {
+      "file": "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.worktrees\\portfolio-provider-20260904\\backend\\convex\\domains\\mcp\\mcpSourcingDraft.ts",
+      "name": "run",
+      "declared": {
+        "type": "{ sessionId: Id<\"agentTaskSessions\">; traceId: Id<\"agentTaskTraces\">; publicTraceId: string; status: string; nativeSessionReference: NodeKitNativeSessionReference | undefined; }",
+        "any": false,
+        "never": false
+      },
+      "initializer": {
+        "type": "{ sessionId: Id<\"agentTaskSessions\">; traceId: Id<\"agentTaskTraces\">; publicTraceId: string; status: string; nativeSessionReference: NodeKitNativeSessionReference | undefined; }",
+        "any": false,
+        "never": false
+      }
+    },
+    {
+      "file": "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.worktrees\\portfolio-provider-20260904\\backend\\convex\\domains\\mcp\\mcpSourcingDraft.ts",
+      "name": "result",
+      "declared": {
+        "type": "any",
+        "any": true,
+        "never": false
+      },
+      "initializer": {
+        "type": "any",
+        "any": true,
+        "never": false
+      }
+    },
+    {
+      "file": "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.worktrees\\portfolio-provider-20260904\\backend\\convex\\domains\\mcp\\mcpSourcingDraft.ts",
+      "name": "draft",
+      "declared": {
+        "type": "SourcingDraft",
+        "any": false,
+        "never": false
+      },
+      "initializer": {
+        "type": "SourcingDraft",
+        "any": false,
+        "never": false
+      }
+    },
+    {
+      "file": "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.worktrees\\portfolio-provider-20260904\\backend\\convex\\domains\\mcp\\mcpSourcingDraft.ts",
+      "name": "actualModel",
+      "declared": {
+        "type": "any",
+        "any": true,
+        "never": false
+      },
+      "initializer": {
+        "type": "any",
+        "any": true,
+        "never": false
+      }
+    }
+  ],
+  "filesWrittenInRepository": false
+}

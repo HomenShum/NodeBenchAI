@@ -19,7 +19,7 @@ import { mkdirSync, writeFileSync, appendFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { ConvexHttpClient } from "convex/browser";
-import { api } from "../convex/_generated/api";
+import { api } from "../backend/convex/_generated/api";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DISCLOSURE METRICS TYPES (P0 Instrumentation)

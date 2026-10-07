@@ -12,7 +12,7 @@ import dotenv from "dotenv";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ConvexHttpClient } from "convex/browser";
-import { api } from "../convex/_generated/api";
+import { api } from "../backend/convex/_generated/api";
 
 dotenv.config({ path: ".env.local" });
 dotenv.config();

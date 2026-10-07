@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nodebench.ai/schemas/activegraph/graph-hop-input.v1.schema.json",
+  "title": "NodeBench ActiveGraph Graph Hop Canary Input v1",
+  "description": "Deterministic inputs for a baseline run and a policy-weight fork. Graph scores are derived from explicit contiguous hop-edge evidence, never supplied as a candidate scalar. Candidate and evidence ID uniqueness, path connectivity and endpoints, equal per-path graph evidence scores, and policy weight sums are semantic invariants enforced by the runner.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "case_id",
+    "determinism",
+    "query",
+    "candidates",
+    "policies",
+    "expected"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "nodebench.activegraph.graph-hop-input.v1"
+    },
+    "case_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$"
+    },
+    "determinism": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timestamp_iso", "parent_run_id", "fork_run_id"],
+      "properties": {
+        "timestamp_iso": {
+          "type": "string",
+          "description": "RFC 3339 date-time. The contract accepts the RFC-permitted lowercase t and z forms.",
+          "format": "date-time"
+        },
+        "parent_run_id": {
+          "$ref": "#/$defs/runId"
+        },
+        "fork_run_id": {
+          "$ref": "#/$defs/runId"
+        }
+      }
+    },
+    "query": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["query_id", "text"],
+      "properties": {
+        "query_id": {
+          "$ref": "#/$defs/domainId"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "candidates": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "candidate_id",
+          "label",
+          "semantic_score_bp",
+          "source_quality_bp",
+          "hop_path"
+        ],
+        "properties": {
+          "candidate_id": {
+            "$ref": "#/$defs/domainId"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "semantic_score_bp": {
+            "$ref": "#/$defs/basisPoints"
+          },
+          "source_quality_bp": {
+            "$ref": "#/$defs/basisPoints"
+          },
+          "hop_path": {
+            "type": "array",
+            "description": "Ordered edge evidence forming one contiguous query:<query_id> to candidate:<candidate_id> path. The runner requires globally unique evidence_id values and one common graph_score_bp across a candidate path.",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/$defs/hopEdge"
+            }
+          }
+        }
+      }
+    },
+    "policies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseline", "variant"],
+      "properties": {
+        "baseline": {
+          "$ref": "#/$defs/policy"
+        },
+        "variant": {
+          "$ref": "#/$defs/policy"
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseline_winner_id", "variant_winner_id"],
+      "properties": {
+        "baseline_winner_id": {
+          "$ref": "#/$defs/domainId"
+        },
+        "variant_winner_id": {
+          "$ref": "#/$defs/domainId"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "basisPoints": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10000
+    },
+    "domainId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:#/-]*$"
+    },
+    "runId": {
+      "type": "string",
+      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+    },
+    "hopEdge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_id", "target_id", "evidence_id", "graph_score_bp"],
+      "properties": {
+        "source_id": {
+          "$ref": "#/$defs/domainId"
+        },
+        "target_id": {
+          "$ref": "#/$defs/domainId"
+        },
+        "evidence_id": {
+          "$ref": "#/$defs/domainId"
+        },
+        "graph_score_bp": {
+          "$ref": "#/$defs/basisPoints"
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy_id", "weights_bp"],
+      "properties": {
+        "policy_id": {
+          "$ref": "#/$defs/domainId"
+        },
+        "weights_bp": {
+          "type": "object",
+          "description": "The three integer weights MUST total exactly 10000; the runner enforces this cross-field invariant.",
+          "additionalProperties": false,
+          "required": [
+            "semantic_score_bp",
+            "graph_score_bp",
+            "source_quality_bp"
+          ],
+          "properties": {
+            "semantic_score_bp": {
+              "$ref": "#/$defs/basisPoints"
+            },
+            "graph_score_bp": {
+              "$ref": "#/$defs/basisPoints"
+            },
+            "source_quality_bp": {
+              "$ref": "#/$defs/basisPoints"
+            }
+          }
+        }
+      }
+    }
+  }
+}

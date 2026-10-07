@@ -10,14 +10,14 @@ import { WebSocket } from "ws";
 import {
   ProviderBus,
   type ProviderBusConfig,
-} from "../../../../server/providerBus.js";
+} from "../../../../workers/node/providerBus.js";
 import {
   generateApiKey,
   getMemoryStore,
   hashApiKey,
   hashPrefix,
   type ApiKeyRecord,
-} from "../../../../server/mcpAuth.js";
+} from "../../../../workers/node/mcpAuth.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Test helpers

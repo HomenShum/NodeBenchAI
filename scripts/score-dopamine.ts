@@ -20,7 +20,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const ROOT = resolve(__dirname, "..");
 const FOUNDER_VIEWS = join(ROOT, "src/features/founder/views");
-const SRC = join(ROOT, "src");
+const SRC = join(ROOT, "apps", "web", "src");
 
 const FILES = {
   dashboard: join(FOUNDER_VIEWS, "FounderDashboardView.tsx"),

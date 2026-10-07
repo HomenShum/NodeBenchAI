@@ -4,7 +4,7 @@
  * Run: npx tsx scripts/trigger-pdf-extraction.ts
  */
 import { ConvexHttpClient } from "convex/browser";
-import { api, internal } from "../convex/_generated/api.js";
+import { api, internal } from "../backend/convex/_generated/api.js";
 
 const CONVEX_URL = "https://formal-shepherd-851.convex.cloud";
 

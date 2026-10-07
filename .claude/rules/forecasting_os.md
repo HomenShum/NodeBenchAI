@@ -1,12 +1,12 @@
 ---
 paths:
-  - "convex/domains/forecasting/**"
-  - "convex/workflows/dailyLinkedInPost.ts"
-  - "src/features/research/components/Forecast*"
-  - "src/features/research/components/CalibrationPlot*"
-  - "src/features/research/components/BrierTrendChart*"
-  - "src/features/research/components/EvidenceTimeline*"
-  - "src/features/research/components/TraceBreadcrumb*"
+  - "backend/convex/domains/forecasting/**"
+  - "backend/convex/workflows/dailyLinkedInPost.ts"
+  - "apps/web/src/features/research/components/Forecast*"
+  - "apps/web/src/features/research/components/CalibrationPlot*"
+  - "apps/web/src/features/research/components/BrierTrendChart*"
+  - "apps/web/src/features/research/components/EvidenceTimeline*"
+  - "apps/web/src/features/research/components/TraceBreadcrumb*"
   - "packages/mcp-local/src/tools/forecastingTools.ts"
 related_: [reexamine_process, analyst_diagnostic, completion_traceability, reexamine_resilience]
 ---
@@ -32,13 +32,13 @@ related_: [reexamine_process, analyst_diagnostic, completion_traceability, reexa
 ## Key files
 | File | Purpose |
 |------|---------|
-| `convex/domains/forecasting/forecastManager.ts` | CRUD + 6 public dashboard queries |
-| `convex/domains/forecasting/signalMatcher.ts` | Deterministic signal↔forecast cross-reference |
-| `convex/domains/forecasting/traceWrapper.ts` | TRACE-wrapped forecast refresh (6 audit steps) |
-| `convex/domains/forecasting/scoringEngine.ts` | Brier + log scoring, proper scoring rules |
-| `convex/domains/forecasting/schema.ts` | 5 tables: forecasts, forecastEvidence, forecastResolutions, forecastUpdateHistory, forecastCalibrationLog |
-| `convex/workflows/dailyLinkedInPost.ts` | LinkedIn pipeline with Δ badges, evidence links, TRACE |
-| `src/features/research/components/ForecastCockpit.tsx` | Dashboard assembler (CalibrationPlot, BrierTrendChart, ForecastCard) |
+| `backend/convex/domains/forecasting/forecastManager.ts` | CRUD + 6 public dashboard queries |
+| `backend/convex/domains/forecasting/signalMatcher.ts` | Deterministic signal↔forecast cross-reference |
+| `backend/convex/domains/forecasting/traceWrapper.ts` | TRACE-wrapped forecast refresh (6 audit steps) |
+| `backend/convex/domains/forecasting/scoringEngine.ts` | Brier + log scoring, proper scoring rules |
+| `backend/convex/domains/forecasting/schema.ts` | 5 tables: forecasts, forecastEvidence, forecastResolutions, forecastUpdateHistory, forecastCalibrationLog |
+| `backend/convex/workflows/dailyLinkedInPost.ts` | LinkedIn pipeline with Δ badges, evidence links, TRACE |
+| `apps/web/src/features/research/components/ForecastCockpit.tsx` | Dashboard assembler (CalibrationPlot, BrierTrendChart, ForecastCard) |
 | `packages/mcp-local/src/tools/forecastingTools.ts` | 9 MCP tools |
 
 ## Conventions

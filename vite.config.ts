@@ -6,7 +6,51 @@ import { visualizer } from "rollup-plugin-visualizer";
 import { imagetools } from "vite-imagetools";
 import { VitePWA } from "vite-plugin-pwa";
 import Critters from "critters";
+import { execFileSync } from "node:child_process";
 /// <reference types="vitest" />
+
+// Build identity, adapted from node-foyer's vite.config.ts (foyer-build-sha) via the
+// NodeVoice PR #10 pattern. Non-strict: falls back to "unavailable" rather than throwing
+// when no signal is available.
+const BUILD_SHA_PATTERN = /^[0-9a-f]{40}$/u;
+
+function resolveBuildSha(): string {
+  for (const value of [process.env.VERCEL_GIT_COMMIT_SHA, process.env.GITHUB_SHA]) {
+    const sha = value?.trim().toLowerCase();
+    if (sha && BUILD_SHA_PATTERN.test(sha)) return sha;
+  }
+  try {
+    const sha = execFileSync("git", ["rev-parse", "HEAD"], {
+      encoding: "utf8",
+      timeout: 5_000,
+      windowsHide: true,
+    }).trim();
+    if (BUILD_SHA_PATTERN.test(sha)) return sha;
+  } catch {
+    // fall through to unavailable
+  }
+  return "unavailable";
+}
+
+function buildIdentityMeta(): Plugin {
+  return {
+    name: "nodebench-build-identity",
+    transformIndexHtml() {
+      const sha = resolveBuildSha();
+      return [
+        {
+          tag: "meta",
+          attrs: {
+            name: "nodebench-build-sha",
+            content: sha,
+            "data-provenance": sha === "unavailable" ? "unavailable" : "commit",
+          },
+          injectTo: "head" as const,
+        },
+      ];
+    },
+  };
+}
 
 // Critical CSS plugin using Critters
 function criticalCSSPlugin(): Plugin {
@@ -167,8 +211,17 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    // Standard-tree layout: the web app lives under apps/web (index.html there),
+    // while public/, env files, and dist/ stay at the repo root — public/ hosts
+    // the scratchnode live room (coordination hot file) and Vercel serves dist/.
+    // envDir MUST stay at the repo root or VITE_CONVEX_URL vanishes from builds
+    // (the documented 2026-05-11 P0).
+    root: path.resolve(__dirname, "apps/web"),
+    publicDir: path.resolve(__dirname, "public"),
+    envDir: __dirname,
     plugins: [
     react(),
+    buildIdentityMeta(),
     // Service Worker + PWA for aggressive caching
     VitePWA({
       registerType: 'autoUpdate',
@@ -231,6 +284,14 @@ export default defineConfig(({ mode }) => {
           '**/dogfood/generations/**',
           '**/node_modules/**',
           '**/proto/**/node_modules/**',
+          // Shiki grammar/theme chunks — lazy-loaded on demand, not precached.
+          // See chunkFileNames routing above.
+          '**/assets/shiki/**',
+          // The markdown note editor is a route-lazy workspace surface and can
+          // exceed Workbox's 2 MiB precache ceiling as dependency versions move.
+          // Keep it network-loaded and runtime-cached instead of blocking every
+          // production build on an optional editor chunk.
+          '**/assets/EntityNoteMarkdownEditor-*.js',
         ],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//, /^\/voice\//, /^\/install\.sh/],
@@ -365,13 +426,17 @@ window.addEventListener('message', async (message) => {
   resolve: {
     // Order matters: keep specific aliases above the generic "@/" alias.
     alias: [
-      { find: "@features", replacement: path.resolve(__dirname, "./src/features").replace(/\\/g, "/") },
-      { find: "@shared", replacement: path.resolve(__dirname, "./src/shared").replace(/\\/g, "/") },
+      { find: "@convex", replacement: path.resolve(__dirname, "./backend/convex").replace(/\\/g, "/") },
+      { find: "@vendor", replacement: path.resolve(__dirname, "./vendor").replace(/\\/g, "/") },
+      { find: "@features", replacement: path.resolve(__dirname, "./apps/web/src/features").replace(/\\/g, "/") },
+      { find: "@shared", replacement: path.resolve(__dirname, "./apps/web/src/shared").replace(/\\/g, "/") },
       { find: "shared", replacement: path.resolve(__dirname, "./shared").replace(/\\/g, "/") },
-      { find: /^@\//, replacement: `${path.resolve(__dirname, "./src").replace(/\\/g, "/")}/` },
+      { find: /^@\//, replacement: `${path.resolve(__dirname, "./apps/web/src").replace(/\\/g, "/")}/` },
     ],
     // Prevent duplicate React instances (common cause of "Invalid hook call" in Vite/monorepo setups).
-    dedupe: ["react", "react-dom"],
+    // Streamdown and the app both consume Shiki. Resolve one root copy so a
+    // no-lock install cannot leave Rolldown chasing a nested peer at build time.
+    dedupe: ["react", "react-dom", "shiki"],
   },
   optimizeDeps: {
     include: ["react", "react-dom", "rehype-raw", "rehype-sanitize", "rehype-parse", "hast-util-raw"],
@@ -381,9 +446,12 @@ window.addEventListener('message', async (message) => {
   test: {
     globals: true,
     environment: "jsdom",
-    setupFiles: ["./src/test/setup.ts"],
+    setupFiles: ["./apps/web/src/test/setup.ts"],
   },
   build: {
+    // Vite root is apps/web, but Vercel + scripts expect dist/ at the repo root.
+    outDir: path.resolve(__dirname, "dist"),
+    emptyOutDir: true,
     // The heaviest routes/editors are lazy-loaded; keep this warning slightly higher
     // so it flags meaningful regressions without noise.
     chunkSizeWarningLimit: 2200,
@@ -443,7 +511,23 @@ window.addEventListener('message', async (message) => {
         propertyReadSideEffects: false,
       },
       output: {
-        chunkFileNames: "assets/[name]-[hash].js",
+        chunkFileNames: (chunkInfo) => {
+          // Shiki (behind the AI Elements code-block) ships ~200 TextMate
+          // grammars + themes, each emitted as its own lazy chunk. Route them
+          // to assets/shiki/ so the PWA service worker can exclude the whole
+          // folder from precache via globIgnores — they still lazy-load at
+          // runtime when a code block of that language renders. Without this,
+          // the SW would precache ~9MB of grammars the chat surface almost
+          // never uses on first visit.
+          const facadeId = chunkInfo.facadeModuleId ?? "";
+          if (
+            facadeId.includes("@shikijs/langs") ||
+            facadeId.includes("@shikijs/themes")
+          ) {
+            return "assets/shiki/[name]-[hash].js";
+          }
+          return "assets/[name]-[hash].js";
+        },
         entryFileNames: "assets/[name]-[hash].js",
         assetFileNames: "assets/[name]-[hash][extname]",
         // Route-based code splitting for optimal loading
@@ -483,11 +567,23 @@ window.addEventListener('message', async (message) => {
             if (id.includes('/node_modules/convex/')) {
               return 'convex-runtime';
             }
-            // Editor ecosystem — ALL related packages MUST land in one chunk.
-            // @blocknote/@tiptap/prosemirror have circular init deps; splitting
-            // them across chunks causes "Cannot access X before initialization".
-            // Including the full transitive set (unified/rehype/remark, yjs,
-            // emoji-mart, floating-ui) prevents Rollup from splitting them.
+            // Editor ecosystem: keep each internally coupled family intact.
+            // Splitting the stateful BlockNote/TipTap/ProseMirror graph causes
+            // "Cannot access X before initialization" at runtime.
+            // Markdown syntax/AST packages form a one-way dependency of the
+            // editor runtime. Keep that complete family together, but separate
+            // from the stateful editor graph so neither release chunk grows
+            // beyond the PWA or bundle-budget limits.
+            if (
+              id.includes('/node_modules/unified/') ||
+              id.includes('/node_modules/rehype-') ||
+              id.includes('/node_modules/remark-') ||
+              id.includes('/node_modules/hast-') ||
+              id.includes('/node_modules/mdast-') ||
+              id.includes('/node_modules/unist-')
+            ) {
+              return 'editor-markdown-vendor';
+            }
             if (
               id.includes('/node_modules/@tiptap/') ||
               id.includes('/node_modules/@blocknote/') ||
@@ -498,19 +594,21 @@ window.addEventListener('message', async (message) => {
               id.includes('/node_modules/y-protocols') ||
               id.includes('/node_modules/yjs/') ||
               id.includes('/node_modules/lib0/') ||
-              id.includes('/node_modules/unified/') ||
-              id.includes('/node_modules/rehype-') ||
-              id.includes('/node_modules/remark-') ||
-              id.includes('/node_modules/hast-') ||
-              id.includes('/node_modules/mdast-') ||
-              id.includes('/node_modules/unist-') ||
               id.includes('/node_modules/emoji-mart') ||
               id.includes('/node_modules/@emoji-mart/') ||
-              id.includes('/node_modules/@floating-ui/') ||
-              id.includes('/node_modules/@shikijs/')
+              id.includes('/node_modules/@floating-ui/')
             ) {
               return 'editor-vendor';
             }
+            // Shiki (syntax highlighter behind the AI Elements `code-block`
+            // primitive) MUST NOT be lumped into one chunk. `@shikijs/langs`
+            // ships ~200 grammars, each behind a dynamic import so Shiki can
+            // load only the languages actually rendered. Force-grouping
+            // `@shikijs/*` collapses that per-language splitting into a single
+            // ~10MB eager blob that overflows the PWA precache limit (2 MiB) and
+            // fails the build. Leave it unmatched so Rolldown preserves Shiki's
+            // native code-splitting: core + engine land in the lazy `code-block`
+            // chunk, and each grammar/theme becomes its own on-demand chunk.
             // Spreadsheet engine (very heavy)
             if (id.includes('/node_modules/xlsx')) {
               return 'spreadsheet-vendor';
@@ -629,8 +727,6 @@ window.addEventListener('message', async (message) => {
               if (id.includes('.BriefTab')) return 'agent-panel-brief';
               if (id.includes('.AgentTasksTab')) return 'agent-panel-tasks';
               if (id.includes('.EditsTab')) return 'agent-panel-edits';
-              if (id.includes('.ParallelTaskTimeline')) return 'agent-panel-timeline';
-              if (id.includes('.DecisionTreeKanban')) return 'agent-panel-kanban';
               if (id.includes('.PromptEnhancer')) return 'agent-panel-enhancer';
               if (id.includes('.SkillsPanel')) return 'agent-panel-skills';
               if (id.includes('.AgentHierarchy')) return 'agent-panel-hierarchy';
@@ -682,10 +778,12 @@ window.addEventListener('message', async (message) => {
             return 'route-calendar';
           }
 
-          // Heavy editors from src
-          if (id.includes('/components/Editor/') || id.includes('UnifiedEditor')) {
-            return 'editor';
-          }
+          // Editor application modules already sit behind lazy route/component
+          // boundaries. Do not force them into one shared chunk: doing so creates
+          // a circular chunk graph with BlockNote, TipTap, Mantine, and React,
+          // which Rolldown resolves by merging the whole graph into a multi-MiB
+          // `editor` chunk. Leaving them unmatched preserves the real lazy
+          // boundaries and keeps every emitted chunk within the release budget.
 
           // Default: shared application code
           return undefined;

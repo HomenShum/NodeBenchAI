@@ -37,7 +37,7 @@ import {
   type TriggerInput,
   type BranchResult,
   type ResearchCellOutput,
-} from "../../../convex/domains/deepTrace/researchCell.js";
+} from "../../../backend/convex/domains/deepTrace/researchCell.js";
 
 import type { ThroughputMetrics, QualityMetrics, CostEntry } from "./optimizerTypes.js";
 import { computeCostUsd } from "./optimizerTypes.js";

@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "nodekit.design-rule/v1",
+  "ruleId": "rule-stream-not-chrome",
+  "derivedFrom": {
+    "collectionId": "note-surface",
+    "observationIds": ["obs-mew-stream", "obs-evernote-contrast"],
+    "factIds": [
+      "obs-mew-stream/f1",
+      "obs-mew-stream/f5",
+      "obs-evernote-contrast/f1",
+      "obs-evernote-contrast/f2"
+    ]
+  },
+  "statement": "When a surface is a chronological stream inside one entity context, separate adjacent entries with row-level dividers before introducing a persistent note-list pane or a bordered container per entry.",
+  "mechanismHypothesis": "Removing repeated container boundaries preserves vertical scanning while a row divider still exposes where one entry ends and the next begins.",
+  "confidence": "medium",
+  "confidenceBasis": "One source-inspected positive implementation and one authenticated static counterexample establish the structural contrast, but no audience-task comparison has measured scan speed.",
+  "appliesWhen": [
+    "Entries belong to one entity context and are read primarily in chronological order.",
+    "Each entry can expose its metadata and provenance inline."
+  ],
+  "doesNotApplyWhen": [
+    "The user must compare summaries across multiple notebooks or entity contexts.",
+    "A long-form document needs an internal heading hierarchy instead of stream rows.",
+    "The primary task is retrieval across a collection large enough to require a persistent result list."
+  ],
+  "counterexampleNote": "Evernote uses three persistent regions and a rounded selected-note summary, which is appropriate when note-list retrieval and editor continuity are simultaneous tasks.",
+  "problemTags": ["chronological-scan", "container-repetition", "note-density"],
+  "intentTags": ["read-stream", "inspect-provenance"],
+  "firstSeenAt": "2026-07-29",
+  "lastVerifiedAt": "2026-07-29",
+  "reVerifyAfterDays": 30,
+  "reVerifyReason": "The Mobbin surface remains remote and Mew may change after the pinned commit.",
+  "evidenceTier": "M2",
+  "tierLadder": "M2 combines authenticated shipped-product inspection for Evernote with immutable source inspection for Mew; no M3 audience-task evidence was collected."
+}

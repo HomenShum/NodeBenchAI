@@ -1,0 +1,13 @@
+{
+  "schema": "nodebench-ui-contract-v1",
+  "capturedAt": "2026-07-17T21:23:39Z",
+  "slice": "chip-label-reduction",
+  "app": "nodebench-ai (decision workspace, /redesign/chat)",
+  "notes": "Design-reduction fix: the first starter chip embedded the dated context title ('Summarize Daily Brief - 2026-07-17'), wrapping it to two lines while its siblings held one - and the composer's context chip directly below already carries the dated title. Chip LABELS now strip a trailing date (the full title stays in the prompt the chip sends), so all three chips hold a single line with even rhythm. Before = origin/main at 6cc98df3; after = feat/chip-label-reduction. Captured against vite preview 127.0.0.1:4173, production build, anonymous session; surface contracts green on both sides.",
+  "pages": [
+    { "route": "/redesign/chat", "viewport": { "width": 1440, "height": 900 }, "theme": "dark", "before": "before-decision-workspace.png", "after": "after-decision-workspace.png" },
+    { "route": "/redesign/chat", "viewport": { "width": 1440, "height": 900 }, "theme": "light", "before": "before-decision-workspace-light.png", "after": "after-decision-workspace-light.png" },
+    { "route": "/redesign/chat", "viewport": { "width": 390, "height": 844 }, "theme": "dark", "before": "before-decision-workspace-mobile.png", "after": "after-decision-workspace-mobile.png" },
+    { "route": "/redesign/chat", "viewport": { "width": 390, "height": 844 }, "theme": "light", "before": "before-decision-workspace-mobile-light.png", "after": "after-decision-workspace-mobile-light.png" }
+  ]
+}

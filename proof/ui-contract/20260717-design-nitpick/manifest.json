@@ -1,0 +1,14 @@
+{
+  "schema": "nodebench-ui-contract-v1",
+  "capturedAt": "2026-07-17T21:02:10Z",
+  "slice": "design-nitpick-pass",
+  "app": "nodebench-ai (decision workspace, /redesign/chat)",
+  "notes": "Before = pre-#574 app sources (main e7e423fb) rebuilt and captured with the FIXED capture spec, so both sides render true dark; the dark-capture spec bug itself (every pre-#574 'dark' screenshot was a mislabeled light render) is therefore evidenced by the fix history in PR #574, not by this pair. Visible diffs per pair: emoji starter chips -> theme-aware stroke-SVG icons; status row drops the duplicated context title so '12 attached sources' survives 390px and 'Review · no shared writes' sits flush instead of floating; context-miss banner title 'Notebook context selected' -> 'Notebook context unavailable' (agrees with body). Captured against vite preview 127.0.0.1:4173, production build, anonymous session.",
+  "pages": [
+    { "route": "/redesign/chat", "viewport": { "width": 1440, "height": 900 }, "theme": "dark", "before": "before-decision-workspace.png", "after": "after-decision-workspace.png" },
+    { "route": "/redesign/chat", "viewport": { "width": 1440, "height": 900 }, "theme": "light", "before": "before-decision-workspace-light.png", "after": "after-decision-workspace-light.png" },
+    { "route": "/redesign/chat", "viewport": { "width": 390, "height": 844 }, "theme": "dark", "before": "before-decision-workspace-mobile.png", "after": "after-decision-workspace-mobile.png" },
+    { "route": "/redesign/chat", "viewport": { "width": 390, "height": 844 }, "theme": "light", "before": "before-decision-workspace-mobile-light.png", "after": "after-decision-workspace-mobile-light.png" },
+    { "route": "/redesign/chat?report=__contract_missing__&artifact=notebook", "viewport": { "width": 1440, "height": 900 }, "theme": "dark", "before": "before-interaction-report-context.png", "after": "after-interaction-report-context.png" }
+  ]
+}

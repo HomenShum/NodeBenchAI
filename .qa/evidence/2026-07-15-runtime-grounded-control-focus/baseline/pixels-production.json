@@ -1,0 +1,45 @@
+{
+  "repo": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai/.worktrees/prod-parity-runtime",
+  "url": "https://www.nodebenchai.com/agents",
+  "outDir": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai/.worktrees/prod-parity-runtime/.qa/evidence/2026-07-15-runtime-grounded-control-focus/baseline",
+  "waitMs": 2200,
+  "assert": ["AI Assistants", "Recent topics"],
+  "shots": [
+    {
+      "name": "agents-desktop-light",
+      "scheme": "light",
+      "viewport": { "width": 1512, "height": 900 },
+      "fullPage": true
+    },
+    {
+      "name": "agents-desktop-dark",
+      "scheme": "dark",
+      "viewport": { "width": 1512, "height": 900 },
+      "fullPage": true
+    },
+    {
+      "name": "agents-tablet-light",
+      "scheme": "light",
+      "viewport": { "width": 1024, "height": 900 },
+      "fullPage": true
+    },
+    {
+      "name": "agents-tablet-dark",
+      "scheme": "dark",
+      "viewport": { "width": 1024, "height": 900 },
+      "fullPage": true
+    },
+    {
+      "name": "agents-mobile-light",
+      "scheme": "light",
+      "viewport": { "width": 390, "height": 844 },
+      "fullPage": true
+    },
+    {
+      "name": "agents-mobile-dark",
+      "scheme": "dark",
+      "viewport": { "width": 390, "height": 844 },
+      "fullPage": true
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "schema": "nodebench-ui-contract-v1",
+  "capturedAt": "2026-07-18T22:30:00Z",
+  "slice": "one-chat-phase-c",
+  "app": "nodebench-ai (FastAgentPanel adopted turns, dev harness over real adapter chain)",
+  "notes": "Phase C completes the unification: markdown prose adoptable via the previously-unconsumed streamdown renderer (proseFormat='markdown', additive, flagship stays plain); delete/read-aloud ported as SVG MessageActions; '0 steps' fixed (trace-first count, span omitted at zero); adoption is DEFAULT (preferCanonicalAnswer deleted, fit-gate alone routes); unreachable duplicates retired with per-item unreachability justifications recorded in ONE_CHAT_INTERFACE.md's removal ledger. The look-at-it step caught a real P1 green tests missed: markdown tables tripped isStructuredAnswer's pipe heuristic and rendered escaped raw text — fixed by branch precedence, regression-pinned. HARNESS CAVEAT: bare harness lacks the app's compiled Tailwind, so streamdown table/code chrome and inline marks render unstyled in these captures (styled in-app); the polish pass addresses harness CSS fidelity before final presentation photos.",
+  "pages": [
+    { "route": "__harness__ markdown-adopted turn (expanded)", "viewport": { "width": 720, "height": 900 }, "theme": "light", "after": "after-markdown-adopted-expanded.png" },
+    { "route": "__harness__ markdown-adopted turn", "viewport": { "width": 720, "height": 900 }, "theme": "light", "after": "after-markdown-adopted.png" },
+    { "route": "__harness__ plain-adopted turn", "viewport": { "width": 720, "height": 900 }, "theme": "light", "after": "after-plain-adopted.png" },
+    { "route": "__harness__ both turns collapsed", "viewport": { "width": 720, "height": 900 }, "theme": "light", "after": "after-both-turns-collapsed.png" }
+  ]
+}

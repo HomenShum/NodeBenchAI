@@ -6,8 +6,8 @@ import net from "node:net";
 import { join } from "node:path";
 import dotenv from "dotenv";
 
-import { inferCaptureRoute, type CaptureRoute } from "../src/features/product/lib/captureRouter";
-import { HERO_SCENARIO_TESTS, type ScenarioTestCase } from "../src/features/workspace/data/scenarioCatalog";
+import { inferCaptureRoute, type CaptureRoute } from "../apps/web/src/features/product/lib/captureRouter";
+import { HERO_SCENARIO_TESTS, type ScenarioTestCase } from "../apps/web/src/features/workspace/data/scenarioCatalog";
 
 dotenv.config({ path: ".env.local" });
 dotenv.config();
@@ -254,7 +254,7 @@ async function maybeStartServer(baseUrl: string, port: number, allowPaidSearch: 
   }
 
   const npx = process.platform === "win32" ? "npx.cmd" : "npx";
-  const command = `${npx} tsx server/index.ts --port ${port}`;
+  const command = `${npx} tsx workers/node/index.ts --port ${port}`;
   const child = spawn(command, {
     cwd: process.cwd(),
     stdio: ["ignore", "pipe", "pipe"],

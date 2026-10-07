@@ -1,0 +1,15 @@
+node_modules
+**/node_modules
+dist
+.git
+.worktrees
+.claude/worktrees
+.tmp
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Never send local or registry credentials into Docker build layers.
+packages/mcp-local/.mcpregistry_registry_token
+packages/mcp-local/.mcpregistry_github_token

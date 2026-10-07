@@ -1,0 +1,22 @@
+{
+  "repo": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai",
+  "url": "https://www.nodebenchai.com/agents",
+  "outDir": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai/.qa/evidence/declutter-pixels",
+  "assert": ["AI Assistants", "Active Swarms", "Human Approval Queue", "Autonomous Operations"],
+  "shots": [
+    {
+      "name": "agents-desktop-light-full",
+      "scheme": "light",
+      "viewport": { "width": 1512, "height": 982 },
+      "fullPage": true,
+      "waitMs": 1400
+    },
+    {
+      "name": "agents-mobile-light-full",
+      "scheme": "light",
+      "viewport": { "width": 390, "height": 844 },
+      "fullPage": true,
+      "waitMs": 1400
+    }
+  ]
+}

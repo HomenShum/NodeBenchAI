@@ -13,7 +13,7 @@
  */
 
 import { ConvexHttpClient } from "convex/browser";
-import { api } from "../convex/_generated/api";
+import { api } from "../backend/convex/_generated/api";
 
 const CONVEX_URL = process.env.CONVEX_URL || "https://formal-shepherd-851.convex.cloud";
 const client = new ConvexHttpClient(CONVEX_URL);
@@ -106,7 +106,7 @@ async function testDigestFormatting() {
   console.log("=".repeat(60) + "\n");
 
   // Import the formatting function locally
-  const digestAgent = await import("../convex/domains/agents/digestAgent");
+  const digestAgent = await import("../backend/convex/domains/agents/digestAgent");
   const { formatDigestForNtfy } = digestAgent;
   type AgentDigestOutput = digestAgent.AgentDigestOutput;
 
@@ -190,7 +190,7 @@ async function testSendFormattedDigest() {
   console.log("TEST 3: Send Formatted Digest to ntfy");
   console.log("=".repeat(60) + "\n");
 
-  const digestAgent2 = await import("../convex/domains/agents/digestAgent");
+  const digestAgent2 = await import("../backend/convex/domains/agents/digestAgent");
   const formatDigestForNtfy2 = digestAgent2.formatDigestForNtfy;
 
   // Create a mock digest

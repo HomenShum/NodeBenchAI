@@ -1,0 +1,225 @@
+{
+  "proof": "NODEBENCH-SOURCING-RETURN-LEAVES-01",
+  "at": "2026-09-05T09:04:14.663236+00:00",
+  "reviewedBase": "673ba7dc4ed7bf90fab839322d832511550b8bbc",
+  "sourceSha256": "9a6c3a620dbbbf6639dcfe1bdaf5ec89aada81d088ac7ebe92ebeea9774e7139",
+  "files": [
+    {
+      "path": "E4e-real-api-partition/module-local-contract-declaration.d.ts.txt",
+      "originalRef": "E4e-real-api-partition/module-local-contract-declaration.d.ts.txt",
+      "bytes": 592735,
+      "sha256": "afb876cdff23623111b5400d1ee77fd4e7a0536d60ac816956a43e0bbb8d9bc5"
+    },
+    {
+      "path": "E4e-real-api-partition/module-local-contract-diagnostics.json",
+      "originalRef": "E4e-real-api-partition/module-local-contract-diagnostics.json",
+      "bytes": 940714,
+      "sha256": "871223bfe62c2504874c627369b0555e98202d6494914b32e51a28a173fcb58d"
+    },
+    {
+      "path": "E4e-real-api-partition/module-local-contract-fixture.ts.txt",
+      "originalRef": "E4e-real-api-partition/module-local-contract-fixture.ts.txt",
+      "bytes": 1540,
+      "sha256": "4a6d9ca5c33eb2ebe046d309fee79af43d0fdbeb6960499e4553065430972396"
+    },
+    {
+      "path": "E4e-real-api-partition/module-local-contract-report.json",
+      "originalRef": "E4e-real-api-partition/module-local-contract-report.json",
+      "bytes": 3389,
+      "sha256": "d41e6b4e36e45d2d4ff26718d78d49961e18a72808807755c54402f8201caa5b"
+    },
+    {
+      "path": "E4e-real-api-partition/return-leaf-diagnosis.json",
+      "originalRef": "E4e-real-api-partition/return-leaf-diagnosis.json",
+      "bytes": 5039,
+      "sha256": "fe40beebcbb730cfa5919c051792f418d3ab78d9d3f401890ca7c7f159191261"
+    },
+    {
+      "path": "E4f-provider-return-portable-resolution/baseline.stderr.txt",
+      "originalRef": "E4f-provider-return-portable-resolution/baseline.stderr.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "E4f-provider-return-portable-resolution/baseline.stdout.txt",
+      "originalRef": "E4f-provider-return-portable-resolution/baseline.stdout.txt",
+      "bytes": 4259,
+      "sha256": "8f83b254aa41d9ad9839b1fba9f42ea7999ea7a99c25c6c1e17694795155cbe8"
+    },
+    {
+      "path": "E4f-provider-return-portable-resolution/current-source.stderr.txt",
+      "originalRef": "E4f-provider-return-portable-resolution/current-source.stderr.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "E4f-provider-return-portable-resolution/current-source.stdout.txt",
+      "originalRef": "E4f-provider-return-portable-resolution/current-source.stdout.txt",
+      "bytes": 4272,
+      "sha256": "535b0fc7d32885af31f7a2f26c7b22786089819b2af0cff64672b2bccd5084a5"
+    },
+    {
+      "path": "E4f-provider-return-portable-resolution/receipt.json",
+      "originalRef": "E4f-provider-return-portable-resolution/receipt.json",
+      "bytes": 3596,
+      "sha256": "b75a6274b2d31ab92adc62dbbd4e0211d8d5b79002fdbfed22992bcde837e13d"
+    },
+    {
+      "path": "E4f-provider-return-portable-resolution/syntax.stderr.txt",
+      "originalRef": "E4f-provider-return-portable-resolution/syntax.stderr.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "E4f-provider-return-portable-resolution/syntax.stdout.txt",
+      "originalRef": "E4f-provider-return-portable-resolution/syntax.stdout.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "E4f-provider-return-source-probe.mjs",
+      "originalRef": "E4f-provider-return-source-probe.mjs",
+      "bytes": 12112,
+      "sha256": "cb8ac456afb35c547bad1316362faec1a504dce9395379511f09102b60f04c0f"
+    },
+    {
+      "path": "E4f-provider-return-source-review/actual-source.diff",
+      "originalRef": "E4f-provider-return-source-review/actual-source.diff",
+      "bytes": 1968,
+      "sha256": "ad3c2d131d93caf9ad8f64771ff71a5589fdd0fc815dde6c9991163310f21782"
+    },
+    {
+      "path": "E4f-provider-return-source-review/baseline/contract-fixture.ts.txt",
+      "originalRef": "E4f-provider-return-source-review/baseline/contract-fixture.ts.txt",
+      "bytes": 2814,
+      "sha256": "7a78e176dee4172dca9002a58464bd1a12719766fd22debc9d6dc8ca567681f3"
+    },
+    {
+      "path": "E4f-provider-return-source-review/baseline/provider-annotated-emitted.js.txt",
+      "originalRef": "E4f-provider-return-source-review/baseline/provider-annotated-emitted.js.txt",
+      "bytes": 8095,
+      "sha256": "a7c565caab7cb53162aa6153158bb6690c6ad33bb5b9099aedbcbe2fb9eef13c"
+    },
+    {
+      "path": "E4f-provider-return-source-review/baseline/provider-baseline-emitted.js.txt",
+      "originalRef": "E4f-provider-return-source-review/baseline/provider-baseline-emitted.js.txt",
+      "bytes": 8095,
+      "sha256": "a7c565caab7cb53162aa6153158bb6690c6ad33bb5b9099aedbcbe2fb9eef13c"
+    },
+    {
+      "path": "E4f-provider-return-source-review/baseline/provider-current-source.ts.txt",
+      "originalRef": "E4f-provider-return-source-review/baseline/provider-current-source.ts.txt",
+      "bytes": 7548,
+      "sha256": "9a6c3a620dbbbf6639dcfe1bdaf5ec89aada81d088ac7ebe92ebeea9774e7139"
+    },
+    {
+      "path": "E4f-provider-return-source-review/baseline/provider-git-baseline.ts.txt",
+      "originalRef": "E4f-provider-return-source-review/baseline/provider-git-baseline.ts.txt",
+      "bytes": 7478,
+      "sha256": "1c00f9247f13f26aa3054dc3c5aa879ee3f28c480412e0536ffb7cd24c1e590f"
+    },
+    {
+      "path": "E4f-provider-return-source-review/baseline/report.json",
+      "originalRef": "E4f-provider-return-source-review/baseline/report.json",
+      "bytes": 1889861,
+      "sha256": "6ea099307b12b4a916d058b9b0b2d5ab9ed7994c7110d5ccd4e3a0a15b4ab866"
+    },
+    {
+      "path": "E4f-provider-return-source-review/current-source/contract-fixture.ts.txt",
+      "originalRef": "E4f-provider-return-source-review/current-source/contract-fixture.ts.txt",
+      "bytes": 2814,
+      "sha256": "7a78e176dee4172dca9002a58464bd1a12719766fd22debc9d6dc8ca567681f3"
+    },
+    {
+      "path": "E4f-provider-return-source-review/current-source/provider-annotated-emitted.js.txt",
+      "originalRef": "E4f-provider-return-source-review/current-source/provider-annotated-emitted.js.txt",
+      "bytes": 8095,
+      "sha256": "a7c565caab7cb53162aa6153158bb6690c6ad33bb5b9099aedbcbe2fb9eef13c"
+    },
+    {
+      "path": "E4f-provider-return-source-review/current-source/provider-baseline-emitted.js.txt",
+      "originalRef": "E4f-provider-return-source-review/current-source/provider-baseline-emitted.js.txt",
+      "bytes": 8095,
+      "sha256": "a7c565caab7cb53162aa6153158bb6690c6ad33bb5b9099aedbcbe2fb9eef13c"
+    },
+    {
+      "path": "E4f-provider-return-source-review/current-source/provider-current-source.ts.txt",
+      "originalRef": "E4f-provider-return-source-review/current-source/provider-current-source.ts.txt",
+      "bytes": 7548,
+      "sha256": "9a6c3a620dbbbf6639dcfe1bdaf5ec89aada81d088ac7ebe92ebeea9774e7139"
+    },
+    {
+      "path": "E4f-provider-return-source-review/current-source/provider-git-baseline.ts.txt",
+      "originalRef": "E4f-provider-return-source-review/current-source/provider-git-baseline.ts.txt",
+      "bytes": 7478,
+      "sha256": "1c00f9247f13f26aa3054dc3c5aa879ee3f28c480412e0536ffb7cd24c1e590f"
+    },
+    {
+      "path": "E4f-provider-return-source-review/current-source/report.json",
+      "originalRef": "E4f-provider-return-source-review/current-source/report.json",
+      "bytes": 1891884,
+      "sha256": "813bf45f39c92a27aa8d5495e30bea198373b1c04a30e6692104d22f3fa23d4d"
+    },
+    {
+      "path": "E4f-provider-return-source-review/executed-probe.mjs.txt",
+      "originalRef": "E4f-provider-return-source-review/executed-probe.mjs.txt",
+      "bytes": 12112,
+      "sha256": "cb8ac456afb35c547bad1316362faec1a504dce9395379511f09102b60f04c0f"
+    },
+    {
+      "path": "E4f-provider-return-source-review/status.txt",
+      "originalRef": "E4f-provider-return-source-review/status.txt",
+      "bytes": 50,
+      "sha256": "69785fc10760907f3fdb701f31efeef69001a11097a8e767d3f73c0986128203"
+    },
+    {
+      "path": "E4f-replay-provider-return-contract.mjs",
+      "originalRef": "E4f-replay-provider-return-contract.mjs",
+      "bytes": 12777,
+      "sha256": "048b99bd7577ecad092709aa5773e0248b5e9526f5e14a2be46dc841c0f3953b"
+    },
+    {
+      "path": "E4f-write-provider-return-source-judge.py",
+      "originalRef": "E4f-write-provider-return-source-judge.py",
+      "bytes": 15318,
+      "sha256": "d170462db77cd893a8babda6ffb9c913ddf55f1227dacc29c89bfd2d4c984be6"
+    },
+    {
+      "path": "E4f_NODEBENCH_RETURN_LEAF_PATCH_PLAN.md.txt",
+      "originalRef": "E4f_NODEBENCH_RETURN_LEAF_PATCH_PLAN.md",
+      "bytes": 2654,
+      "sha256": "2fe9048e1c822aebc46082597fbadb93691bcdfdfe544f31a26baf4dc8a7ebbb"
+    },
+    {
+      "path": "E4f_NODEBENCH_RETURN_LEAF_PORTABILITY.json",
+      "originalRef": "E4f_NODEBENCH_RETURN_LEAF_PORTABILITY.json",
+      "bytes": 3242,
+      "sha256": "d1f6f49ebbfc8898c21ab054b5e72fc9d25c8ffba4b1b98f31d6f807ec3f6351"
+    },
+    {
+      "path": "E4f_NODEBENCH_RETURN_LEAF_PORTABILITY.md.txt",
+      "originalRef": "E4f_NODEBENCH_RETURN_LEAF_PORTABILITY.md",
+      "bytes": 4255,
+      "sha256": "c853e84f673046bad02d7817cda1201ff7331a66e52b862287040b467418401d"
+    },
+    {
+      "path": "E4f_NODEBENCH_RETURN_LEAF_SOURCE_JUDGE.json",
+      "originalRef": "E4f_NODEBENCH_RETURN_LEAF_SOURCE_JUDGE.json",
+      "bytes": 13119,
+      "sha256": "9fd0782ad6bd1396a3a3f52396d931d4ad6bcd7a2d90f7c02610a82ea8860675"
+    },
+    {
+      "path": "E4f_NODEBENCH_RETURN_LEAF_SOURCE_JUDGE.md.txt",
+      "originalRef": "E4f_NODEBENCH_RETURN_LEAF_SOURCE_JUDGE.md",
+      "bytes": 5392,
+      "sha256": "4f5bfd564f5c2e3e78a6ae91db4ccc9a00e79cb4a6ebf66691f70143fc2dce6f"
+    },
+    {
+      "path": "E4f_PROVIDER_RETURN_PORTABLE_PROBE.json",
+      "originalRef": "E4f_PROVIDER_RETURN_PORTABLE_PROBE.json",
+      "bytes": 6333,
+      "sha256": "a3382103cb76c3f42c61ed33dd9e289cc589f5f904bb7823dc8989884944d1db"
+    }
+  ],
+  "rawPolicy": "Exact raw bytes; original Markdown saved as .md.txt. Local .gitattributes disables normalization only within this evidence packet."
+}

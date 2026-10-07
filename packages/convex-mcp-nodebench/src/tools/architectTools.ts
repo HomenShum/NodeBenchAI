@@ -12,6 +12,7 @@
  * - convex_generate_plan: Build a plan for missing signatures
  */
 
+import { findConvexDir } from "../project.js";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { getDb, genId } from "../db.js";
@@ -129,14 +130,6 @@ function analyzePatterns(content: string, patterns: PatternCategory): Record<str
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-function findConvexDir(projectDir: string): string | null {
-  const candidates = [join(projectDir, "convex"), join(projectDir, "src", "convex")];
-  for (const c of candidates) {
-    if (existsSync(c)) return c;
-  }
-  return null;
-}
-
 function collectTsFiles(dir: string): string[] {
   const results: string[] = [];
   if (!existsSync(dir)) return results;
@@ -219,7 +212,7 @@ export const architectTools: McpTool[] = [
       const projectDir = resolve(args.projectDir);
       const convexDir = findConvexDir(projectDir);
       if (!convexDir) {
-        return { error: "No convex/ directory found" };
+        return { error: "No configured Convex functions directory found" };
       }
 
       const files = collectTsFiles(convexDir);
@@ -341,7 +334,7 @@ export const architectTools: McpTool[] = [
         const projectDir = resolve(args.projectDir);
         const convexDir = findConvexDir(projectDir);
         if (!convexDir) {
-          return { error: "No convex/ directory found" };
+          return { error: "No configured Convex functions directory found" };
         }
         const files = collectTsFiles(convexDir);
         content = files.map(f => readFileSync(f, "utf-8")).join("\n// ── file boundary ──\n");

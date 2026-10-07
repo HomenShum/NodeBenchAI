@@ -20,6 +20,7 @@ import { execSync } from 'child_process';
 import { readFileSync, existsSync } from 'fs';
 import { join, resolve } from 'path';
 import { formatReportSummary } from './schema.mjs';
+import { SENTINEL_FIX_PROMPT_RELATIVE } from './paths.mjs';
 
 const ROOT = resolve(import.meta.dirname, '../..');
 const SENTINEL_DIR = join(ROOT, '.sentinel');
@@ -72,7 +73,7 @@ async function main() {
         log('\n── Next Steps ──');
         if (wantFix) {
           log('  Use the sentinel agent prompt to fix issues:');
-          log('  Feed tests/prompts/sentinel-self-test.md to Claude Code');
+          log(`  Feed ${SENTINEL_FIX_PROMPT_RELATIVE} to Claude Code`);
         } else if (wantSwarm) {
           log('  Generating swarm prompts...');
           run('node scripts/sentinel/swarm.mjs');

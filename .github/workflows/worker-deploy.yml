@@ -1,0 +1,134 @@
+name: Worker Deploy (Cloud Run canary)
+
+# The Node worker (workers/node, /mcp/health) deploys to Google Cloud Run
+# (see workers/node/cloudbuild.yaml). There was previously NO automated
+# deploy path from this repo — deploys were manual `gcloud builds submit`.
+# This workflow adds a workflow_dispatch-triggered deploy so a post-deploy
+# check and automatic rollback can attach, WITHOUT enabling auto-deploys
+# that did not exist before. It is also the one surface where a true
+# traffic canary is architecturally honest: Cloud Run revisions support
+# native percentage traffic splitting.
+#
+# Flow: build image -> deploy revision with --no-traffic + canary tag ->
+# smoke-check the tagged revision URL (/mcp/health: status + p99-latency-ms)
+# -> shift canary_percent of traffic -> bake -> re-check -> promote to 100%.
+# Any failure after the deploy step routes the canary tag back to 0% (all
+# traffic stays/returns to the previous revision) and fails loudly.
+#
+# Required repo secrets:
+#   - GCP_SA_KEY      service-account JSON key with Cloud Run admin +
+#                     Storage/Artifact Registry push
+#   - GCP_PROJECT_ID  the GCP project hosting the nodebench-server service
+
+on:
+  workflow_dispatch:
+    inputs:
+      canary_percent:
+        description: "Percent of traffic to route to the new revision during the bake"
+        required: false
+        default: "10"
+      bake_seconds:
+        description: "How long the canary serves traffic before promotion"
+        required: false
+        default: "300"
+      region:
+        description: "Cloud Run region"
+        required: false
+        default: "us-central1"
+      service:
+        description: "Cloud Run service name"
+        required: false
+        default: "nodebench-server"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: worker-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      REGION: ${{ github.event.inputs.region }}
+      SERVICE: ${{ github.event.inputs.service }}
+      CANARY_PERCENT: ${{ github.event.inputs.canary_percent }}
+      BAKE_SECONDS: ${{ github.event.inputs.bake_seconds }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Sanity-check secrets
+        run: |
+          if [ -z "${{ secrets.GCP_SA_KEY }}" ] || [ -z "${{ secrets.GCP_PROJECT_ID }}" ]; then
+            echo "::error::GCP_SA_KEY / GCP_PROJECT_ID repo secrets are missing — cannot deploy the worker."
+            exit 1
+          fi
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and push image
+        run: |
+          gcloud auth configure-docker gcr.io --quiet
+          IMAGE="gcr.io/${{ secrets.GCP_PROJECT_ID }}/nodebench-server:${GITHUB_SHA}"
+          docker build -f workers/node/Dockerfile -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Deploy revision with no traffic
+        id: deploy
+        run: |
+          TAG="canary-${GITHUB_SHA::8}"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          # Env vars (GEMINI_API_KEY etc.) carry over from the serving
+          # revision's template; only the image changes here.
+          gcloud run deploy "$SERVICE" \
+            --image "$IMAGE" \
+            --region "$REGION" \
+            --platform managed \
+            --no-traffic \
+            --tag "$TAG" \
+            --quiet
+
+      - name: Smoke-check canary revision (0% traffic)
+        run: |
+          CANARY_URL=$(gcloud run services describe "$SERVICE" --region "$REGION" --format=json \
+            | jq -r --arg tag "$TAG" '.status.traffic[] | select(.tag == $tag) | .url')
+          if [ -z "$CANARY_URL" ] || [ "$CANARY_URL" = "null" ]; then
+            echo "::error::Could not resolve tagged canary URL for $TAG"
+            exit 1
+          fi
+          echo "CANARY_URL=$CANARY_URL" >> "$GITHUB_ENV"
+          bash scripts/worker-health-check.sh "$CANARY_URL"
+
+      - name: Shift canary traffic
+        id: canary_traffic
+        run: |
+          gcloud run services update-traffic "$SERVICE" --region "$REGION" \
+            --to-tags "$TAG=$CANARY_PERCENT" --quiet
+          echo "Canary $TAG now serving ${CANARY_PERCENT}% of traffic"
+
+      - name: Bake, then re-check under traffic
+        run: |
+          echo "Baking for ${BAKE_SECONDS}s at ${CANARY_PERCENT}% traffic..."
+          sleep "$BAKE_SECONDS"
+          bash scripts/worker-health-check.sh "$CANARY_URL"
+
+      - name: Promote to 100%
+        run: |
+          gcloud run services update-traffic "$SERVICE" --region "$REGION" \
+            --to-latest --quiet
+          echo "## Worker canary promoted to 100% ✅ ($TAG)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Roll back canary
+        if: failure() && steps.deploy.outcome == 'success'
+        run: |
+          gcloud run services update-traffic "$SERVICE" --region "$REGION" \
+            --to-tags "$TAG=0" --quiet
+          echo "::error::Worker canary $TAG FAILED verification — traffic routed back to previous revision (canary at 0%)."
+          echo "## Worker canary ROLLED BACK ❌ ($TAG)" >> "$GITHUB_STEP_SUMMARY"

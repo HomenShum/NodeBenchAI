@@ -6,6 +6,20 @@ Entity intelligence for any company, market, or question.
 **npm:** `npx nodebench-mcp` / `npx nodebench-mcp-power` / `npx nodebench-mcp-admin`  
 **GitHub:** [HomenShum/nodebench-ai](https://github.com/HomenShum/nodebench-ai)
 
+**New to this codebase?** Read [`docs/START_HERE.md`](docs/START_HERE.md) — it
+follows one user's question through the code in the order it actually runs, then
+[`.tours/`](.tours/) walks the same path inside the live source in VS Code
+(CodeTour extension). [`docs/codebase/`](docs/codebase/) has the stack,
+structure, conventions, integrations, testing and the honest list of known
+problems. [`docs/SIMPLIFICATION_REPORT.md`](docs/SIMPLIFICATION_REPORT.md)
+records what was measured and removed, with the command for every number.
+
+![Live graph rail replaying a committed eval transcript: 34 entities stream in, then a hover isolates one node's neighbourhood and a drag repositions it](demo/graph-rail/graph-rail-clip.gif)
+
+*Recorded from `demo/graph-rail/` replaying a committed eval transcript (persona-episode pack, 2026-01-05) through `session.observe()` — recorded events replayed, not re-verified; every label is a literal fixture substring, edges are traversal history, never evidence. Regenerate: `node scripts/record-graph-rail-clip.mjs`.*
+
+![NodeBench AI Home surface: research prompt with Quick answer / Deep research modes, and reusable public research cards below](.qa/evidence/2026-07-15-runtime-grounded-control-focus/baseline/exact-surfaces/home-desktop-light.png)
+
 ## Product
 
 NodeBench is a research and reporting product built around five user-facing
@@ -32,6 +46,57 @@ They need a system that can:
 - watch for meaningful change later
 - improve the next run from what it learned
 
+## Pending Release Candidate: Runtime-Grounded Control Focus
+
+This candidate is not yet merged or deployed. It narrows the reachable product
+to controls backed by a real runtime capability and makes unavailable state
+explicit:
+
+- Agents keeps ask, explicit swarm launch, active work, approvals, sources,
+  traces, receipts, exports, and provenance while removing projected metrics,
+  synthetic fallbacks, duplicate actions, and local-only controls.
+- Generated code remains copyable and exportable but never executes inside the
+  signed-in app origin. Runtime cards accept successful structured tool output,
+  not assistant prose, guessed search fields, or incomplete/error states.
+- Canonical owner-scoped streaming remains; an unreferenced bearer-stream
+  component and HTTP route were removed instead of retained as a second path.
+- Home, Reports, Chat, Inbox, and Me use live runtime data, owner-scoped where
+  private, or honest loading, empty, not-found, and unmeasured states instead of
+  reachable product fixtures. Desktop and mobile now share the same Inbox and
+  Me component trees; duplicate queue/profile renders and their hard-coded plan,
+  usage, connector, and local-draft projections were deleted.
+- Pipeline launches and schedules require an authenticated server identity,
+  while guest history, detail, bundle, stream, and evaluation reads require an
+  anonymous-session possession credential. Browser-supplied owner keys are no
+  longer an authority boundary, and trusted cron or MCP work stays on internal
+  contracts.
+- Authenticated launches consume durable per-owner admission: four units per
+  ten minutes and thirty per day, with composed runs costing two units. Server
+  input bounds and per-owner schedule caps close the remaining cost-abuse path.
+- Fresh pipeline attempts and recurring schedule occurrences are isolated by
+  durable attempt identities and execution-generation fences, so retries can
+  resume the same attempt without stale or overlapping workers rewriting it.
+- Research distinguishes sources consulted from citations actually bound in
+  the synthesis. Missing, malformed, or unbound evidence cannot be promoted to
+  a verified claim, and chat no longer injects citation markers into prose.
+- Operator telemetry and maintenance are deferred until deliberate disclosure
+  and require server-confirmed operator access.
+- Task sessions, traces, steps, evidence, approvals, swarms, and operational
+  history are owner-scoped. The unreachable parallel timeline, kanban, hook,
+  and public orchestrator were removed; due diligence retains only a bounded,
+  owner-checked internal task substrate. Unused public due-diligence, investor,
+  demo, and evaluation entrypoints were internalized or removed, and retained
+  job, branch, memo, and catch-path writes require the exact owner chain. Raw
+  orchestrator writes use internal contracts, MCP document and spreadsheet
+  operations require exact object ownership, and a TRACE completion fails
+  closed unless its receipt persists with an exact output hash.
+
+Release evidence is intentionally pending. The source PR must merge through the
+required CI gates first; a follow-up evidence-seal PR must then record the
+canonical squash SHA, exact-revision checks, preview assertions, production
+deployment revision, and direct production browser verification before this
+section can be described as shipped.
+
 ## What Shipped
 
 - five-surface web app across `Home`, `Reports`, `Chat`, `Inbox`, and `Me`
@@ -52,6 +117,50 @@ They need a system that can:
   distribution lanes
 - builder-facing Oracle, dogfood, eval, replay, and control-plane
   infrastructure
+
+## Live graph rail on a LIVE Convex backend
+
+### The rail inside the product UI
+
+![EntityProfilePage at /#entity/Anthropic loading against a live Convex dev deployment: the Live Graph rail populates reactively from the page's own queries, then grows by one node on camera when a real storeEntityContext write lands](demo/graph-rail-live/product-rail-live.gif)
+
+*The rail lives in the real product page —
+`apps/web/src/features/research/components/EntityGraphRail.tsx`, mounted in
+`EntityProfilePage` (`/#entity/<name>`, the grammar digest links emit). It is
+fed by the SAME reactive queries the page already holds
+(`entityContexts.getEntityContext`, `relationshipGraph.getEntityGraph`,
+`adaptiveEntityQueries.getAdaptiveProfile`) — zero new subscriptions. Counts
+stay undefined and every edge is traversal: research prose measures nothing.
+Regenerate: `node demo/graph-rail-live/record-product-rail.mjs` (exits
+nonzero if the rail is missing, stays under 4 nodes, or fails to grow after
+the live write). See `docs/GRAPH_INTEGRATION.md` for the event taxonomy.*
+
+### The standalone live viewer
+
+![The rail at zero, then NodeBench's real storeEntityContext mutations landing on a live dev deployment, the rail populating reactively over WebSocket to 12 entities](demo/graph-rail-live/live-convex-rail.gif)
+
+*No replay file: `demo/graph-rail-live/` subscribes to the real
+`domains/knowledge/entityContexts:getEntityContext` query on an isolated dev
+deployment, and the repo's own seed script writes through the real mutation
+on camera. All edges traversal — research prose is not a measurement.
+Regenerate: `node demo/graph-rail-live/record-live.mjs <dev-deployment-url>`
+(see the script header for the one-time deployment setup).*
+
+## Live graph rail (recorded events)
+
+![Live graph rail replaying recorded research events](demo/graph-rail/graph-rail.png)
+
+`demo/graph-rail/` feeds the [NodeGraph Live](https://github.com/HomenShum/NodeGraph)
+renderer (vendored at `vendor/nodegraph-live/`, pending npm publish) with real
+entity-research events from a committed eval transcript
+(`benchmarks/history/archived-2026-q1/persona-episode-eval-pack-20260105-153100.json`)
+— it is a replay of recorded events, not a live agent run: every label is a
+verbatim string from that fixture, all counts render as unknown because the
+transcript holds no measured pair counts, and no assertion edges are drawn
+because no record carries a complete source receipt.
+`node scripts/capture-graph-rail.mjs` regenerates the capture and exits nonzero
+on an empty rail, any console error, or any rendered label that does not appear
+in the fixture.
 
 ## Hosted Public Research MCP
 
@@ -272,8 +381,8 @@ request justifies it.
 The detailed implementation, verification, and evaluation plan for this mode
 lives in:
 
-- [HARNESS_V2_PROPOSAL.md](./docs/architecture/HARNESS_V2_PROPOSAL.md)
-- [HARNESS_V2_BUILD_PLAN.md](./docs/architecture/HARNESS_V2_BUILD_PLAN.md)
+- [HARNESS_V2_PROPOSAL.md](./docs/archive/2026-q1/architecture-superseded/HARNESS_V2_PROPOSAL.md) (archived)
+- [HARNESS_V2_BUILD_PLAN.md](./docs/archive/2026-q1/architecture-superseded/HARNESS_V2_BUILD_PLAN.md) (archived)
 
 ## How The Five Pages Compound
 
@@ -379,7 +488,7 @@ Main tasks still to finish:
 - [ ] make `Home -> Reports -> Chat -> Inbox -> Me` behave like one continuous
       workflow instead of five adjacent surfaces
 - [ ] turn harness v1 into the clearer v2 shape described in
-      [HARNESS_V2_PROPOSAL](docs/architecture/HARNESS_V2_PROPOSAL.md)
+      [HARNESS_V2_PROPOSAL](docs/archive/2026-q1/architecture-superseded/HARNESS_V2_PROPOSAL.md)
 - [ ] ship `Layer 0` operator context so the system can learn useful workflow
       patterns without forcing a heavy onboarding flow
 - [ ] support permissioned transcript ingestion from NodeBench chats first, then
@@ -432,15 +541,27 @@ npx nodebench-mcp
 ```bash
 git clone https://github.com/HomenShum/nodebench-ai.git
 cd nodebench-ai
+nvm use            # Node version from .nvmrc
 npm install
-cp .env.example .env.local
 
-# Frontend + Convex + voice server
-npm run dev
+# Frontend only. This is the honest first run: it starts, and every product
+# route shows the "Convex backend not configured" card until you supply a real
+# VITE_CONVEX_URL. That card is the designed state, not a failure.
+npx vite --port 5173
 
 # Production build
 npm run build
 ```
+
+`npm run dev` runs three processes in parallel (`vite`, `convex dev`,
+and the voice worker). Two of them block on credentials — `convex dev` wants an
+interactive Convex login and the voice worker wants `.env.local` — so it is not
+the command to start with on a fresh clone.
+
+`cp .env.example .env.local` on its own does **not** get you a working backend:
+the file ships `VITE_CONVEX_URL=https://your-project.convex.cloud`, which is a
+placeholder and is rejected on purpose (`apps/web/src/lib/convexUrl.ts`). Run
+`npx convex dev` to provision a real deployment, then put its URL there.
 
 ## Architecture
 
@@ -554,36 +675,36 @@ environments.
 
 ## Codebase map
 
-Top-3 levels, annotated. See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the
+Top-3 levels, annotated. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the
 pipeline diagram and [`docs/architecture/README.md`](docs/architecture/README.md)
 for the 13 canonical architecture docs.
 
 ```text
 nodebench-ai/
 ├── README.md                   ← you are here
-├── ARCHITECTURE.md             ← top-level pipeline diagram
 ├── CONTRIBUTING.md             ← contribution bar
 ├── CLAUDE.md                   ← Claude Code conventions for this repo
 ├── AGENTS.md                   ← agent methodology + eval bench
 ├── LICENSE                     ← MIT
 │
-├── src/                        ← React frontend (Vite)
-│   ├── features/               ← feature-first, 30 folders (Home · Reports · Chat · Inbox · Me · Workspace · entities · agents · …)
-│   │   └── <feature>/          ← views · components · hooks · lib · __tests__ (colocated)
-│   ├── shared/                 ← shared UI primitives, hooks, utils
-│   ├── lib/                    ← registry, analytics, error reporting
-│   └── layouts/                ← shell + cockpit + public
+├── apps/
+│   └── web/src/                ← React frontend (Vite)
+│       ├── features/           ← feature-first (Home · Reports · Chat · Inbox · Me · Workspace · entities · agents · …)
+│       │   └── <feature>/      ← views · components · hooks · lib · __tests__ (colocated)
+│       ├── shared/             ← shared UI primitives, hooks, utils
+│       ├── lib/                ← registry, analytics, error reporting
+│       └── layouts/            ← shell + cockpit + public
 │
-├── server/                     ← Node runtime (Express + MCP gateway)
+├── workers/node/               ← Node runtime (Express + MCP gateway)
 │   ├── pipeline/               ← agent harness runtime + diligence blocks
 │   ├── routes/                 ← HTTP routes (search, harness, founder episodes)
 │   ├── mcpGateway.ts           ← WebSocket MCP gateway
 │   └── services/               ← shared services
 │
-├── convex/                     ← Convex backend
-│   ├── domains/                ← 19 domain folders (agents · product · research · founder · search · …)
+├── backend/convex/             ← Convex backend
+│   ├── domains/                ← domain folders (agents · product · research · founder · search · …)
 │   ├── schema.ts               ← database schema (includes agentScratchpads)
-│   └── crons.ts                ← scheduled jobs
+│   └── crons/                  ← scheduled jobs
 │
 ├── packages/
 │   ├── mcp-local/              ← the published nodebench-mcp npm package (MIT)
@@ -599,6 +720,7 @@ nodebench-ai/
 │
 ├── docs/
 │   ├── README.md               ← docs tree map
+│   ├── ARCHITECTURE.md         ← top-level pipeline diagram
 │   ├── ONBOARDING.md           ← 30-minute new-contributor path
 │   ├── architecture/           ← 13 canonical specs + plans/ + README index
 │   ├── agents/                 ← agent docs + bootstrap configs
@@ -609,18 +731,16 @@ nodebench-ai/
 │   ├── qa/                     ← QA protocols
 │   └── archive/                ← superseded content, provenance-only
 │
-├── tests/
-│   ├── e2e/                    ← Playwright end-to-end
-│   └── fixtures/               ← shared fixtures
+├── evals/
+│   └── e2e/                    ← end-to-end eval suites
 │
 ├── scripts/                    ← dogfood, eval harness, one-offs
-├── public/                     ← static assets served by Vite + Vercel
-└── vendor/                     ← third-party references
+└── public/                     ← static assets served by Vite + Vercel
 ```
 
 ## Related Docs
 
-**Start here:** [`docs/ONBOARDING.md`](docs/ONBOARDING.md) · [`ARCHITECTURE.md`](ARCHITECTURE.md) · [`docs/architecture/README.md`](docs/architecture/README.md)
+**Start here:** [`docs/ONBOARDING.md`](docs/ONBOARDING.md) · [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/architecture/README.md`](docs/architecture/README.md)
 
 The 13 canonical architecture docs are organized in 4 tiers. See [`docs/architecture/README.md`](docs/architecture/README.md) for the indexed map:
 
@@ -692,11 +812,11 @@ query / capture
 | Minimum P0 suite | 30 cases |
 | Coverage categories | 11 |
 | Score dimensions | 12 |
-| Validator | `src/features/evaluation/data/nodebenchWorkflowEvalBank.test.ts` |
-| Latest local check | `npx vitest run src/features/evaluation/data/nodebenchWorkflowEvalBank.test.ts` -> 4/4 passed |
+| Validator | `apps/web/src/features/evaluation/data/nodebenchWorkflowEvalBank.test.ts` |
+| Latest local check | `npx vitest run apps/web/src/features/evaluation/data/nodebenchWorkflowEvalBank.test.ts` -> 4/4 passed |
 
 The eval bank lives in
-[`src/features/evaluation/data/nodebenchWorkflowEvalBank.ts`](src/features/evaluation/data/nodebenchWorkflowEvalBank.ts).
+[`apps/web/src/features/evaluation/data/nodebenchWorkflowEvalBank.ts`](apps/web/src/features/evaluation/data/nodebenchWorkflowEvalBank.ts).
 
 ### Two-Layer Judge Architecture
 

@@ -1,0 +1,13 @@
+{
+  "schema": "nodebench-ui-contract-v1",
+  "capturedAt": "2026-07-17T21:44:53Z",
+  "slice": "ember-landing",
+  "app": "nodebench-ai (decision workspace landing, /redesign/chat)",
+  "notes": "Signature landing composition: 'Ember threads' — abstract source nodes whose hairline threads converge past the SVG floor into the composer dock, giving form to the product truth stated by the new tagline 'Answers with receipts.' Headline lifted to display scale (clamp 28-40px, -0.02em). Motion identity: one easing (--rd-ease-settle cubic-bezier(.22,1,.36,1)), staggered thread draw-in (110ms steps, 840ms) + node bloom, then a 12s near-imperceptible drift; composer focus warms the constellation (0.5 -> 0.85 opacity). prefers-reduced-motion flattens ALL of it to the static composition — verified: computed animationName 'none' on threads and container (motion-reduced-motion-static.png). Deterministic node geometry (no randomness) keeps screenshots replay-stable. Mobile prunes the two low side nodes and halves constellation opacity. Filmstrip frames: motion-frame-{0ms,380ms,1280ms}.png. Before = feat/chip-label-reduction head; surface contracts green on both sides.",
+  "pages": [
+    { "route": "/redesign/chat", "viewport": { "width": 1440, "height": 900 }, "theme": "dark", "before": "before-decision-workspace.png", "after": "after-decision-workspace.png" },
+    { "route": "/redesign/chat", "viewport": { "width": 1440, "height": 900 }, "theme": "light", "before": "before-decision-workspace-light.png", "after": "after-decision-workspace-light.png" },
+    { "route": "/redesign/chat", "viewport": { "width": 390, "height": 844 }, "theme": "dark", "before": "before-decision-workspace-mobile.png", "after": "after-decision-workspace-mobile.png" },
+    { "route": "/redesign/chat", "viewport": { "width": 390, "height": 844 }, "theme": "light", "before": "before-decision-workspace-mobile-light.png", "after": "after-decision-workspace-mobile-light.png" }
+  ]
+}

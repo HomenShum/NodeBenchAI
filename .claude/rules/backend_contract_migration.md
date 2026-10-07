@@ -1,9 +1,9 @@
 ---
 paths:
-  - "convex/**/*.ts"
-  - "server/**/*.ts"
+  - "backend/convex/**/*.ts"
+  - "workers/node/**/*.ts"
   - "public/proto/*.html"
-  - "src/**/*.{ts,tsx}"
+  - "apps/web/src/**/*.{ts,tsx}"
 related_: [live_dom_verification, agentic_reliability, owner_mode_end_to_end, completion_traceability]
 ---
 
@@ -41,7 +41,7 @@ contract, ship in **three PRs**, not one:
 - Old callers keep working; new callers can opt in.
 - For a rename: export both names, both pointing at the same handler.
   ```ts
-  // convex/events.ts
+  // backend/convex/events.ts
   const composeAnswerHandler = mutation({ /* ... */ });
   export const composeAnswer = composeAnswerHandler;
   export const askAgent = composeAnswerHandler;  // legacy alias
@@ -101,9 +101,9 @@ If verification fails at any step, do not proceed to the next step.
 
 ## Contract path discipline (added 2026-05-27)
 
-**Every Convex contract MUST specify the deployed path as `<filename>:<exportName>`, not just the export name.** Convex resolves paths by filename — putting `requestSignInLink` in `convex/users.ts` deploys it at `users:requestSignInLink`, not `events:requestSignInLink`, regardless of what the contract doc says.
+**Every Convex contract MUST specify the deployed path as `<filename>:<exportName>`, not just the export name.** Convex resolves paths by filename — putting `requestSignInLink` in `backend/convex/users.ts` deploys it at `users:requestSignInLink`, not `events:requestSignInLink`, regardless of what the contract doc says.
 
-Case study — PR #407/#409 hotfix (2026-05-27): the Step 8 contract specified mutations as `events:requestSignInLink` / `events:verifySignInToken` / `events:listMyEvents` to match the existing scratchnode namespace. The implementing agent put them in `convex/users.ts` (sensible — `events.ts` was overloaded). Deployed paths became `users:*`. Frontend and dogfood script kept calling `events:*` — silent function-not-found at runtime. Convex's HTTP API masks this as a generic "Server Error" message, hiding the mismatch from CI.
+Case study — PR #407/#409 hotfix (2026-05-27): the Step 8 contract specified mutations as `events:requestSignInLink` / `events:verifySignInToken` / `events:listMyEvents` to match the existing scratchnode namespace. The implementing agent put them in `backend/convex/users.ts` (sensible — `events.ts` was overloaded). Deployed paths became `users:*`. Frontend and dogfood script kept calling `events:*` — silent function-not-found at runtime. Convex's HTTP API masks this as a generic "Server Error" message, hiding the mismatch from CI.
 
 ### Required contract format
 
@@ -113,13 +113,13 @@ events:requestSignInLink({ email }) → { ok }
 
 // ✅ GOOD — deployed path is explicit
 users:requestSignInLink({ email }) → { ok }
-// implemented in convex/users.ts as `export const requestSignInLink = mutation({...})`
+// implemented in backend/convex/users.ts as `export const requestSignInLink = mutation({...})`
 ```
 
 If the contract author wants the path to be `events:*` despite the implementation living in another file, the implementing PR must add an explicit re-export:
 
 ```ts
-// convex/events.ts
+// backend/convex/events.ts
 export { requestSignInLink, verifySignInToken, listMyEvents } from "./users";
 ```
 

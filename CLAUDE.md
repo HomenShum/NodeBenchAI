@@ -4,7 +4,7 @@
 
 `AGENT_COORDINATION.md` (repo root) is the live ledger of **who is editing what right now**
 and **what backend contracts are ready to call**. Before editing a hot file
-(`public/proto/home-v5.html`, `convex/events.ts`, `convex/schema/eventsSchema.ts`, the
+(`public/proto/home-v5.html`, `backend/convex/events.ts`, `backend/convex/schema/eventsSchema.ts`, the
 ScratchNode e2e specs): scan its **Active claims**, **claim your region** before you start,
 **hand off** new backend contracts there, and **never** `convex deploy`/`deploy:prod`
 out-of-band to shared prod (declare new shared-table fields `v.optional` and announce them
@@ -81,9 +81,9 @@ NodeBench — the local-first operating-memory and entity-context layer for agen
 - `packages/mcp-local/src/index.ts` — Server entry, toolset gating, CLI args, CLI subcommands (discover/setup/workflow/quickref/call/demo)
 - `packages/mcp-local/src/tools/toolRegistry.ts` — 346-entry tool catalog with `nextTools` + `relatedTools` cross-refs, `computeRelatedTools()` auto-derivation, `hybridSearch` with offset pagination
 - `packages/mcp-local/src/tools/deepSimTools.ts` — 7 Deep Sim tools (simulation, postmortem, trajectory)
-- `server/mcpGateway.ts` — WebSocket MCP gateway with API key auth, rate limiting, idle timeout
-- `server/mcpAuth.ts` — API key validation and session management
-- `server/mcpSession.ts` — MCP session lifecycle over WebSocket
+- `workers/node/mcpGateway.ts` — WebSocket MCP gateway with API key auth, rate limiting, idle timeout
+- `workers/node/mcpAuth.ts` — API key validation and session management
+- `workers/node/mcpSession.ts` — MCP session lifecycle over WebSocket
 - `packages/mcp-local/src/tools/progressiveDiscoveryTools.ts` — `discover_tools` (pagination + expansion), `get_tool_quick_ref` (multi-hop BFS depth 1-3), `get_workflow_chain`
 - `packages/mcp-local/src/tools/skillUpdateTools.ts` — Skill freshness tracking
 
@@ -149,9 +149,9 @@ Modular rules live in `.claude/rules/` — each focused on one concern with `rel
 - Privacy mode: camera opt-in toggle, sanitizes entities when bystanders detected
 
 ## WebSocket MCP Gateway
-- `server/mcpGateway.ts` — WebSocket server, MCP protocol over WS
-- `server/mcpAuth.ts` — API key validation, rate limiting (100/min), idle timeout (30min)
-- `server/mcpSession.ts` — session lifecycle, tool dispatch
+- `workers/node/mcpGateway.ts` — WebSocket server, MCP protocol over WS
+- `workers/node/mcpAuth.ts` — API key validation, rate limiting (100/min), idle timeout (30min)
+- `workers/node/mcpSession.ts` — session lifecycle, tool dispatch
 - Health: `GET /health`, `GET /mcp/health`
 - Close codes: 4001 (auth), 4002 (rate limit), 4003 (timeout)
 - Client SDK: `packages/mcp-client/` — typed client for external consumers
@@ -160,7 +160,7 @@ Modular rules live in `.claude/rules/` — each focused on one concern with `rel
 - **5-surface cockpit**: `/?surface=ask` (landing), `/?surface=memo` (Decision Workbench), `/?surface=research`, `/?surface=editor` (Workspace), `/?surface=telemetry` (System)
 - `/deep-sim` (Decision Workbench), `/postmortem`, `/agent-telemetry`
 - `/developers`, `/api-keys` (API key management), `/api-docs`, `/pricing`, `/changelog`, `/legal`
-- **`/redesign*` — entity-intelligence redesign showcase** (Home/Reports/Chat/Inbox/Me/Workspace + mobile shell, scoped `[data-redesign]` tokens, parallel to cockpit; see [docs/architecture/REDESIGN_ROADMAP.md](docs/architecture/REDESIGN_ROADMAP.md) and [src/features/redesign/README.md](src/features/redesign/README.md))
+- **`/redesign*` — entity-intelligence redesign showcase** (Home/Reports/Chat/Inbox/Me/Workspace + mobile shell, scoped `[data-redesign]` tokens, parallel to cockpit; see [docs/architecture/REDESIGN_ROADMAP.md](docs/architecture/REDESIGN_ROADMAP.md) and [apps/web/src/features/redesign/README.md](apps/web/src/features/redesign/README.md))
 - Onboarding: 3-step wizard, localStorage flag
 - Demo: 8 pre-scripted conversations, voice CTA on landing, 12 voice aliases
 - Proof section: founder bio, system status, open source, try-before-trust
@@ -170,7 +170,7 @@ Modular rules live in `.claude/rules/` — each focused on one concern with `rel
 - `.windsurf/rules/*.md` — Windsurf AI (same set)
 
 ## LinkedIn post pipeline
-Key files: `convex/workflows/dailyLinkedInPost.ts`, `convex/domains/narrative/actions/competingExplanations.ts`, `convex/domains/narrative/validators.ts`, `convex/domains/social/linkedinPosting.ts`
+Key files: `backend/convex/workflows/dailyLinkedInPost.ts`, `backend/convex/domains/narrative/actions/competingExplanations.ts`, `backend/convex/domains/narrative/validators.ts`, `backend/convex/domains/social/linkedinPosting.ts`
 
 ### CRITICAL: LinkedIn API posting rules
 - **Parentheses `()` silently truncate posts** — LinkedIn's REST Posts API drops all content from the first `(` onwards with no error. `cleanLinkedInText()` auto-replaces `(` → `[` and `)` → `]`.

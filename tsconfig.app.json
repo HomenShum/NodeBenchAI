@@ -24,12 +24,15 @@
 
     /* Import paths */
     "paths": {
-      "@/*": ["./src/*"],
-      "@features/*": ["./src/features/*"],
-      "@shared/*": ["./src/shared/*"],
-      "@shared/ui/*": ["./src/shared/ui/*"]
+      "@/*": ["./apps/web/src/*"],
+      "@features/*": ["./apps/web/src/features/*"],
+      "@shared/*": ["./apps/web/src/shared/*"],
+      "@shared/ui/*": ["./apps/web/src/shared/ui/*"],
+      "@convex/*": ["./backend/convex/*"],
+      "@vendor/*": ["./vendor/*"],
+      "shared/*": ["./shared/*"]
     }
   },
-  "include": ["src"],
-  "exclude": ["convex", "convex/**/*", "node_modules"]
+  "include": ["apps/web/src"],
+  "exclude": ["backend/convex", "backend/convex/**/*", "node_modules"]
 }

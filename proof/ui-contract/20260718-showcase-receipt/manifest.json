@@ -1,0 +1,10 @@
+{
+  "schema": "nodebench-ui-contract-v1",
+  "capturedAt": "2026-07-18T00:45:00Z",
+  "slice": "showcase-receipt",
+  "app": "nodebench-ai (landing example destination, /redesign/chat)",
+  "notes": "The landing's one-click answered example now lands on a showcase-grade receipt instead of yesterday's QA-run prompt. New receipt /r/42c0i81fzxr0 was minted through the REAL pipeline (chatRuns:mintShowcaseRun, internalMutation invoked via the sanctioned npx-convex-run deploy-key path, founder-owned, deep tier): 'Compare Anthropic and OpenAI on enterprise agent strategy...' - Deep dive, 5 sources, 24.0s, <$0.01, full research-run stages and runtime board, carried into a live composer. Nothing fabricated. after-click-through-verified.png is the actual click destination captured post-swap (dest URL asserted = /r/42c0i81fzxr0).",
+  "pages": [
+    { "route": "/redesign/chat -> example click", "viewport": { "width": 1440, "height": 900 }, "theme": "dark", "before": "before-example-destination-qa-receipt.png", "after": "after-example-destination-showcase.png" }
+  ]
+}

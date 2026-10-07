@@ -1,0 +1,80 @@
+"use node";
+
+import { createHash } from "node:crypto";
+import { v } from "convex/values";
+import { internalAction } from "../../_generated/server";
+import { internal } from "../../_generated/api";
+import { FALLBACK_MODEL, getModelSpec } from "../agents/mcp_tools/models/modelResolver";
+import { canonicalSourcingValue, parseSourcingInput, sourcingDraftSchema, sourcingInstructions, validateSourcingDraft, SOURCING_MAX_BYTES, SOURCING_MAX_OUTPUT_TOKENS, SOURCING_PROVIDER_TIMEOUT_MS } from "./mcpSourcingContract";
+
+const hash = (value: unknown) => createHash("sha256").update(canonicalSourcingValue(value)).digest("hex");
+const task = internal.domains.operations.taskManager.mutations;
+
+export const generate = internalAction({
+  args: { userId: v.string(), requestId: v.string(), projectId: v.string(), expectedRevision: v.number(), inputHash: v.string(), inputJson: v.string() },
+  handler: async (ctx, args) => {
+    if (!/^[a-zA-Z0-9_-]{1,128}$/.test(args.requestId) || !/^[a-zA-Z0-9_-]{1,128}$/.test(args.projectId) || !Number.isInteger(args.expectedRevision) || args.expectedRevision < 1 || args.expectedRevision > 256 || !/^[a-f0-9]{64}$/.test(args.inputHash)) throw new Error("SOURCING_REQUEST_SCHEMA");
+    if (!args.userId || args.userId !== process.env.MCP_SERVICE_USER_ID) throw new Error("SOURCING_OWNER_MISMATCH");
+    const input = parseSourcingInput(args.inputJson);
+    if (hash({ projectId: args.projectId, expectedRevision: args.expectedRevision, input }) !== args.inputHash) throw new Error("SOURCING_INPUT_HASH_MISMATCH");
+    const apiKey = process.env.OPENAI_API_KEY;
+    const modelSpec = getModelSpec(FALLBACK_MODEL);
+    if (!apiKey || modelSpec.provider !== "openai" || !modelSpec.capabilities.structuredOutputs) throw new Error("SOURCING_PROVIDER_UNCONFIGURED");
+    const model = modelSpec.sdkId;
+    const requestBody = JSON.stringify({ model, store: false, max_output_tokens: SOURCING_MAX_OUTPUT_TOKENS, instructions: sourcingInstructions, input: canonicalSourcingValue(input), text: { format: { type: "json_schema", name: "sourcing_draft", strict: true, schema: sourcingDraftSchema } } });
+    if (Buffer.byteLength(requestBody, "utf8") > SOURCING_MAX_BYTES) throw new Error("SOURCING_INPUT_LIMIT");
+    const run = await ctx.runMutation(internal.domains.mcp.mcpExecutionTraceEndpoints.mcpStartExecutionRun, {
+      userId: args.userId, title: "Prepare a sourcing draft for owner review", workflowName: "sourcing-specification-draft", type: "agent", visibility: "private",
+      description: "Generate an unverified proposal from supplied evidence. Completion does not approve a specification, supplier, sample or order.",
+      metadata: { requestId: args.requestId, projectId: args.projectId, expectedRevision: args.expectedRevision, inputHash: args.inputHash, requestedAlias: FALLBACK_MODEL, model, reviewRequired: true },
+    });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const controller = new AbortController();
+    try {
+      await ctx.runMutation(task.recordStepForService, {
+        userId: args.userId, traceId: run.traceId, stage: "ingest", type: "task_started", title: "Bound supplied evidence to this draft attempt",
+        tool: "mcpGenerateSourcingDraft", action: "bind-input", target: args.projectId, resultSummary: "Untrusted source data received; no source or requirement is certified.",
+        metadata: { requestId: args.requestId, inputHash: args.inputHash, expectedRevision: args.expectedRevision },
+      });
+      timer = setTimeout(() => controller.abort(), SOURCING_PROVIDER_TIMEOUT_MS);
+      const response = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST", redirect: "error", signal: controller.signal,
+        headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+        body: requestBody,
+      });
+      if (!response.ok) { await response.body?.cancel(); throw new Error("SOURCING_PROVIDER_FAILURE"); }
+      if (!response.body) throw new Error("SOURCING_PROVIDER_EMPTY");
+      let bytes = 0; const buffer = Buffer.alloc(SOURCING_MAX_BYTES);
+      for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
+        if (bytes + chunk.byteLength > SOURCING_MAX_BYTES) { controller.abort(); throw new Error("SOURCING_MODEL_LIMIT"); }
+        buffer.set(chunk, bytes); bytes += chunk.byteLength;
+      }
+      clearTimeout(timer); timer = undefined;
+      const result = JSON.parse(buffer.subarray(0, bytes).toString("utf8"));
+      if (result?.status !== "completed" || !Array.isArray(result.output)) throw new Error("SOURCING_MODEL_INCOMPLETE");
+      // External JSON is untyped here: inspect only discriminated message fields,
+      // then validate the complete draft before any model content is accepted.
+      const content = result.output.filter((item: any) => item?.type === "message").flatMap((item: any) => Array.isArray(item.content) ? item.content : []);
+      if (content.some((item: any) => item?.type === "refusal")) throw new Error("SOURCING_MODEL_REFUSAL");
+      const output = content.filter((item: any) => item?.type === "output_text").map((item: any) => item.text).join("");
+      const draft = validateSourcingDraft(JSON.parse(output));
+      const outputHash = hash(draft);
+      const usage = result.usage && [result.usage.input_tokens, result.usage.output_tokens, result.usage.total_tokens].every((n: unknown) => Number.isInteger(n) && Number(n) >= 0 && Number(n) <= 200_000) && result.usage.input_tokens + result.usage.output_tokens === result.usage.total_tokens
+        ? { input: result.usage.input_tokens, output: result.usage.output_tokens, total: result.usage.total_tokens } : undefined;
+      if (typeof result.model !== "string" || !result.model.trim() || result.model.length > 200) throw new Error("SOURCING_MODEL_SCHEMA");
+      const actualModel = result.model;
+      await ctx.runMutation(task.recordStepForService, {
+        userId: args.userId, traceId: run.traceId, stage: "propose", type: "render_generated", title: "Prepare the schema-valid proposal",
+        tool: "openai.responses", action: "generate-draft", target: args.projectId, resultSummary: "Five draft fields validated. Every requirement remains model-suggestion-unverified; the owner must accept or reject locally.",
+        metadata: { requestId: args.requestId, inputHash: args.inputHash, outputHash, model: actualModel, usage: usage ?? null, reviewRequired: true },
+      });
+      await ctx.runMutation(task.completeExecutionRunForService, { userId: args.userId, traceId: run.traceId, status: "completed", tokenUsage: usage });
+      return { draft, receipt: { schemaVersion: "nodebench.sourcing-draft/v1", requestId: args.requestId, projectId: args.projectId, expectedRevision: args.expectedRevision, inputHash: args.inputHash, outputHash, traceId: run.traceId, sessionId: run.sessionId, publicTraceId: run.publicTraceId, model: actualModel, usage: usage ?? null, reviewRequired: true } };
+    } catch (error) {
+      const code = error instanceof Error && /^SOURCING_[A-Z_]+$/.test(error.message) ? error.message : controller.signal.aborted ? "SOURCING_MODEL_TIMEOUT" : "SOURCING_DRAFT_FAILED";
+      try { await ctx.runMutation(task.completeExecutionRunForService, { userId: args.userId, traceId: run.traceId, status: "error", errorMessage: code }); }
+      catch { throw new Error("SOURCING_AUDIT_FAILURE"); }
+      throw new Error(code);
+    } finally { if (timer) clearTimeout(timer); }
+  },
+});

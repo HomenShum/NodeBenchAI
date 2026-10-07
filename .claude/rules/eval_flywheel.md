@@ -3,7 +3,7 @@
 Continuous self-improving eval loop for the NodeBench search pipeline. The system judges itself, diagnoses failures, fixes them, and loops until 100%.
 
 ## When to activate
-- After any change to `server/routes/search.ts` or search-related tools
+- After any change to `workers/node/routes/search.ts` or search-related tools
 - User says "run eval", "flywheel", "judge loop", "reach 100%"
 - After completing any implementation sprint touching search, entity enrichment, or result rendering
 - Automatically after deploying search changes
@@ -109,10 +109,10 @@ Always do deep research before declaring a blocker permanent. The system should 
 ## Key files
 - `packages/mcp-local/src/benchmarks/searchQualityEval.ts` — Eval harness (100+ queries, Gemini judge)
 - `packages/mcp-local/src/benchmarks/llmJudgeEval.ts` — Chained pipeline eval (tool A → tool B)
-- `server/routes/search.ts` — Search route with 4-layer grounding pipeline
+- `workers/node/routes/search.ts` — Search route with 4-layer grounding pipeline
 - `packages/mcp-local/src/tools/entityEnrichmentTools.ts` — Entity enrichment MCP tools
 - `packages/mcp-local/src/tools/webTools.ts` — web_search implementation
-- `convex/tools/media/linkupSearch.ts` — Linkup search (Convex-side)
+- `backend/convex/tools/media/linkupSearch.ts` — Linkup search (Convex-side)
 
 ## Anti-patterns
 - Declaring done at 80% because "the remaining 20% is hard"

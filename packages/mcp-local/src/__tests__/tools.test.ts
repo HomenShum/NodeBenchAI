@@ -158,9 +158,9 @@ async function getAllImplementedToolNames(): Promise<Set<string>> {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("Static: tool structure", () => {
-  it("should have 354 tools total", () => {
+  it("should have 355 tools total", () => {
     // domain tools + meta tools + progressive discovery tools, including the v3 MCP discovery surface with get_tool_graph.
-    expect(allTools.length).toBe(354);
+    expect(allTools.length).toBe(355);
   });
 
   it("every tool has name, description, inputSchema, handler", () => {

@@ -1,0 +1,77 @@
+{
+  "schema_version": "nodebench.activegraph.graph-hop-input.v1",
+  "case_id": "golden-selection-flip",
+  "determinism": {
+    "timestamp_iso": "2026-07-28t00:00:00z",
+    "parent_run_id": "01J00000000000000000000001",
+    "fork_run_id": "01J00000000000000000000002"
+  },
+  "query": {
+    "query_id": "q1",
+    "text": "Which candidate should the graph-hop policy select?"
+  },
+  "candidates": [
+    {
+      "candidate_id": "cand_a",
+      "label": "Semantic leader",
+      "semantic_score_bp": 9500,
+      "source_quality_bp": 8000,
+      "hop_path": [
+        {
+          "source_id": "query:q1",
+          "target_id": "evidence:semantic_a",
+          "evidence_id": "ev_a_query_signal",
+          "graph_score_bp": 3000
+        },
+        {
+          "source_id": "evidence:semantic_a",
+          "target_id": "candidate:cand_a",
+          "evidence_id": "ev_a_signal_candidate",
+          "graph_score_bp": 3000
+        }
+      ]
+    },
+    {
+      "candidate_id": "cand_b",
+      "label": "Graph leader",
+      "semantic_score_bp": 7000,
+      "source_quality_bp": 9000,
+      "hop_path": [
+        {
+          "source_id": "query:q1",
+          "target_id": "evidence:graph_b",
+          "evidence_id": "ev_b_query_signal",
+          "graph_score_bp": 9500
+        },
+        {
+          "source_id": "evidence:graph_b",
+          "target_id": "candidate:cand_b",
+          "evidence_id": "ev_b_signal_candidate",
+          "graph_score_bp": 9500
+        }
+      ]
+    }
+  ],
+  "policies": {
+    "baseline": {
+      "policy_id": "semantic_v1",
+      "weights_bp": {
+        "semantic_score_bp": 8000,
+        "graph_score_bp": 1000,
+        "source_quality_bp": 1000
+      }
+    },
+    "variant": {
+      "policy_id": "graph_v1",
+      "weights_bp": {
+        "semantic_score_bp": 3000,
+        "graph_score_bp": 6000,
+        "source_quality_bp": 1000
+      }
+    }
+  },
+  "expected": {
+    "baseline_winner_id": "cand_a",
+    "variant_winner_id": "cand_b"
+  }
+}

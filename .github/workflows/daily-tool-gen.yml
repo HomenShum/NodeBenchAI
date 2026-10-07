@@ -80,7 +80,7 @@ jobs:
         if: steps.typecheck.outcome == 'success'
         working-directory: packages/mcp-local
         run: |
-          npx vitest run src/__tests__/tools.test.ts 2>&1 | tee /tmp/vitest-output.txt
+          npx vitest run apps/web/src/__tests__/tools.test.ts 2>&1 | tee /tmp/vitest-output.txt
           exit ${PIPESTATUS[0]}
 
       - name: Create pull request
@@ -129,7 +129,7 @@ jobs:
           ### Test Plan
           - Review the generated tool schema and handler logic
           - Verify the tool follows existing patterns
-          - Run `npx vitest run src/__tests__/tools.test.ts` locally
+          - Run `npx vitest run apps/web/src/__tests__/tools.test.ts` locally
           - Test via stdio: `echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"${TOOL_NAME}","arguments":{}}}' | node dist/index.js`
 
           ---

@@ -1,0 +1,13 @@
+{
+  "schema": "nodebench-ui-contract-v1",
+  "capturedAt": "2026-07-18T02:40:00Z",
+  "slice": "one-chat-interface",
+  "app": "nodebench-ai (flagship answer, /redesign/chat)",
+  "notes": "Founder overrule: the flagship answer is chat-shaped, not a memo document. ONE ChatAssistantMessage component now renders in BOTH the live ChatSurface and the ReproducibleChatPage replay, so the two-stack drift problem is structurally dead. Prose leads (no 'Short answer'/'Why useful' eyebrows); risks + next-action are quiet inline notes; Reasoning (research stages + trace + runtime board) and Sources (evidence rows with the 5 verification badges) collapse into the message, closed by default, each header carrying the ember tick. before-memo = origin/main same fixture (SHORT ANSWER / WHY USEFUL / EVIDENCE all always-open, memo document). after-chat = the new anatomy. Verified: tsc 0, 148 redesign+convex tests, build clean, 21 surface-contract tests. Adversarially verified by 4 independent skeptics vs the real diff: citation/probe binding byte-for-byte preserved (replay page GAINED interactivity), the dropped onBranch genuinely dead + onPin/onCompare activated from dead props into live buttons, honesty gates strengthened not weakened. One regression the skeptics caught and this slice fixes: emoji action icons (📌/⇄/↗) -> stroke-SVG ActionGlyph + guard test. One accepted tradeoff: citation hover no longer highlights the evidence row while Sources is collapsed (tooltip still shows quote+source; clicking a cite auto-opens Sources) — correct for a chat-shaped surface.",
+  "pages": [
+    { "route": "/redesign/chat?qaState=answer", "viewport": { "width": 1440, "height": 900 }, "theme": "dark", "before": "before-memo-desktop-dark.png", "after": "after-chat-desktop-dark.png" },
+    { "route": "/redesign/chat?qaState=answer (Reasoning + Sources expanded)", "viewport": { "width": 1440, "height": 900 }, "theme": "dark", "after": "after-chat-desktop-dark-expanded.png" },
+    { "route": "/redesign/chat?qaState=answer", "viewport": { "width": 1440, "height": 900 }, "theme": "light", "after": "after-chat-desktop-light.png" },
+    { "route": "/redesign/chat?qaState=answer", "viewport": { "width": 390, "height": 844 }, "theme": "dark", "after": "after-chat-mobile-dark.png" }
+  ]
+}

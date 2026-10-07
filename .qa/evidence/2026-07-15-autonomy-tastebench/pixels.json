@@ -1,0 +1,14 @@
+{
+  "repo": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai/.worktrees/prod-parity-runtime",
+  "url": "file:///D:/VSCode%20Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai/.worktrees/prod-parity-runtime/.qa/evidence/2026-07-15-autonomy-tastebench/mockup.html",
+  "outDir": "D:/VSCode Projects/cafecorner_nodebench/nodebench_ai4/nodebench-ai/.worktrees/prod-parity-runtime/.qa/evidence/2026-07-15-autonomy-tastebench/mockup-pixels",
+  "assert": ["Review each change", "Workspace", "TASTEBENCH", "OPERATIONAL FRICTION"],
+  "shots": [
+    { "name": "desktop-light", "viewport": { "width": 1440, "height": 900 }, "fullPage": true },
+    { "name": "desktop-dark", "viewport": { "width": 1440, "height": 900 }, "clicks": ["#theme"], "fullPage": true },
+    { "name": "tablet-light", "viewport": { "width": 834, "height": 1112 }, "fullPage": true },
+    { "name": "tablet-dark", "viewport": { "width": 834, "height": 1112 }, "clicks": ["#theme"], "fullPage": true },
+    { "name": "mobile-light", "viewport": { "width": 390, "height": 844 }, "fullPage": true, "reducedMotion": true },
+    { "name": "mobile-dark", "viewport": { "width": 390, "height": 844 }, "clicks": ["#theme"], "fullPage": true, "reducedMotion": true }
+  ]
+}

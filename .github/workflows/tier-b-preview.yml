@@ -1,7 +1,7 @@
 name: Tier B regression (preview)
 
 # The single highest-leverage check in this repo. Runs the full
-# Tier B Playwright suite (tests/e2e/exact-kit-parity-prod.spec.ts)
+# Tier B Playwright suite (evals/e2e/exact-kit-parity-prod.spec.ts)
 # against the Vercel PR preview URL BEFORE merge.
 #
 # Why this matters: A9 took 4 separate PRs to land on prod earlier
@@ -98,7 +98,7 @@ jobs:
           # tests, __tests__/__mocks__ fixtures, and *.stories never reach the Vercel
           # bundle, so a PR that ONLY touches them cannot change the preview — and
           # must NOT burn the ~10-min preview-resolve poll. Without this, a
-          # convex/__tests__/*.test.ts PR matches the broad `convex` path and waits
+          # backend/convex/__tests__/*.test.ts PR matches the broad `convex` path and waits
           # the full 10 min to skip-green (the "why is Tier B taking forever" case).
           SHIPPING=$(echo "$CHANGED" | grep -vE '(\.test\.[cm]?tsx?$|\.spec\.[cm]?tsx?$|(^|/)__tests__/|(^|/)__mocks__/|\.stories\.[cm]?tsx?$)' || true)
           if [ -z "$SHIPPING" ]; then
@@ -127,13 +127,17 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-          GITHUB_SHA: ${{ github.event.pull_request.head.sha || github.event.inputs.head_sha || github.sha }}
-          GITHUB_REF: ${{ github.event.pull_request.head.ref || github.event.inputs.head_ref || github.ref_name }}
+          # GITHUB_SHA and GITHUB_REF are reserved runner variables and cannot be
+          # overridden reliably. Keep the Vercel lookup inputs under distinct names.
+          VERCEL_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.inputs.head_sha || github.sha }}
+          VERCEL_HEAD_REF: ${{ github.event.pull_request.head.ref || github.event.inputs.head_ref || github.ref_name }}
           OVERRIDE_URL: ${{ github.event.inputs.preview_url }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [ -n "$OVERRIDE_URL" ]; then
             echo "Using override URL: $OVERRIDE_URL"
             echo "preview_status=ready" >> "$GITHUB_OUTPUT"
+            echo "preview_source=override" >> "$GITHUB_OUTPUT"
             echo "url=$OVERRIDE_URL" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -144,93 +148,119 @@ jobs:
           # Poll for up to ~10 min for a Vercel preview deployment matching this PR.
           #
           # The query strategy went through two iterations:
-          #   v1 (broken): filter by meta-githubCommitSha=$GITHUB_SHA. After
+          #   v1 (broken): filter by the runner's merge SHA. After
           #     update-branch / merge-commit injection, the SHA Vercel records
           #     can drift from the PR head SHA → false-fail timeouts.
-          #   v2 (this version): filter by meta-githubCommitRef=$GITHUB_REF
-          #     (branch name) which is stable across rebases/merges. Then among
-          #     deployments for the branch, prefer the one matching the exact
-          #     SHA, otherwise fall back to the most recent terminal-state one.
+          #   v2 (this version): filter by meta-githubCommitRef using the explicit
+          #     PR head ref, then require the deployment's metadata to match the
+          #     explicit PR head SHA exactly.
           #
-          # Three terminal states we look for:
-          #   READY    → preview is built, run Tier B against the URL
-          #   CANCELED → Vercel's `vercel-ignore-build.sh` decided this commit
-          #              has no servable change (CRLF-only renormalize PRs are
-          #              byte-equivalent to main on Linux). Skip Tier B — there
-          #              is nothing to test against a preview that doesn't exist
-          #              by design.
-          #   ERROR    → Vercel build failed. Surface as Tier B failure so the
-          #              upstream deploy issue isn't masked.
-          #
-          # If no terminal-state deployment for this branch exists after 10 min,
-          # we treat it as "Vercel never built anything for this branch" → skip
-          # green (matches Vercel's own ignore-build decision).
+          # Exact-head READY is preferred. An exact-head CANCELED build may reuse
+          # an ancestor READY deployment only after GitHub ancestry and complete
+          # Vercel-served tree-diff proofs. ERROR, API errors, and unresolved
+          # candidates still fail closed.
           deadline=$(( $(date +%s) + 600 ))
           # URL-encode the branch ref. Branches with "/" in the name (refactor/X,
           # fix/Y, test/Z) require encoding — without it, Vercel's API treats
           # the query as an empty match, returns no deployments, and the loop
-          # below burns the full 10-min deadline to skip-green. With encoding,
+          # below burns the full 10-min deadline before failing. With encoding,
           # the API returns the actual deployment within seconds.
           # (jq is preinstalled on ubuntu-latest GitHub runners.)
-          encoded_ref=$(printf '%s' "$GITHUB_REF" | jq -sRr @uri)
+          encoded_ref=$(printf '%s' "$VERCEL_HEAD_REF" | jq -sRr @uri)
           while [ "$(date +%s)" -lt "$deadline" ]; do
             # Query by branch name (stable) AND limit=20 to catch the latest few
             # deployments on this branch even if Vercel created multiple builds.
-            payload=$(curl -sS -H "Authorization: Bearer $VERCEL_TOKEN" \
+            payload=$(curl -fsS -H "Authorization: Bearer $VERCEL_TOKEN" \
               "https://api.vercel.com/v6/deployments?teamId=$VERCEL_TEAM_ID&projectId=$VERCEL_PROJECT_ID&meta-githubCommitRef=$encoded_ref&limit=20&target=preview")
-            result=$(GITHUB_SHA="$GITHUB_SHA" node -e "
+            result=$(VERCEL_HEAD_SHA="$VERCEL_HEAD_SHA" node -e "
               let s=''; process.stdin.on('data',c=>s+=c).on('end',()=>{
                 try {
                   const j = JSON.parse(s);
-                  const sha = process.env.GITHUB_SHA || '';
-                  const deployments = j.deployments || [];
-                  const isTerminal = (d) => {
-                    const st = d.readyState || d.state;
-                    return st === 'READY' || st === 'CANCELED' || st === 'ERROR';
-                  };
-                  // Prefer the deployment whose meta.githubCommitSha matches.
-                  // Otherwise pick the most-recent terminal deployment for the branch
-                  // (Vercel may have rebuilt with a different SHA after rebase/merge).
+                  const sha = process.env.VERCEL_HEAD_SHA || '';
+                  if (!Array.isArray(j.deployments)) {
+                    throw new Error(j.error?.message || 'deployments array missing');
+                  }
+                  const deployments = j.deployments;
                   const state = (d) => d.readyState || d.state;
-                  const exactReady = deployments.find(d => {
+                  const commitSha = (d) => {
                     const m = d.meta || {};
-                    return (m.githubCommitSha === sha || m.commitSha === sha) && state(d) === 'READY';
+                    return m.githubCommitSha || m.commitSha || '';
+                  };
+                  const exactReady = deployments.find(d => {
+                    return commitSha(d) === sha && state(d) === 'READY';
                   });
                   const exactError = deployments.find(d => {
-                    const m = d.meta || {};
-                    return (m.githubCommitSha === sha || m.commitSha === sha) && state(d) === 'ERROR';
+                    return commitSha(d) === sha && state(d) === 'ERROR';
                   });
-                  // If the latest exact SHA was ignored because it is docs-only
-                  // but the branch already has a READY preview from the previous
-                  // app commit, run against that preview instead of skipping.
-                  const branchReady = deployments.find(d => state(d) === 'READY');
                   const exactCanceled = deployments.find(d => {
-                    const m = d.meta || {};
-                    return (m.githubCommitSha === sha || m.commitSha === sha) && state(d) === 'CANCELED';
+                    return commitSha(d) === sha && state(d) === 'CANCELED';
                   });
-                  const branchError = deployments.find(d => state(d) === 'ERROR');
-                  const branchCanceled = deployments.find(d => state(d) === 'CANCELED');
-                  const dep = exactReady || exactError || branchReady || exactCanceled || branchError || branchCanceled;
+                  const latestReady = deployments.find(d =>
+                    state(d) === 'READY' && /^[0-9a-f]{40}$/i.test(commitSha(d)) && d.url
+                  );
+                  const dep = exactReady || exactError || exactCanceled;
                   if (dep) {
                     const st = state(dep);
                     if (st === 'READY') console.log('READY:https://' + dep.url);
+                    else if (st === 'CANCELED' && latestReady) {
+                      console.log('IGNORED|' + commitSha(latestReady) + '|https://' + latestReady.url);
+                    }
                     else if (st === 'CANCELED') console.log('CANCELED:vercel-marked-ignored');
                     else if (st === 'ERROR') console.log('ERROR:vercel-build-failed');
                   }
-                } catch(e) {}
+                } catch(e) {
+                  console.error('Invalid Vercel deployments response:', e instanceof Error ? e.message : e);
+                  process.exitCode = 2;
+                }
               });
-            ")
+            " <<< "$payload")
             if [[ "$result" == READY:* ]]; then
               url="${result#READY:}"
               echo "Preview ready: $url"
               echo "preview_status=ready" >> "$GITHUB_OUTPUT"
+              echo "preview_source=exact-head" >> "$GITHUB_OUTPUT"
               echo "url=$url" >> "$GITHUB_OUTPUT"
               exit 0
             fi
-            if [[ "$result" == CANCELED:* ]]; then
-              echo "::notice::Vercel marked this deploy as Ignored — vercel-ignore-build.sh decided no servable change. Skipping Tier B (no preview to test)."
-              echo "preview_status=skipped" >> "$GITHUB_OUTPUT"
+            if [[ "$result" == IGNORED\|* ]]; then
+              IFS='|' read -r _ candidate_sha candidate_url <<< "$result"
+              if [[ ! "$candidate_sha" =~ ^[0-9a-f]{40}$ ]] || [[ ! "$candidate_url" =~ ^https://[A-Za-z0-9.-]+\.vercel\.app/?$ ]]; then
+                echo "::error::Vercel returned an invalid equivalent-preview candidate."
+                exit 1
+              fi
+
+              # An ignored exact-head build may reuse a prior READY preview only
+              # when GitHub proves that deployment is an ancestor and a complete
+              # tree diff proves no Vercel-served path changed afterward.
+              relation=$(gh api "repos/$GITHUB_REPOSITORY/compare/$candidate_sha...$VERCEL_HEAD_SHA" --jq '.status')
+              if [[ "$relation" != "ahead" && "$relation" != "identical" ]]; then
+                echo "::error::Prior READY deployment $candidate_sha is not an ancestor of $VERCEL_HEAD_SHA."
+                exit 1
+              fi
+              git fetch --no-tags --depth=1 origin "$candidate_sha"
+              git fetch --no-tags --depth=1 origin "$VERCEL_HEAD_SHA"
+              if ! git diff --quiet "$candidate_sha" "$VERCEL_HEAD_SHA" -- \
+                src convex packages apps public server shared api \
+                scripts/vercel-build.sh vercel.json package.json package-lock.json \
+                tsconfig.json tsconfig.node.json vite.config.ts vite.config.mjs index.html; then
+                echo "::error::Exact head was ignored, but a Vercel-served path changed after READY deployment $candidate_sha."
+                git diff --name-only "$candidate_sha" "$VERCEL_HEAD_SHA" -- \
+                  src convex packages apps public server shared api \
+                  scripts/vercel-build.sh vercel.json package.json package-lock.json \
+                  tsconfig.json tsconfig.node.json vite.config.ts vite.config.mjs index.html | head -20
+                exit 1
+              fi
+
+              echo "::notice::Exact head was intentionally ignored; reusing ancestor READY preview $candidate_sha after a zero served-path diff proof."
+              echo "preview_status=ready" >> "$GITHUB_OUTPUT"
+              echo "preview_source=equivalent-ancestor" >> "$GITHUB_OUTPUT"
+              echo "reused_sha=$candidate_sha" >> "$GITHUB_OUTPUT"
+              echo "url=$candidate_url" >> "$GITHUB_OUTPUT"
               exit 0
+            fi
+            if [[ "$result" == CANCELED:* ]]; then
+              echo "::error::Vercel canceled the exact head and no equivalent ancestor READY preview was available."
+              exit 1
             fi
             if [[ "$result" == ERROR:* ]]; then
               echo "::error::Vercel preview build failed for this branch. Tier B can't run against a failed deploy. Investigate the Vercel build log."
@@ -238,13 +268,9 @@ jobs:
             fi
             sleep 15
           done
-          # No terminal-state deployment found for this branch after 10 min.
-          # Most likely: Vercel never built anything (vercel-ignore-build.sh
-          # filter or rate-limit). Treat as skip-green — same outcome as if
-          # Vercel had explicitly returned CANCELED.
-          echo "::notice::No Vercel preview deployment found for branch '$GITHUB_REF' after 10min. Treating as skip — Vercel did not build a preview (likely vercel-ignore-build.sh decided no servable change, or rate-limited)."
-          echo "preview_status=skipped" >> "$GITHUB_OUTPUT"
-          exit 0
+          # A build-relevant PR without an exact-head deployment is unverifiable.
+          echo "::error::No exact-head preview deployment found for branch '$VERCEL_HEAD_REF' at SHA '$VERCEL_HEAD_SHA' after 10min."
+          exit 1
 
       - name: Install Playwright browsers
         if: steps.preview.outputs.preview_status == 'ready'
@@ -254,17 +280,32 @@ jobs:
         if: always()
         run: |
           echo "preview_status=${{ steps.preview.outputs.preview_status || 'not_resolved' }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "preview_source=${{ steps.preview.outputs.preview_source || 'none' }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "reused_sha=${{ steps.preview.outputs.reused_sha || 'none' }}" >> "$GITHUB_STEP_SUMMARY"
           echo "preview_url=${{ steps.preview.outputs.url || 'none' }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Require resolved preview for shipping changes
+        if: always() && steps.relevant.outputs.has_relevant == 'true' && steps.preview.outputs.preview_status != 'ready'
+        run: |
+          echo "::error::Build-relevant change did not produce a real READY preview; Tier B fails closed."
+          exit 1
 
       - name: Run Tier B regression + one-flow regression against preview
         if: steps.preview.outputs.preview_status == 'ready'
         env:
           BASE_URL: ${{ steps.preview.outputs.url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
           echo "BASE_URL=$BASE_URL"
+          if [ -z "$VERCEL_AUTOMATION_BYPASS_SECRET" ]; then
+            echo "::error::VERCEL_AUTOMATION_BYPASS_SECRET is required to test the protected READY preview."
+            exit 1
+          fi
           # exact-kit-parity-prod: visual selector parity (per-PR canonical-component check)
           # one-flow-regression: full surface tour + A9 fallback + interactive chip behavior
-          npx playwright test tests/e2e/exact-kit-parity-prod.spec.ts tests/e2e/one-flow-regression.spec.ts --project=chromium --reporter=line
+          # ui-contract-runner: executes proof/ui-contract/surfaces/*.contract.json
+          #   (anchors, computed geometry, theme wiring, state copy) against the preview
+          npx playwright test evals/e2e/vercel-preview-security.spec.ts evals/e2e/exact-kit-parity-prod.spec.ts evals/e2e/one-flow-regression.spec.ts evals/e2e/ui-contract-runner.spec.ts --project=chromium --reporter=line
 
       - name: Upload Playwright artifacts on failure
         if: failure()
