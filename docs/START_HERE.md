@@ -5,6 +5,11 @@ presses Enter, and an answer streams back with sources under it. This page walks
 that one action through the code **in the order the machine runs it**, not in
 the order an architecture diagram would draw it.
 
+This walkthrough covers `/redesign/chat`; it is not a map of every public,
+Workspace, Node worker or MCP route. See the README's codebase map for those
+entry points. Coding agents also read [`AGENTS.md`](../AGENTS.md) and
+[`AGENT_COORDINATION.md`](../AGENT_COORDINATION.md) before shared-file edits.
+
 Read it top to bottom once. Then open `.tours/` in VS Code (CodeTour extension)
 and walk the same path inside the real files — the tour points at live source,
 so it cannot go stale the way a copied snippet can.
@@ -81,11 +86,10 @@ card with copy-paste remediation. Nothing partially mounts.
 **Calls next:** `RedesignShell` (`apps/web/src/features/redesign/RedesignShell.tsx`)
 
 **Why this exists**
-NodeBench deliberately has **one** working surface, not five. Home, Reports,
-Inbox and Me are states of the same conversation, reached with `?intent=`, not
-separate destinations. `App` is a plain if-ladder over `location.pathname` — there
-are no `<Route>` elements anywhere in this codebase, which is worth knowing
-before you go looking for them.
+The main-site root and retired product paths resolve to this conversation
+workspace. Reports, attention and account context use `?intent=` here; dedicated
+Workspace hosts and public delivery routes have separate branches in `App`.
+`App` selects this route with an if-ladder over `location.pathname`.
 
 **Core code**
 
@@ -352,8 +356,8 @@ silently truncated.
 **Calls next:** `buildPartialChatAnswer` → `ChatAssistantMessage`
 
 **Why this exists**
-This is the part most readers guess wrong. There is **no SSE endpoint, no
-WebSocket route, and no polling loop in this application's code.** The hook
+This is the part most readers guess wrong. On this chat path, there is **no custom SSE endpoint, WebSocket route, or
+polling loop between this browser hook and the backend.** The hook
 subscribes to two ordinary Convex queries; Convex re-runs them and pushes new
 results whenever the underlying rows change. The event rows written in Step 8
 *are* the stream.
@@ -472,6 +476,6 @@ moving any code either one points at.
   registry, so you would add the loop — model call, tool dispatch, result
   append, model call again — inside `runStreamingChat`, and every step still has
   to become an `appendEvent` row or it will not reach the screen.
-- **A new surface**: do not add a route. Add an `?intent=` value and handle it in
+- **A new context on this conversation surface**: add an `?intent=` value and handle it in
   `RedesignShell` / `ChatSurface`; the one-surface rule is enforced by
   `apps/web/src/features/redesign/lib/oneSurfaceRouting.ts` and its test.

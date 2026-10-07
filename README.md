@@ -19,8 +19,12 @@ Entity intelligence for any company, market, or question.
 **npm:** `npx nodebench-mcp` / `npx nodebench-mcp-power` / `npx nodebench-mcp-admin`  
 **GitHub:** [HomenShum/nodebench-ai](https://github.com/HomenShum/nodebench-ai)
 
-**New to this codebase?** Read [`docs/START_HERE.md`](docs/START_HERE.md) — it
-follows one user's question through the code in the order it actually runs, then
+**Developers and coding agents:** Read [`docs/START_HERE.md`](docs/START_HERE.md)
+for the first local start and one question's runtime path. Use
+[`docs/ONBOARDING.md`](docs/ONBOARDING.md) for orientation and
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for the contribution workflow. Agents read
+[`AGENTS.md`](AGENTS.md) and [`AGENT_COORDINATION.md`](AGENT_COORDINATION.md)
+before shared-file edits. Then
 [`.tours/`](.tours/) walks the same path inside the live source in VS Code
 (CodeTour extension). [`docs/codebase/`](docs/codebase/) has the stack,
 structure, conventions, integrations, testing and the honest list of known
@@ -753,7 +757,7 @@ nodebench-ai/
 
 ## Related Docs
 
-**Start here:** [`docs/ONBOARDING.md`](docs/ONBOARDING.md) · [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/architecture/README.md`](docs/architecture/README.md)
+**Start here:** [`docs/START_HERE.md`](docs/START_HERE.md) · [`docs/ONBOARDING.md`](docs/ONBOARDING.md) · [`CONTRIBUTING.md`](CONTRIBUTING.md). Broader architecture references: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/architecture/README.md`](docs/architecture/README.md).
 
 The 13 canonical architecture docs are organized in 4 tiers. See [`docs/architecture/README.md`](docs/architecture/README.md) for the indexed map:
 
@@ -855,22 +859,22 @@ The eval bank lives in
 
 ### Two-Layer Judge Architecture
 
-Every production run is evaluated by two independent systems:
+The Pi-AI pipeline includes two evaluation layers:
 
-**Layer 1: Deterministic Boolean Gates** (`server/pipeline/diligenceJudge.ts`)
+**Layer 1: Deterministic Boolean Gates** (`workers/node/pipeline/diligenceJudge.ts`)
 - 10 strict pass/fail checks: tier validity, latency budget, token tracking,
   source capture, terminal status
 - Verdicts: `verified` | `provisionally_verified` | `needs_review` | `failed`
 - Zero LLM involvement — pure deterministic validation
 
-**Layer 2: LLM Semantic Scoring** (`server/pipeline/diligenceLlmJudge.ts`)
+**Layer 2: LLM Semantic Scoring** (`workers/node/pipeline/diligenceLlmJudge.ts`)
 - 5 dimensions scored [0,1]: prose quality, citation coherence, source
   credibility, tier appropriateness, overall semantic fit
 - Prompt version tracking (`llmjudge-v1`) for cohort separation
 - Bounded: 30s timeout, 512KB response cap, honest error reporting
 
-This dual-layer approach means hallucinations and quality regressions are
-caught by **two independent systems** before they reach users.
+These layers record deterministic gate outcomes and semantic scores. Check
+coverage and evaluation timing for the relevant run.
 
 ### Historical README Snapshot — 2026-04-23
 

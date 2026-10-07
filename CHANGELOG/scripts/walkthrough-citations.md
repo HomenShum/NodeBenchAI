@@ -1,5 +1,20 @@
 # Walkthrough citations
 
+## 2026-10-07 — Align developer onboarding with the current entrypoints
+
+A developer or coding agent starting from CONTRIBUTING or ONBOARDING could launch unconfigured backend processes, follow retired source paths, or mistake the chat walkthrough for every route. These documents now point first to START_HERE, use the frontend-only start and current source paths, and scope routing and streaming explanations to the conversation path. The README retains its newer historical-score and failed-preflight disclosures, generated banner and project heading.
+
+**PR / canonical main commit**: `PENDING #634 MAIN SHA / FINAL QA`.
+
+**Evidence state**:
+- Source: proposed surgical integration of PR #634 onto current main `ae676461e8d94b080e7057f06bf708c98ad66433`. Only README, CONTRIBUTING, ONBOARDING, START_HERE and this existing changelog lane change; current source citations, historical test evidence and prior changelog entries are preserved.
+- Checks: exact updated-revision checks pending. No local project execution, manual CI, new full-stack evaluation or matched architecture comparison ran. Earlier PR #634 checks do not verify this updated source; Pipeline preflight and scheduled health gaps remain unresolved.
+- Visual proof: not recorded; no visual, responsive or interaction grade asserted.
+- Preview: not recorded.
+- Production live: not recorded.
+
+**Author**: Homen Shum + Codex.
+
 ## 2026-10-07 — Preserve the project heading beside the README banner
 
 Developers and coding agents can use the original project heading and title anchor alongside the generated banner and entry links. The banner is applied to the current README so the historical-score and failed-preflight disclosures from PR #636 remain intact.
