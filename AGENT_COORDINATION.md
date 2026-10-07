@@ -57,6 +57,8 @@ Server Error) for an unknown slug.
 
 ## Active claims (who is editing what RIGHT NOW)
 
+- **2026-10-07 · Codex · `codex/mcp-honest-result-20261007`** — MCP-HONEST-RESULT-02: `packages/mcp-local/src/{types,index,tools/uiCaptureTools,tools/uiUxDiveTools,tools/visionTools,tools/visualQaTools,tools/deltaTools,security/auditLog,profiler/mcpProxy,engine/session,engine/server,engine/conformance}.ts`, `workers/node/mcpGateway.ts#handleToolCall`, one outcome regression, existing Delta gate, package changelog. Preserve raw successful content; make returned failures honest across transports/telemetry; bounded audit/history and terminal SSE errors. Isolated local mocked proof; publication pending root review. No shared backend/provider/deploy changes.
+
 - **2026-09-05 · Codex /root** · `domains/mcp/mcpSourcingDraft` (new), gateway sourcing allowlist/audit completion, ledger sourcing budget, and task-manager atomic service completion · bounded review-only China sourcing draft using the existing service owner and trace · branch `codex/sourcing-provider-20260904`. No shared-table/schema changes and no out-of-band deployment. Provider adapter follows the additive backend contract.
 
 > **STANDARD-TREE MIGRATION (2026-07-19, feat/standard-tree-migration): repo paths moved.**

@@ -8,7 +8,7 @@
 import { join } from "path";
 import { homedir } from "os";
 import { mkdirSync, existsSync, readFileSync } from "fs";
-import type { McpTool, ContentBlock } from "../types.js";
+import type { McpTool, ContentBlock, RawToolResult } from "../types.js";
 
 // Screenshot storage directory
 const CAPTURE_DIR = join(homedir(), ".nodebench", "captures");
@@ -88,22 +88,17 @@ export const uiCaptureTools: McpTool[] = [
       },
       required: ["url"],
     },
-    handler: async (args): Promise<ContentBlock[]> => {
+    handler: async (args): Promise<RawToolResult> => {
       const pw = await getPlaywright();
       if (!pw) {
-        return [
-          {
-            type: "text",
-            text: JSON.stringify({
-              error: true,
-              message:
-                "Playwright is not installed. Install it with: npm install playwright && npx playwright install chromium",
-              suggestion:
-                "The capture_ui_screenshot tool requires Playwright for headless browser automation. " +
-                "Run `npm install playwright` in your project, then `npx playwright install chromium` to download the browser binary.",
-            }),
-          },
-        ];
+        return {
+          error: true,
+          message:
+            "Playwright is not installed. Install it with: npm install playwright && npx playwright install chromium",
+          suggestion:
+            "The capture_ui_screenshot tool requires Playwright for headless browser automation. " +
+            "Run `npm install playwright` in your project, then `npx playwright install chromium` to download the browser binary.",
+        };
       }
 
       const viewportName = args.viewport ?? "desktop";
@@ -203,19 +198,14 @@ export const uiCaptureTools: McpTool[] = [
             // ignore cleanup error
           }
         }
-        return [
-          {
-            type: "text",
-            text: JSON.stringify({
-              error: true,
-              message: `Screenshot capture failed: ${err.message}`,
-              url: args.url,
-              viewport: viewportName,
-              suggestion:
-                "Ensure the URL is accessible. If capturing localhost, make sure the dev server is running.",
-            }),
-          },
-        ];
+        return {
+          error: true,
+          message: `Screenshot capture failed: ${err.message}`,
+          url: args.url,
+          viewport: viewportName,
+          suggestion:
+            "Ensure the URL is accessible. If capturing localhost, make sure the dev server is running.",
+        };
       }
     },
   },
@@ -247,19 +237,14 @@ export const uiCaptureTools: McpTool[] = [
       },
       required: ["url", "label"],
     },
-    handler: async (args): Promise<ContentBlock[]> => {
+    handler: async (args): Promise<RawToolResult> => {
       const pw = await getPlaywright();
       if (!pw) {
-        return [
-          {
-            type: "text",
-            text: JSON.stringify({
-              error: true,
-              message:
-                "Playwright is not installed. Install it with: npm install playwright && npx playwright install chromium",
-            }),
-          },
-        ];
+        return {
+          error: true,
+          message:
+            "Playwright is not installed. Install it with: npm install playwright && npx playwright install chromium",
+        };
       }
 
       const waitMs = args.waitMs ?? 1000;
@@ -380,18 +365,13 @@ export const uiCaptureTools: McpTool[] = [
             // ignore cleanup error
           }
         }
-        return [
-          {
-            type: "text",
-            text: JSON.stringify({
-              error: true,
-              message: `Responsive capture failed: ${err.message}`,
-              url: args.url,
-              suggestion:
-                "Ensure the URL is accessible and the dev server is running.",
-            }),
-          },
-        ];
+        return {
+          error: true,
+          message: `Responsive capture failed: ${err.message}`,
+          url: args.url,
+          suggestion:
+            "Ensure the URL is accessible and the dev server is running.",
+        };
       }
     },
   },

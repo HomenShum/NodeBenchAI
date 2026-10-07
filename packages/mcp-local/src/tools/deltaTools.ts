@@ -910,7 +910,7 @@ const deltaWatch: McpTool = {
     const alertOn = (args.alert_on as string[]) || ["any_material"];
 
     if (action === "add") {
-      if (!entity) return { content: [{ type: "text", text: "Error: entity name required for 'add' action." }] };
+      if (!entity) return { error: true, message: "Error: entity name required for 'add' action." };
 
       const existing = db.prepare(`SELECT id FROM delta_watchlist WHERE entity_name = ?`).get(entity);
       if (existing) {
@@ -936,7 +936,7 @@ const deltaWatch: McpTool = {
     }
 
     if (action === "remove") {
-      if (!entity) return { content: [{ type: "text", text: "Error: entity name required for 'remove' action." }] };
+      if (!entity) return { error: true, message: "Error: entity name required for 'remove' action." };
       db.prepare(`DELETE FROM delta_watchlist WHERE entity_name = ?`).run(entity);
       return { content: [{ type: "text", text: JSON.stringify({ status: "removed", entity }) }] };
     }
@@ -963,7 +963,7 @@ const deltaWatch: McpTool = {
     }
 
     if (action === "check") {
-      if (!entity) return { content: [{ type: "text", text: "Error: entity name required for 'check' action." }] };
+      if (!entity) return { error: true, message: "Error: entity name required for 'check' action." };
 
       // Mark as checked
       db.prepare(`UPDATE delta_watchlist SET last_checked = ? WHERE entity_name = ?`).run(now(), entity);
@@ -981,7 +981,7 @@ const deltaWatch: McpTool = {
       };
     }
 
-    return { content: [{ type: "text", text: "Error: action must be one of: add, remove, list, check" }] };
+    return { error: true, message: "Error: action must be one of: add, remove, list, check" };
   },
 };
 

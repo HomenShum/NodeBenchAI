@@ -50,7 +50,7 @@ import {
   NODEBENCH_VERSION,
   comparePackageVersions,
 } from "./packageInfo.js";
-import type { McpTool } from "./types.js";
+import { getToolErrorMessage, type ContentBlock, type McpTool } from "./types.js";
 
 // TOON format — ~40% token savings on tool responses when the optional package is installed.
 import { encodeToon } from "./tools/toonCodec.js";
@@ -1355,6 +1355,7 @@ if (subCmd && (DELTA_VERBS as readonly string[]).includes(subCmd)) {
     } catch {
       console.log(text);
     }
+    if (getToolErrorMessage(result) !== null) process.exit(1);
   } catch (err) {
     console.error(`Error running delta_${subCmd}:`, err);
     process.exit(1);
@@ -1586,6 +1587,7 @@ if (subCmd === "call") {
       console.log(`    ${line}`);
     }
     console.log("");
+    if (getToolErrorMessage(result) !== null) process.exit(1);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.log(`\n  ${R}Error:${X} ${msg}\n`);
@@ -2193,10 +2195,13 @@ try {
 
 // Wrap all tools with profiling proxy when --profile is set
 // This adds ~1ms per tool call but logs everything to SQLite
+let profileTools: ((tools: McpTool[]) => McpTool[]) | undefined;
 if (useProfile) {
   try {
-    const { wrapToolsWithProxy } = require("./profiler/mcpProxy.js");
-    allTools = wrapToolsWithProxy(allTools, { sessionId: `mcp_${Date.now().toString(36)}` });
+    const { wrapToolsWithProxy } = await import("./profiler/mcpProxy.js");
+    const sessionId = `mcp_${Date.now().toString(36)}`;
+    profileTools = (tools) => wrapToolsWithProxy(tools, { sessionId });
+    allTools = profileTools(allTools);
     console.error("[profiler] All tools wrapped with profiling proxy (--profile)");
   } catch (e: any) {
     console.error("[profiler] Failed to enable profiling:", e?.message);
@@ -2263,6 +2268,7 @@ function rebuildAllTools() {
   } else {
     allTools = [...allToolsWithoutDiscovery, ...discoveryTools, ...dynamicLoadingTools];
   }
+  if (profileTools) allTools = profileTools(allTools);
   toolMap = new Map<string, McpTool>();
   for (const tool of allTools) {
     toolMap.set(tool.name, tool);
@@ -3474,10 +3480,47 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     const result = await tool.handler(args ?? {});
 
-    // Detect soft errors (tools that return { error: true } without throwing)
-    if (result && typeof result === "object" && !Array.isArray(result) && (result as any).error) {
-      resultStatus = "error";
-      errorMsg = (result as any).message ?? "soft error";
+    errorMsg = getToolErrorMessage(result);
+    resultStatus = errorMsg !== null ? "error" : "success";
+
+    let contentBlocks: ContentBlock[];
+    if (tool.rawContent && Array.isArray(result)) {
+      contentBlocks = result;
+    } else {
+      // Auto-append quickRef from registry (progressive disclosure)
+      let enrichedResult = result;
+      if (resultStatus === "success" && result && typeof result === "object" && !Array.isArray(result)) {
+        const quickRef = getQuickRef(name);
+        if (quickRef && !(result as any)._quickRef) {
+          enrichedResult = { ...(result as Record<string, unknown>), _quickRef: quickRef };
+        }
+      }
+
+      // Lightweight hook: append save/refresh hints when thresholds are met
+      const hookHint = getHookHint(name);
+
+      // Serialize: TOON (~40% fewer tokens) or JSON
+      let serialized: string;
+      if (useToon) {
+        try {
+          serialized = await encodeToon(enrichedResult);
+        } catch {
+          serialized = JSON.stringify(enrichedResult, null, 2);
+        }
+      } else {
+        serialized = JSON.stringify(enrichedResult, null, 2);
+      }
+
+      // Security: redact credentials from all tool outputs (single enforcement point)
+      const sanitized = redactSecrets(serialized);
+
+      contentBlocks = [
+        { type: "text" as const, text: sanitized },
+      ];
+      if (hookHint) {
+        contentBlocks.push({ type: "text" as const, text: hookHint });
+      }
+
     }
 
     // Auto-log to main DB (skip self-eval tools to avoid recursion/noise)
@@ -3504,51 +3547,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       } catch { /* instrumentation */ }
     }
 
-    // Tools with rawContent return ContentBlock[] directly (e.g. image captures)
-    if (tool.rawContent && Array.isArray(result)) {
-      return { content: result, isError: false };
-    }
-
-    // Auto-append quickRef from registry (progressive disclosure)
-    let enrichedResult = result;
-    if (result && typeof result === "object" && !Array.isArray(result)) {
-      const quickRef = getQuickRef(name);
-      if (quickRef && !(result as any)._quickRef) {
-        enrichedResult = { ...(result as Record<string, unknown>), _quickRef: quickRef };
-      }
-    }
-
-    // Lightweight hook: append save/refresh hints when thresholds are met
-    const hookHint = getHookHint(name);
-
-    // Serialize: TOON (~40% fewer tokens) or JSON
-    let serialized: string;
-    if (useToon) {
-      try {
-        serialized = await encodeToon(enrichedResult);
-      } catch {
-        serialized = JSON.stringify(enrichedResult, null, 2);
-      }
-    } else {
-      serialized = JSON.stringify(enrichedResult, null, 2);
-    }
-
-    // Security: redact credentials from all tool outputs (single enforcement point)
-    const sanitized = redactSecrets(serialized);
-
-    const contentBlocks: Array<{ type: "text"; text: string }> = [
-      { type: "text" as const, text: sanitized },
-    ];
-    if (hookHint) {
-      contentBlocks.push({ type: "text" as const, text: hookHint });
-    }
-
-    // Audit log: successful tool call
-    auditLog("tool_call", name, JSON.stringify(args ?? {}).substring(0, 200), true);
+    // Permission to execute is separate from the handler's outcome. Include raw calls.
+    auditLog("tool_call", name, JSON.stringify(args ?? {}).substring(0, 200), true,
+      errorMsg ?? undefined, { resultStatus });
 
     return {
       content: contentBlocks,
-      isError: false,
+      isError: resultStatus === "error",
     };
   } catch (err: any) {
     // Security errors get a clean response (not a stack trace)
@@ -3575,6 +3580,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     // Auto-log error to analytics tracker
     tracker.record(name, startMs, false, errorMsg, args as Record<string, unknown>);
+    auditLog("tool_call", name, JSON.stringify(args ?? {}).substring(0, 200), true,
+      errorMsg ?? undefined, { resultStatus });
 
     return {
       content: [{ type: "text" as const, text: errorMsg }],

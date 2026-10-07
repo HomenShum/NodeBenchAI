@@ -16,7 +16,7 @@
  */
 
 import { getDb, genId } from "../db.js";
-import type { McpTool, ContentBlock } from "../types.js";
+import type { McpTool, ContentBlock, RawToolResult } from "../types.js";
 
 // ── Browser Session Management (Built-in Playwright) ────────────────────
 // Singleton browser/page per dive session. Auto-detects Playwright.
@@ -971,7 +971,7 @@ export const uiUxDiveTools: McpTool[] = [
       },
       required: ["sessionId"],
     },
-    handler: async (args): Promise<ContentBlock[]> => {
+    handler: async (args): Promise<RawToolResult> => {
       const { sessionId, mode, selector, label } = args as {
         sessionId: string;
         mode?: string;
@@ -980,13 +980,10 @@ export const uiUxDiveTools: McpTool[] = [
       };
 
       if (!_page || _activeSessionId !== sessionId) {
-        return [{
-          type: "text",
-          text: JSON.stringify({
-            error: true,
-            message: "No active browser for this session. Start a dive with start_ui_dive first, or install Playwright: npm install playwright && npx playwright install chromium",
-          }),
-        }];
+        return {
+          error: true,
+          message: "No active browser for this session. Start a dive with start_ui_dive first, or install Playwright: npm install playwright && npx playwright install chromium",
+        };
       }
 
       const captureMode = mode ?? "screenshot";
@@ -1004,7 +1001,7 @@ export const uiUxDiveTools: McpTool[] = [
             }, null, 2),
           }];
         } catch (e: any) {
-          return [{ type: "text", text: JSON.stringify({ error: true, message: `Accessibility snapshot failed: ${e.message}` }) }];
+          return { error: true, message: `Accessibility snapshot failed: ${e.message}` };
         }
       }
 
@@ -1019,7 +1016,7 @@ export const uiUxDiveTools: McpTool[] = [
         if (selector) {
           const el = await _page.$(selector);
           if (!el) {
-            return [{ type: "text", text: JSON.stringify({ error: true, message: `Element not found: ${selector}` }) }];
+            return { error: true, message: `Element not found: ${selector}` };
           }
           screenshotBuf = await el.screenshot({ type: "png" });
         } else {
@@ -1062,7 +1059,7 @@ export const uiUxDiveTools: McpTool[] = [
           },
         ];
       } catch (e: any) {
-        return [{ type: "text", text: JSON.stringify({ error: true, message: `Screenshot failed: ${e.message}` }) }];
+        return { error: true, message: `Screenshot failed: ${e.message}` };
       }
     },
   },
