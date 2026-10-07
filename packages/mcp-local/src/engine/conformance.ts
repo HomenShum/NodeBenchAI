@@ -5,7 +5,7 @@
  * Used to generate "Conformance Reports" — the sellable output of the engine.
  */
 
-import type { EngineSession, ToolCallRecord } from "./session.js";
+import type { EngineSession } from "./session.js";
 
 export interface ConformanceBreakdown {
   stepsCompleted: boolean;
@@ -62,12 +62,8 @@ const QUALITY_GATE_TOOLS = [
   "run_quality_gate",
 ];
 
-function hasToolCalled(history: ToolCallRecord[], toolNames: string[]): boolean {
-  return history.some((r) => toolNames.includes(r.toolName) && r.status === "success");
-}
-
-function countByStatus(history: ToolCallRecord[], status: "success" | "error"): number {
-  return history.filter((r) => r.status === status).length;
+function hasToolCalled(session: EngineSession, toolNames: string[]): boolean {
+  return toolNames.some((name) => session.successfulToolNames.has(name));
 }
 
 export function computeConformance(
@@ -75,19 +71,19 @@ export function computeConformance(
   expectedSteps?: number,
 ): ConformanceReport {
   const history = session.callHistory;
-  const successful = countByStatus(history, "success");
-  const failed = countByStatus(history, "error");
-  const total = history.length;
-  const totalDurationMs = history.reduce((sum, r) => sum + r.durationMs, 0);
+  const successful = session.successfulCallCount;
+  const failed = session.failedCallCount;
+  const total = session.totalCallCount;
+  const totalDurationMs = session.totalCallDurationMs;
 
   const breakdown: ConformanceBreakdown = {
     stepsCompleted: expectedSteps ? successful >= expectedSteps : successful > 0,
-    qualityGatePassed: hasToolCalled(history, QUALITY_GATE_TOOLS),
-    testLayersLogged: hasToolCalled(history, TEST_TOOLS),
-    flywheelCompleted: hasToolCalled(history, FLYWHEEL_TOOLS),
-    learningsRecorded: hasToolCalled(history, LEARNING_TOOLS),
-    reconPerformed: hasToolCalled(history, RECON_TOOLS),
-    verificationCycleStarted: hasToolCalled(history, VERIFICATION_TOOLS),
+    qualityGatePassed: hasToolCalled(session, QUALITY_GATE_TOOLS),
+    testLayersLogged: hasToolCalled(session, TEST_TOOLS),
+    flywheelCompleted: hasToolCalled(session, FLYWHEEL_TOOLS),
+    learningsRecorded: hasToolCalled(session, LEARNING_TOOLS),
+    reconPerformed: hasToolCalled(session, RECON_TOOLS),
+    verificationCycleStarted: hasToolCalled(session, VERIFICATION_TOOLS),
     noErrors: failed === 0,
   };
 
@@ -106,9 +102,12 @@ export function computeConformance(
     .filter(([, v]) => !v)
     .map(([k]) => k.replace(/([A-Z])/g, " $1").toLowerCase().trim());
 
-  const summary = score === 100
+  let summary = score === 100
     ? `All conformance checks passed. ${successful}/${total} tool calls succeeded in ${totalDurationMs}ms.`
     : `Score ${score}/100 (${grade}). Missing: ${failedChecks.join(", ")}. ${successful}/${total} calls succeeded.`;
+  if (history.length < total) {
+    summary += ` Trace and recovery extraction retain only the latest ${history.length} calls; totals and completed checks cover the full session.`;
+  }
 
   return {
     sessionId: session.id,

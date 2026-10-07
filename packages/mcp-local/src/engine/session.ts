@@ -5,7 +5,7 @@
  * Each session gets a preset-scoped toolMap and tracks call history.
  */
 
-import type { McpTool } from "../types.js";
+import { getToolErrorMessage, type McpTool } from "../types.js";
 import type { SessionContext } from "./contextBridge.js";
 
 export interface ToolCallRecord {
@@ -35,12 +35,21 @@ export interface EngineSession {
   toolMap: Map<string, McpTool>;
   callHistory: ToolCallRecord[];
   disclosureEvents: DisclosureEvent[];
+  totalCallCount: number;
+  successfulCallCount: number;
+  failedCallCount: number;
+  totalCallDurationMs: number;
+  totalDisclosureCount: number;
+  successfulToolNames: Set<string>;
   status: "active" | "completed" | "error";
   contextSnapshot?: SessionContext;
 }
 
 const sessions = new Map<string, EngineSession>();
 const MAX_SESSIONS = 100;
+// Match the collector's 10,000-event ceiling; streams emit two disclosures per call.
+const MAX_CALL_HISTORY = 10_000;
+const MAX_DISCLOSURE_EVENTS = MAX_CALL_HISTORY * 2;
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
 function genSessionId(): string {
@@ -99,6 +108,12 @@ export function createSession(
     toolMap,
     callHistory: [],
     disclosureEvents: [],
+    totalCallCount: 0,
+    successfulCallCount: 0,
+    failedCallCount: 0,
+    totalCallDurationMs: 0,
+    totalDisclosureCount: 0,
+    successfulToolNames: new Set(),
     status: "active",
   };
 
@@ -134,7 +149,7 @@ export function listSessions(): Array<{
     preset: s.preset,
     status: s.status,
     toolCount: s.toolMap.size,
-    callCount: s.callHistory.length,
+    callCount: s.totalCallCount,
     createdAt: s.createdAt,
     lastActivity: s.lastActivity,
   }));
@@ -156,7 +171,7 @@ export async function executeToolInSession(
       durationMs: 0,
       timestamp: Date.now(),
     };
-    session.callHistory.push(record);
+    recordCall(session, record);
     return record;
   }
 
@@ -166,8 +181,11 @@ export async function executeToolInSession(
 
   try {
     result = await tool.handler(args);
+    // Both HTTP and SSE must serialize the result before reporting a successful call.
+    JSON.stringify(result);
+    status = getToolErrorMessage(result) !== null ? "error" : "success";
   } catch (err: any) {
-    result = { error: err.message ?? String(err) };
+    result = { error: err?.message ?? String(err) };
     status = "error";
   }
 
@@ -181,9 +199,29 @@ export async function executeToolInSession(
     timestamp: Date.now(),
   };
 
-  session.callHistory.push(record);
+  recordCall(session, record);
   session.lastActivity = Date.now();
   return record;
+}
+
+function recordCall(session: EngineSession, record: ToolCallRecord): void {
+  session.totalCallCount++;
+  session.totalCallDurationMs += record.durationMs;
+  if (record.status === "success") {
+    session.successfulCallCount++;
+    // Only registered tools can succeed: membership is bounded by session.toolMap.
+    session.successfulToolNames.add(record.toolName);
+  } else {
+    session.failedCallCount++;
+  }
+  if (session.callHistory.length >= MAX_CALL_HISTORY) session.callHistory.shift();
+  session.callHistory.push(record);
+}
+
+export function recordDisclosureEvent(session: EngineSession, event: DisclosureEvent): void {
+  session.totalDisclosureCount++;
+  if (session.disclosureEvents.length >= MAX_DISCLOSURE_EVENTS) session.disclosureEvents.shift();
+  session.disclosureEvents.push(event);
 }
 
 export function cleanExpired(): number {

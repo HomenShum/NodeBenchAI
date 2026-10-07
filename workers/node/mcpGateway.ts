@@ -27,7 +27,7 @@ import { type Server as HttpServer } from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
-import type { McpTool } from "../../packages/mcp-local/src/types.js";
+import { getToolErrorMessage, type McpTool } from "../../packages/mcp-local/src/types.js";
 
 import {
   validateApiKey,
@@ -343,14 +343,14 @@ export function createMcpGateway(config: McpGatewayConfig) {
     try {
       const result = await callToolWithTimeout(tool, toolArgs);
       const durationMs = Date.now() - startMs;
-      session.recordToolCall(toolName, durationMs, true);
-
       // Format response as MCP content blocks
       const content = formatToolResult(result, tool);
+      const isError = getToolErrorMessage(result) !== null;
+      session.recordToolCall(toolName, durationMs, !isError);
 
       sendResult(ws, request.id, {
         content,
-        isError: false,
+        isError,
         _meta: {
           durationMs,
           sessionToolCallCount: session.toolCallCount,

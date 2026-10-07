@@ -14,7 +14,7 @@
  * for any MCP-compatible client (Claude Code, Cursor, Windsurf, OpenAI Agents).
  */
 
-import type { McpTool } from "../types.js";
+import { getToolErrorMessage, type McpTool } from "../types.js";
 import { ingestEvent, initEventCollectorTables, type UnifiedEvent } from "./eventCollector.js";
 
 interface ProxyConfig {
@@ -48,6 +48,7 @@ export function wrapToolsWithProxy(tools: McpTool[], config: ProxyConfig = {}): 
 
       try {
         result = await tool.handler(args);
+        success = getToolErrorMessage(result) === null;
       } catch (err: any) {
         success = false;
         error = err?.message ?? "Unknown error";
@@ -55,28 +56,36 @@ export function wrapToolsWithProxy(tools: McpTool[], config: ProxyConfig = {}): 
       } finally {
         const durationMs = Date.now() - startMs;
 
-        // Log to unified event collector
-        const { isDuplicate, estimatedCost } = ingestEvent({
-          surface: config.surface ?? "mcp_direct",
-          integrationPath: "mcp_proxy",
-          sessionId,
-          userId: config.userId,
-          companyId: config.companyId,
-          toolName: tool.name,
-          toolInputSummary: summarizeArgs(args),
-          toolOutputSummary: success ? summarizeResult(result) : `ERROR: ${error}`,
-          latencyMs: durationMs,
-          success,
-          pathStepIndex: stepIndex,
-        });
+        // Observation failures must not replace the tool's result or exception.
+        let collectorAccepted = false;
+        try {
+          const { isDuplicate, estimatedCost } = ingestEvent({
+            surface: config.surface ?? "mcp_direct",
+            integrationPath: "mcp_proxy",
+            sessionId,
+            userId: config.userId,
+            companyId: config.companyId,
+            toolName: tool.name,
+            toolInputSummary: summarizeArgs(args),
+            toolOutputSummary: error === undefined ? summarizeResult(result) : `ERROR: ${error}`,
+            latencyMs: durationMs,
+            success,
+            pathStepIndex: stepIndex,
+          });
+          collectorAccepted = true;
 
-        // Callback for real-time notifications
-        config.onEvent?.({
-          toolName: tool.name,
-          durationMs,
-          cost: estimatedCost,
-          isDuplicate,
-        });
+          // Callback for real-time notifications
+          config.onEvent?.({
+            toolName: tool.name,
+            durationMs,
+            cost: estimatedCost,
+            isDuplicate,
+          });
+        } catch (observationError: unknown) {
+          console.error(collectorAccepted
+            ? "[profiler] Event accepted by collector; notification failed:"
+            : "[profiler] Event not accepted by collector:", observationError);
+        }
       }
 
       return result;

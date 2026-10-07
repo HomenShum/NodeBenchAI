@@ -6,6 +6,7 @@ on:
       - "packages/mcp-local/**"
       - "workers/node/routes/search.ts"
       - "workers/node/searchRoute.test.ts"
+      - "workers/node/mcpGateway.ts"
       - ".github/workflows/delta-dogfood-gate.yml"
   workflow_dispatch:
 
@@ -31,8 +32,12 @@ jobs:
 
       - name: Typecheck Delta tool slice
         working-directory: packages/mcp-local
-        run: npx tsc --noEmit --module Node16 --moduleResolution Node16 --target ES2022 --lib ES2022 --strict --esModuleInterop --skipLibCheck --types node,vitest src/tools/deltaTools.ts src/__tests__/deltaDogfoodGate.test.ts src/__tests__/deltaTools.test.ts src/__tests__/founderDirectionAssessment.test.ts src/tools/toonCodec.ts src/tools/toonTools.ts src/__tests__/toonCodec.test.ts
+        run: npx tsc --noEmit --module Node16 --moduleResolution Node16 --target ES2022 --lib ES2022 --strict --esModuleInterop --skipLibCheck --types node,vitest src/tools/deltaTools.ts src/__tests__/deltaDogfoodGate.test.ts src/__tests__/deltaTools.test.ts src/__tests__/founderDirectionAssessment.test.ts src/tools/toonCodec.ts src/tools/toonTools.ts src/__tests__/toonCodec.test.ts src/__tests__/mcpResultStatus.test.ts
+
+      - name: Build MCP package for transport regression
+        working-directory: packages/mcp-local
+        run: npm run build
 
       - name: Run Delta self-dogfood gate
         working-directory: packages/mcp-local
-        run: npx vitest run src/__tests__/deltaDogfoodGate.test.ts src/__tests__/deltaTools.test.ts src/__tests__/founderDirectionAssessment.test.ts src/__tests__/toonCodec.test.ts
+        run: npx vitest run src/__tests__/deltaDogfoodGate.test.ts src/__tests__/deltaTools.test.ts src/__tests__/founderDirectionAssessment.test.ts src/__tests__/toonCodec.test.ts src/__tests__/mcpResultStatus.test.ts

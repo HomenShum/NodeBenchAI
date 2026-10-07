@@ -1,5 +1,15 @@
 # NodeBench MCP Changelog
 
+## Unreleased — Honest tool outcomes (2026-10-07)
+
+A developer or coding agent needs to stop when a capture fails, rather than continue using an unsuccessful attempt as evidence. Returned capture/provider errors now carry an explicit failure status through stdio, WebSocket, CLI, profiling, and the local engine (MCP-HONEST-RESULT-02).
+
+- Preserve successful text/image blocks, order, and literal error-looking content. Invalid Delta watch actions exit nonzero. Engine HTTP failures return non2xx; streamed lifecycle completion includes the current chain's `ok`, and infrastructure failures terminate with an error event. Malformed results are classified before successful call/report records are written.
+- Cap engine history at 10,000 calls and 20,000 disclosure events while retaining lifetime totals and completed checks. Recovery extraction uses the retained tail. Audit batches cap at 256; failed SQLite batch writes discard detached batches with warnings and later calls recover. The existing unavailable optional-storage path discards silently. Profiling outages warn without replacing the tool's result or exception; attempted observations are not certified as persisted.
+- Matched local proof: the same 31 scenarios on the same installed dependency graph changed from 2 passed / 29 failed at `f4ef6b0534ab3615fb56d76611b91335cc8f762f` to 31 passed / 0 failed. Both strict package builds passed; the four existing Delta suites passed 12 tests, and the expanded strict slice typecheck passed. Scenarios use real SDK/stdio, loopback WebSocket/HTTP/SSE, native SQLite, mocked browser/providers, burst failures, and sustained sessions.
+- Reproduce after installing root and package dependencies, from `packages/mcp-local`: `npm run build`, then `npx vitest run src/__tests__/mcpResultStatus.test.ts`. The Delta gate includes this build, regression, and typecheck. Declare only the missing `@types/yauzl` dev prerequisite at the compared version `3.4.0`; package-only installation still lacks root-owned SDK/types. No runtime dependency upgrade or fresh clean-root installation is certified by this comparison.
+- This local comparison does not certify canonical publication, automatic CI, or live provider/deployment behavior. The pre-verb boolean CLI flag parsing defect is a separate retained gap; this proof uses supported verb-first commands. Audit/collector outage data can be lost, and retained trace limits are explicit.
+
 ## v2.61.0 — Trajectory Visualization (2026-03-24)
 - **Agent Trajectory panel** in operating dashboard (waterfall bars, step list, cite buttons, `/api/trajectory/recent`)
 - **TrajectoryDebugger** React component (dev-side): timeline + waterfall view, JSON expand, judge verdicts, search/filter

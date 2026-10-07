@@ -17,6 +17,7 @@ import {
   endSession,
   listSessions,
   executeToolInSession,
+  recordDisclosureEvent,
   getSessionCount,
   type EngineSession,
   type DisclosureEvent,
@@ -92,8 +93,9 @@ export function getEngineUrl(): string | null {
 // ── Helpers ───────────────────────────────────────────────────────────
 
 function json(res: ServerResponse, data: unknown, status = 200) {
+  const body = JSON.stringify(data);
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
-  res.end(JSON.stringify(data));
+  res.end(body);
 }
 
 function error(res: ServerResponse, message: string, status = 400) {
@@ -140,19 +142,18 @@ function getToolMeta(name: string) {
 // ── Request Router ────────────────────────────────────────────────────
 
 async function handleRequest(req: IncomingMessage, res: ServerResponse) {
-  const url = new URL(req.url || "/", `http://127.0.0.1:${_port}`);
-  const path = url.pathname;
-  const method = req.method ?? "GET";
-
-  // CORS
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  if (method === "OPTIONS") { res.writeHead(204); res.end(); return; }
-
-  if (!checkAuth(req, res)) return;
-
   try {
+    const url = new URL(req.url || "/", `http://127.0.0.1:${_port}`);
+    const path = url.pathname;
+    const method = req.method ?? "GET";
+
+    // CORS
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    if (method === "OPTIONS") { res.writeHead(204); res.end(); return; }
+
+    if (!checkAuth(req, res)) return;
     // ── Root ──────────────────────────────────────
     if (path === "/" && method === "GET") {
       return json(res, {
@@ -240,7 +241,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
           sessionId: session.id,
           ...getToolMeta(toolName),
         },
-      });
+      }, record.status === "success" ? 200 : 500);
     }
 
     // ── List Workflows ───────────────────────────
@@ -289,7 +290,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
       } catch { /* context loading is best-effort */ }
 
       if (streaming) {
-        return executeWorkflowStreaming(res, session, chain, chainName, stepArgs, !body.sessionId);
+        return await executeWorkflowStreaming(res, session, chain, chainName, stepArgs, !body.sessionId);
       }
 
       // Non-streaming: execute all steps, return batch result
@@ -317,14 +318,15 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
 
       if (!body.sessionId) endSession(session.id);
 
+      const ok = results.every((record) => record.status === "success");
       return json(res, {
-        ok: true,
+        ok,
         workflow: chainName,
         totalSteps: chain.steps.length,
         results,
         conformance: report,
         contextLoaded: !!session.contextSnapshot,
-      });
+      }, ok ? 200 : 500);
     }
 
     // ── Create Session ───────────────────────────
@@ -369,7 +371,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
         preset: session.preset,
         status: session.status,
         toolCount: session.toolMap.size,
-        callCount: session.callHistory.length,
+        callCount: session.totalCallCount,
+        retainedCallCount: session.callHistory.length,
         createdAt: session.createdAt,
         lastActivity: session.lastActivity,
         callHistory: session.callHistory.map((r) => ({
@@ -392,6 +395,10 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
         sessionId: session.id,
         events: session.disclosureEvents,
         callHistory: session.callHistory,
+        totalCallCount: session.totalCallCount,
+        retainedCallCount: session.callHistory.length,
+        totalDisclosureCount: session.totalDisclosureCount,
+        retainedDisclosureCount: session.disclosureEvents.length,
       });
     }
 
@@ -460,7 +467,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
     // ── 404 ──────────────────────────────────────
     error(res, "Not found", 404);
   } catch (err: any) {
-    error(res, err.message ?? "Internal server error", 500);
+    if (!res.headersSent) error(res, err?.message ?? "Internal server error", 500);
+    else res.end();
   }
 }
 
@@ -485,74 +493,83 @@ async function executeWorkflowStreaming(
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   }
 
-  send("start", { workflow: chainName, totalSteps: chain.steps.length, sessionId: session.id });
-
-  // Emit context summary if available
-  if (session.contextSnapshot) {
-    send("context", {
-      recentRunCount: session.contextSnapshot.recentRuns.length,
-      avgScore: session.contextSnapshot.conformanceTrend.avgScore,
-      trend: session.contextSnapshot.conformanceTrend.direction,
-      learningsAvailable: session.contextSnapshot.relevantLearnings.length,
-      openGaps: session.contextSnapshot.openGapCount,
-    });
-  }
-
-  for (let i = 0; i < chain.steps.length; i++) {
-    const step = chain.steps[i];
-    const args = stepArgs[step.tool] ?? {};
-
-    // Emit running event
-    const runningEvent: DisclosureEvent = {
-      kind: "tool.invoke",
-      toolName: step.tool,
-      stepIndex: i,
-      status: "running",
-      timestamp: Date.now(),
-    };
-    session.disclosureEvents.push(runningEvent);
-    send("step", { stepIndex: i, tool: step.tool, action: step.action, status: "running" });
-
-    // Execute
-    const record = await executeToolInSession(session, step.tool, args);
-
-    // Emit complete event
-    const completeEvent: DisclosureEvent = {
-      kind: "tool.invoke",
-      toolName: step.tool,
-      stepIndex: i,
-      status: record.status === "success" ? "complete" : "error",
-      data: record.result,
-      timestamp: Date.now(),
-    };
-    session.disclosureEvents.push(completeEvent);
-    send("step", {
-      stepIndex: i,
-      tool: step.tool,
-      action: step.action,
-      status: record.status === "success" ? "complete" : "error",
-      durationMs: record.durationMs,
-      result: record.result,
-    });
-  }
-
-  // Final conformance
-  const report = computeConformance(session, chain.steps.length);
-
-  // Persist outcome for future context
   try {
-    persistSessionOutcome(session.id, report, chainName, session.preset, session.callHistory);
-  } catch { /* best-effort */ }
+    send("start", { workflow: chainName, totalSteps: chain.steps.length, sessionId: session.id });
 
-  send("complete", {
-    workflow: chainName,
-    totalSteps: chain.steps.length,
-    totalDurationMs: report.totalDurationMs,
-    conformanceScore: report.score,
-    grade: report.grade,
-    sessionId: session.id,
-  });
+    // Emit context summary if available
+    if (session.contextSnapshot) {
+      send("context", {
+        recentRunCount: session.contextSnapshot.recentRuns.length,
+        avgScore: session.contextSnapshot.conformanceTrend.avgScore,
+        trend: session.contextSnapshot.conformanceTrend.direction,
+        learningsAvailable: session.contextSnapshot.relevantLearnings.length,
+        openGaps: session.contextSnapshot.openGapCount,
+      });
+    }
 
-  if (ephemeral) endSession(session.id);
-  res.end();
+    let ok = true;
+    for (let i = 0; i < chain.steps.length; i++) {
+      const step = chain.steps[i];
+      const args = stepArgs[step.tool] ?? {};
+
+      // Emit running event
+      const runningEvent: DisclosureEvent = {
+        kind: "tool.invoke",
+        toolName: step.tool,
+        stepIndex: i,
+        status: "running",
+        timestamp: Date.now(),
+      };
+      recordDisclosureEvent(session, runningEvent);
+      send("step", { stepIndex: i, tool: step.tool, action: step.action, status: "running" });
+
+      // Execute
+      const record = await executeToolInSession(session, step.tool, args);
+      if (record.status !== "success") ok = false;
+
+      // Emit complete event
+      const completeEvent: DisclosureEvent = {
+        kind: "tool.invoke",
+        toolName: step.tool,
+        stepIndex: i,
+        status: record.status === "success" ? "complete" : "error",
+        data: record.result,
+        timestamp: Date.now(),
+      };
+      recordDisclosureEvent(session, completeEvent);
+      send("step", {
+        stepIndex: i,
+        tool: step.tool,
+        action: step.action,
+        status: record.status === "success" ? "complete" : "error",
+        durationMs: record.durationMs,
+        result: record.result,
+      });
+    }
+
+    // Final conformance
+    const report = computeConformance(session, chain.steps.length);
+
+    // Persist outcome for future context
+    try {
+      persistSessionOutcome(session.id, report, chainName, session.preset, session.callHistory);
+    } catch { /* best-effort */ }
+
+    send("complete", {
+      ok,
+      workflow: chainName,
+      totalSteps: chain.steps.length,
+      totalDurationMs: report.totalDurationMs,
+      conformanceScore: report.score,
+      grade: report.grade,
+      sessionId: session.id,
+    });
+
+  } catch (err: unknown) {
+    session.status = "error";
+    send("error", { workflow: chainName, error: err instanceof Error ? err.message : String(err), sessionId: session.id });
+  } finally {
+    if (ephemeral) endSession(session.id);
+    res.end();
+  }
 }
