@@ -452,10 +452,10 @@ There is no local fixture backend. Steps 5–10 are Convex server code and this
 repo ships no substitute for Convex, so those steps are readable and testable
 but not observable in a browser without a deployment.
 
-The full suite is four segments — `npm run test:run`. It is **red at HEAD** for
-reasons that predate this document; the exact counts and causes are in
-`docs/codebase/CONCERNS.md`, so you can tell a pre-existing failure from one you
-just caused.
+The full suite is four segments — `npm run test:run`. The 2026-08-13 run was
+red for the reasons recorded in `docs/codebase/CONCERNS.md`. Those historical
+counts do not establish the full-suite result on a later revision; record the
+revision and command for a current comparison.
 
 `node scripts/validate-tours.mjs` validates this page's line citations and the CodeTour steps
 in `.tours/`. It needs no browser, no backend and no install — run it after
