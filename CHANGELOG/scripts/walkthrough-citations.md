@@ -4,7 +4,7 @@
 
 A developer or coding agent deciding whether to hand off NodeBench should be able to distinguish recorded April scores from checks on the revision they are using. The README now labels those scores as historical and links the reviewed main CI, blocked Pipeline preflight and committed full-stack summary; it no longer claims latency is the only remaining work.
 
-**PR / canonical main commit**: `PENDING #635 MAIN SHA / FINAL QA`.
+**PR / canonical main commit**: `PENDING #636 MAIN SHA / FINAL QA`.
 
 **Evidence state**:
 - Source: pending documentation-only candidate for `README.md`; no runtime or gate changes.
