@@ -29,6 +29,7 @@ jobs:
         run: npm ci --omit=dev --no-audit --no-fund || npm install --no-audit --no-fund
 
       - name: Run hourly health check
+        shell: bash
         env:
           VITE_CONVEX_URL: ${{ secrets.CONVEX_URL || vars.CONVEX_URL || 'https://agile-caribou-964.convex.cloud' }}
           CONVEX_URL: ${{ secrets.CONVEX_URL || vars.CONVEX_URL || 'https://agile-caribou-964.convex.cloud' }}
@@ -36,18 +37,14 @@ jobs:
           HEALTH_P95_MS_BUDGET: "500"
           HEALTH_ERROR_RATE_BUDGET: "0.01"
           HEALTH_APPEND_COUNT: "60"
-        run: node scripts/ops/hourlyHealthCheck.mjs
-
-      - name: Save health log (always)
-        if: always()
         run: |
           mkdir -p .tmp
-          node scripts/ops/hourlyHealthCheck.mjs > .tmp/notebook-hourly-health.json || true
+          node scripts/ops/hourlyHealthCheck.mjs 2>&1 | tee .tmp/notebook-hourly-health.log
 
       - name: Upload health artifact
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: hourly-health-${{ github.run_id }}
-          path: .tmp/notebook-hourly-health.json
+          path: .tmp/notebook-hourly-health.log
           retention-days: 7
