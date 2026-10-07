@@ -758,11 +758,33 @@ Historical specs are preserved in [`docs/archive/2026-q1/`](docs/archive/2026-q1
 
 ## Production Readiness & Evaluation
 
-NodeBench ships with a comprehensive evaluation harness that proves correctness
-across 32+ scenarios, 9 user personas, and 9 feature categories. This is not
-hand-wavy "it works" — it is measured, versioned, and reproducible.
+NodeBench has evaluation harnesses and recorded results. A developer or coding
+agent deciding whether to hand off a current revision should use receipts for
+that revision; the April results below are historical observations.
 
-### Latest Published Run Results
+### Readiness Evidence Reviewed on 2026-10-07
+
+**Reviewed main:** [`80853f0c418fc77e9621f27be22840d9fca48d56`](https://github.com/HomenShum/NodeBenchAI/commit/80853f0c418fc77e9621f27be22840d9fca48d56).
+
+- [CI run 37604577354](https://github.com/HomenShum/NodeBenchAI/actions/runs/37604577354)
+  reports Typecheck, Runtime smoke, ScratchNode launch gates and Build passing
+  on that revision. These checks do not certify a current full-stack quality run.
+- [Pipeline benchmark job 112738741012](https://github.com/HomenShum/NodeBenchAI/actions/runs/37605136749/job/112738741012)
+  passed its 11 benchmark-runner contract scenarios, then failed preflight
+  against `https://scratchnode.live`: `Response exceeds 65536 byte limit`.
+  **No golden queries were evaluated and no answer-quality score was produced.**
+- The committed [full-stack summary](docs/architecture/benchmarks/full-stack-eval-latest.md)
+  was generated on `2026-04-23T13:35:30.699Z`. It records `demo_candidate`,
+  skipped phases and `Capability Production Gate OK: false`; its `latest`
+  filename does not establish readiness for October main.
+
+This documentation review ran no new evaluation. Current full-stack quality,
+visual presentation, responsive interaction and production readiness remain
+unverified here. Follow [START_HERE](docs/START_HERE.md) for the actual local
+entrypoint and its Convex requirement, and retain exact-revision receipts before
+making a broader readiness claim.
+
+### Historical Published Run Results — April 2026
 
 **Pi-AI pipeline cascade:** merged to `main` on 2026-04-30 at
 `2a541037874c0f8c675ab393d5c08f50123cf6d2`.
@@ -837,9 +859,11 @@ Every production run is evaluated by two independent systems:
 This dual-layer approach means hallucinations and quality regressions are
 caught by **two independent systems** before they reach users.
 
-### Current Production Status
+### Historical README Snapshot — 2026-04-23
 
-**Latest Full-Stack Eval:** `2026-04-23T06:46:53Z`
+**Full-stack timestamp recorded in this README:** `2026-04-23T06:46:53Z`
+
+These are retained historical numbers, not a revalidated result for current main.
 
 ```text
 Overall Pass Rate:     100% ✅
@@ -854,18 +878,18 @@ Feature Breadth:       100% ✅ (31 scenarios)
 Retention/Continuity:  4/4 passed ✅
 ```
 
-All production gates **passing**:
+Gates reported by this historical README snapshot (not revalidated):
 - ✅ Expanded Feature Coverage Production Gate
 - ✅ Answer Control Production Gate  
 - ✅ Dogfood Production Gate
 - ✅ Notebook Capacity Production Gate
 - ✅ History Soak Production Gate
 
-**Note:** The only outstanding item is p95 latency optimization (174s vs 90s
-target) — a performance enhancement, not a correctness blocker. The system is
-**production-ready for all quality scenarios**.
+**Historical latency observation:** p95 was reported as 174s against a 90s
+target. That observation does not establish the remaining work or readiness of
+current main; see the dated evidence above.
 
-### Evaluation Coverage
+### Historical Evaluation Coverage Recorded in This README
 
 **Capability Eval — 32 Persona Scenarios**
 
@@ -941,10 +965,11 @@ All artifacts are versioned in `docs/architecture/benchmarks/`:
 6. **Retention/continuity passes** — long-term memory works
 7. **Answer control 100%** — artifact decisions, ambiguity recovery solid
 
-The system meets all of these. The only remaining work is latency optimization
-— making fast answers even faster, not making broken answers work.
+The historical numbers above do not establish that current main meets these
+criteria. The reviewed Pipeline benchmark is blocked, and no new full-stack
+quality result was produced by this documentation review.
 
-### Model Strategy
+### Historical Model Strategy Recorded in This README
 
 - **Primary:** `moonshotai/kimi-k2.6` (OpenRouter) — 100% capability pass
 - **Fallback:** `gpt-5.4` — automatic retry on empty/missing debrief
