@@ -1,5 +1,12 @@
 # NodeBench AI — Claude Code Project Instructions
 
+**New to this repository? Read `docs/START_HERE.md` first.** It follows one
+question from the keypress to the answer, step by step through the real files,
+and tells you what you can run without a Convex deployment. Everything below
+assumes you already know that path. Its line citations and the CodeTour steps
+in `.tours/` are checked by `node scripts/validate-tours.mjs` — run that after
+moving any code those documents point at.
+
 ## Agent coordination (read FIRST when other agents may be active)
 
 `AGENT_COORDINATION.md` (repo root) is the live ledger of **who is editing what right now**

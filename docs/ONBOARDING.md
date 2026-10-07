@@ -116,7 +116,7 @@ Good first tasks:
 - `npx tsc --noEmit` → 0 errors
 - `npx vitest run` → all green
 - `npm run build` → clean
-- `npx playwright test evals/e2e/product-shell-smoke.spec.ts` → green
+- Browser checks: use the current-route cases in [`START_HERE.md`](START_HERE.md), with their stated backend prerequisites. `evals/e2e/product-shell-smoke.spec.ts` is a legacy diagnostic: reconcile its distinct five-surface URL/selector assertions with current conversation routing before using it as a handoff gate.
 - Visual verification: screenshot the change at 1440×900
 - If backend/infra: run the 8-point reliability checklist
 
