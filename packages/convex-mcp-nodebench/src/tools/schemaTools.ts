@@ -1,3 +1,4 @@
+import { findConvexDir } from "../project.js";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { getDb, genId } from "../db.js";
@@ -5,17 +6,6 @@ import { getQuickRef } from "./toolRegistry.js";
 import type { McpTool, SchemaIssue } from "../types.js";
 
 // ── Helpers ──────────────────────────────────────────────────────────
-
-function findConvexDir(projectDir: string): string | null {
-  const candidates = [
-    join(projectDir, "convex"),
-    join(projectDir, "src", "convex"),
-  ];
-  for (const c of candidates) {
-    if (existsSync(c)) return c;
-  }
-  return null;
-}
 
 function readSchemaFile(convexDir: string): string | null {
   const schemaPath = join(convexDir, "schema.ts");
@@ -392,16 +382,16 @@ export const schemaTools: McpTool[] = [
       const convexDir = findConvexDir(projectDir);
       if (!convexDir) {
         return {
-          error: "No convex/ directory found",
-          hint: "Ensure projectDir points to a directory containing a convex/ folder",
+          error: "No configured Convex functions directory found",
+          hint: "Check projectDir and the functions path in convex.json",
         };
       }
 
       const schemaContent = readSchemaFile(convexDir);
       if (!schemaContent) {
         return {
-          error: "No convex/schema.ts found",
-          hint: "Create a schema.ts file in your convex/ directory",
+          error: "No schema.ts found in the resolved functions directory",
+          hint: "Create schema.ts in the configured functions directory",
           quickRef: getQuickRef("convex_audit_schema"),
         };
       }
@@ -465,7 +455,7 @@ export const schemaTools: McpTool[] = [
       const projectDir = resolve(args.projectDir);
       const convexDir = findConvexDir(projectDir);
       if (!convexDir) {
-        return { error: "No convex/ directory found" };
+        return { error: "No configured Convex functions directory found" };
       }
 
       const suggestions = suggestIndexes(convexDir);
@@ -525,7 +515,7 @@ export const schemaTools: McpTool[] = [
       const projectDir = resolve(args.projectDir);
       const convexDir = findConvexDir(projectDir);
       if (!convexDir) {
-        return { error: "No convex/ directory found" };
+        return { error: "No configured Convex functions directory found" };
       }
 
       const result = analyzeValidatorCoverage(convexDir);

@@ -1,0 +1,51 @@
+name: Deploy verify
+
+# Node Foyer identity lane (copies NodeVoice PR #10's pattern). Vercel's GitHub
+# integration posts deployment_status events with no secrets needed to read them.
+# `gh api repos/HomenShum/NodeBenchAI/deployments?per_page=5` shows this repo's
+# production environment name is the bare string "Production" (a single Vercel
+# project, nodebench-ai, deploys from this repo — unlike NodeVoice's two-project
+# case, no environment-name disambiguation is needed here).
+#
+# KNOWN HAZARD (FOYER-V3 council ruling): .github/workflows/post-deploy-verify.yml
+# in this same repo runs `npx vercel rollback --yes` on a failed PRODUCTION
+# deployment_status event, and also runs on a 6-hourly schedule. This workflow is
+# a separate file with `on: deployment_status` only (no `schedule:`, no
+# `workflow_dispatch:`) and has no rollback step at all, so it can never reach
+# post-deploy-verify.yml's rollback path in either direction: this workflow never
+# fires from the schedule (it isn't triggered by one), and a failure here has no
+# rollback step to run. The two workflows run independently on the same event.
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+  deployments: read
+
+jobs:
+  verify-live-identity:
+    if: >-
+      github.event.deployment_status.state == 'success' &&
+      github.event.deployment_status.environment == 'Production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Poll the live meta tag for the deployed commit sha
+        env:
+          EXPECTED_SHA: ${{ github.event.deployment.sha }}
+          LIVE_URL: https://www.nodebenchai.com/
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 180))
+          found=""
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            body="$(curl -fsS --max-time 10 "$LIVE_URL" || true)"
+            found="$(printf '%s' "$body" | grep -oE '<meta name="nodebench-build-sha" content="[0-9a-f]{40}"' | grep -oE '[0-9a-f]{40}' || true)"
+            if [ "$found" = "$EXPECTED_SHA" ]; then
+              echo "Live meta matches deployed commit: $found"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::nodebench-build-sha never matched the deployed commit ($EXPECTED_SHA); last seen: '${found:-<none>}'" >&2
+          exit 1

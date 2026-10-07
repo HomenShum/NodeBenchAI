@@ -1,0 +1,46 @@
+**Builder — approved: the actual one-file return-type patch passes its bounded proof.**
+
+**Re your request:** Make repository repairs ready for usage and handoff, using an independent judge. A developer consuming the sourcing action previously could assign the model name to a number and token counts to strings without errors in the retained API experiment. The exact edited provider now rejects those invalid contracts.
+
+The root cause is unchanged: `JSON.parse` gives `any`, and existing runtime guards alone do not preserve the inferred outward leaf types. The actual disk file adds only the optional three-number usage annotation and `actualModel: string`. The diff has one file, two inserted lines and two deleted lines. No runtime logic changed.
+
+| Check | Canonical Git baseline | Actual edited source |
+| --- | ---: | ---: |
+| Invalid contracts rejected | 4 / 9 | 9 / 9 |
+| Valid contracts accepted | 9 / 9 | 9 / 9 |
+| Tested return leaves still any | 4 | 0 |
+| Targeted provider diagnostics | 0 | 0 |
+
+The current-source compiler run loads the provider from disk through its normal compiler host. Only the retained module-local API declaration and contract fixture remain virtual. The baseline alone substitutes exact Git HEAD provider bytes. TypeScript 5.9.3 uses the actual app roots/options and 7,481 source files; no `_type_shims` file is present.
+
+Both emitted provider files are byte-identical: SHA256 `a7c565caab7cb53162aa6153158bb6690c6ad33bb5b9099aedbcbe2fb9eef13c`. Emitted code was not executed. See [baseline raw report](E4f-provider-return-source-review/baseline/report.json), [current-source raw report](E4f-provider-return-source-review/current-source/report.json), and [actual Git diff](E4f-provider-return-source-review/actual-source.diff).
+
+HEAD is `673ba7dc4ed7bf90fab839322d832511550b8bbc`, branch `codex/sourcing-return-types-20260905`; its tree equals the earlier reviewed `672041cd` tree. Current provider SHA256 is `9a6c3a620dbbbf6639dcfe1bdaf5ec89aada81d088ac7ebe92ebeea9774e7139`. All 7,480 disk-backed compiler inputs, 18 named bindings, Git HEAD/index/refs/status and old virtual reports remained exact throughout both runs and the final read. The only disk-backed compiler input changed since the old virtual diagnosis is this provider file.
+
+The eight backend reliability points retain their existing behavior:
+
+| Requirement | Inspected unchanged control and scope |
+| --- | --- |
+| BOUND | Request-local collections; response buffer fixed at 128 KiB. Input canonicalization bounds arrays to 100, object keys to 40, depth to 12 and strings to 16000. Draft validation bounds each list to 20 and text to 2000. No persistent collection or eviction policy is introduced. |
+| HONEST_STATUS | Non-OK provider responses, incomplete output and schema failures throw. The catch records an error and rethrows; a failed audit mutation throws SOURCING_AUDIT_FAILURE. This is an internal action, not a new HTTP status contract. |
+| HONEST_SCORES | No numeric quality score or floor is added. Requirements remain model-suggestion-unverified and receipt reviewRequired remains true. |
+| TIMEOUT | Existing AbortController and 25000 ms timer bound provider fetch/body reading. Output budget remains 3500 tokens. The timer does not bound every surrounding Convex audit mutation; no whole-action deadline proof is claimed. |
+| SSRF | The provider URL is the existing fixed OpenAI HTTPS endpoint and redirect mode is error. No caller-supplied URL is fetched in this function. |
+| BOUND_READ | Every streamed chunk is checked against the fixed 128 KiB buffer before copying. Overflow aborts and throws SOURCING_MODEL_LIMIT. |
+| ERROR_BOUNDARY | The existing provider try/catch/finally normalizes and rethrows errors and clears the timer. Input/config/start-run errors before the try still propagate to the caller. No fallback success path is introduced. |
+| DETERMINISTIC | Input/output hashes still use SHA-256 over existing recursively sorted-key canonicalSourcingValue. Request/project/revision bind the input hash. No compare-and-swap or hashing policy changes. |
+
+These are source observations supported by byte-identical runtime emission. The 25-second timeout bounds provider I/O, not every surrounding audit mutation. There were no provider calls, environment-secret reads, database operations, installs or deployments.
+
+**Limit:** the actual on-disk generated API/project graph remains unresolved. This is a provider source and contract judgment in the retained module-local API experiment, not a whole-app typecheck, global diagnostic refresh or readiness grade. No `any` cast, generated binding, dependency, configuration or broader API change was added.
+
+The parent can publish the bounded handoff and proceed through normal reviewed integration. Metadata publication, commit and shared CI are outside this source-only judgment. Reviewer context was reused; this reviewer did not author the runtime patch but did author the earlier diagnostic and adapted compiler probe.
+
+For a fresh replay, copy the packet before running these commands so frozen reports remain intact:
+
+```powershell
+node --max-old-space-size=6144 ./E4f-provider-return-source-probe.mjs baseline
+node --max-old-space-size=6144 ./E4f-provider-return-source-probe.mjs current-source
+```
+
+[Machine-readable judgment and exact artifact bindings](E4f_NODEBENCH_RETURN_LEAF_SOURCE_JUDGE.json).

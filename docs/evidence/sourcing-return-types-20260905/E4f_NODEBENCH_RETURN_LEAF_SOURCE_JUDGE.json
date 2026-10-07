@@ -1,0 +1,257 @@
+{
+  "schemaVersion": "portfolio.source-only-judge/v1",
+  "at": "2026-09-05T08:57:59.809366+00:00",
+  "verdict": "APPROVED_SOURCE_ONLY_RETURN_LEAF_PATCH",
+  "namedProof": "NODEBENCH-SOURCING-RETURN-LEAVES-01",
+  "request": "Independently verify the actual two-declaration provider patch, positive/negative return contracts, identical JavaScript and unchanged backend reliability controls.",
+  "reviewerContext": "Reused nonauthor implementation reviewer. This reviewer authored the earlier virtual diagnosis and this adapted compiler probe; a separate independent probe-author review is not claimed.",
+  "candidate": {
+    "path": "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.worktrees\\portfolio-provider-20260904",
+    "head": "673ba7dc4ed7bf90fab839322d832511550b8bbc",
+    "headTree": "3e06986d959634260fd86c4cc2d6f3a664e55095",
+    "branch": "codex/sourcing-return-types-20260905",
+    "source": "backend/convex/domains/mcp/mcpSourcingDraft.ts",
+    "sourceSha256": "9a6c3a620dbbbf6639dcfe1bdaf5ec89aada81d088ac7ebe92ebeea9774e7139",
+    "runtimeContractSha256": "2b2be277bf1775b967bb02d42fee0e90848fbb8e1028460e82ff7ed57bbde5cf",
+    "scope": {
+      "modifiedPaths": [
+        "backend/convex/domains/mcp/mcpSourcingDraft.ts"
+      ],
+      "insertions": 2,
+      "deletions": 2,
+      "stagedPaths": 0,
+      "newRuntimeBranches": 0,
+      "newDependencies": 0,
+      "newPublicApi": 0,
+      "newConfiguration": 0
+    },
+    "state": {
+      "head": "673ba7dc4ed7bf90fab839322d832511550b8bbc",
+      "index": "19ff5cfde872a40954cb384e9f88b0741d2084e7081fe5aee604680badc3a481",
+      "status": "9db0752d0494f90907449243bcf4fa61bc6025800172a1d7c6304a3a7fc5415e",
+      "refs": "aabf0fd51bf2e0222ed2087112e88d097aad8b01c7b104e103c89aefde35bb34"
+    }
+  },
+  "causalFinding": "Existing runtime checks validate the model and usage, but JSON.parse any flows through unannotated locals into the inferred API return. Explicit local string and optional numeric-object annotations preserve those validated leaf types. The exact current disk source now closes all four tested any leaves.",
+  "compiler": {
+    "typescript": "5.9.3",
+    "roots": "Actual tsconfig.app.json",
+    "sourceFiles": 7481,
+    "diskBackedInputs": 7480,
+    "baselineProviderFromGitHead": {
+      "virtual": true,
+      "gitBaselineSha256": "1c00f9247f13f26aa3054dc3c5aa879ee3f28c480412e0536ffb7cd24c1e590f",
+      "actualDiskSha256": "9a6c3a620dbbbf6639dcfe1bdaf5ec89aada81d088ac7ebe92ebeea9774e7139",
+      "compilerSourceSha256": "1c00f9247f13f26aa3054dc3c5aa879ee3f28c480412e0536ffb7cd24c1e590f",
+      "exactTwoDeclarationDiff": true
+    },
+    "actualCurrentProviderFromDisk": {
+      "virtual": false,
+      "gitBaselineSha256": "1c00f9247f13f26aa3054dc3c5aa879ee3f28c480412e0536ffb7cd24c1e590f",
+      "actualDiskSha256": "9a6c3a620dbbbf6639dcfe1bdaf5ec89aada81d088ac7ebe92ebeea9774e7139",
+      "compilerSourceSha256": "9a6c3a620dbbbf6639dcfe1bdaf5ec89aada81d088ac7ebe92ebeea9774e7139",
+      "exactTwoDeclarationDiff": true
+    },
+    "apiDeclaration": "Retained module-local experiment in memory only",
+    "apiDeclarationSha256": "afb876cdff23623111b5400d1ee77fd4e7a0536d60ac816956a43e0bbb8d9bc5",
+    "shimIncluded": []
+  },
+  "results": {
+    "baseline": {
+      "rejectedInvalid": 4,
+      "acceptedInvalid": 5,
+      "acceptedValid": 9,
+      "anyLeaves": 4,
+      "providerDiagnostics": 0
+    },
+    "currentSource": {
+      "rejectedInvalid": 9,
+      "acceptedInvalid": 0,
+      "acceptedValid": 9,
+      "anyLeaves": 0,
+      "providerDiagnostics": 0
+    },
+    "emitted": {
+      "method": "Installed TypeScript transpileModule with actual app options and emission-only output flags; sourceMap disabled in both; no emitted code executed",
+      "baselineSha256": "a7c565caab7cb53162aa6153158bb6690c6ad33bb5b9099aedbcbe2fb9eef13c",
+      "annotatedSha256": "a7c565caab7cb53162aa6153158bb6690c6ad33bb5b9099aedbcbe2fb9eef13c",
+      "identical": true,
+      "baselineDiagnostics": [],
+      "annotatedDiagnostics": []
+    },
+    "eightReliabilityPoints": [
+      {
+        "id": "BOUND",
+        "result": "UNCHANGED_BY_PATCH",
+        "observation": "Request-local collections; response buffer fixed at 128 KiB. Input canonicalization bounds arrays to 100, object keys to 40, depth to 12 and strings to 16000. Draft validation bounds each list to 20 and text to 2000. No persistent collection or eviction policy is introduced.",
+        "source": [
+          "backend/convex/domains/mcp/mcpSourcingDraft.ts:46",
+          "backend/convex/domains/mcp/mcpSourcingContract.ts:42",
+          "backend/convex/domains/mcp/mcpSourcingContract.ts:54"
+        ]
+      },
+      {
+        "id": "HONEST_STATUS",
+        "result": "UNCHANGED_BY_PATCH",
+        "observation": "Non-OK provider responses, incomplete output and schema failures throw. The catch records an error and rethrows; a failed audit mutation throws SOURCING_AUDIT_FAILURE. This is an internal action, not a new HTTP status contract.",
+        "source": [
+          "backend/convex/domains/mcp/mcpSourcingDraft.ts:44",
+          "backend/convex/domains/mcp/mcpSourcingDraft.ts:73"
+        ]
+      },
+      {
+        "id": "HONEST_SCORES",
+        "result": "UNCHANGED_BY_PATCH",
+        "observation": "No numeric quality score or floor is added. Requirements remain model-suggestion-unverified and receipt reviewRequired remains true.",
+        "source": [
+          "backend/convex/domains/mcp/mcpSourcingDraft.ts:72",
+          "backend/convex/domains/mcp/mcpSourcingContract.ts:50"
+        ]
+      },
+      {
+        "id": "TIMEOUT",
+        "result": "UNCHANGED_BY_PATCH",
+        "observation": "Existing AbortController and 25000 ms timer bound provider fetch/body reading. Output budget remains 3500 tokens. The timer does not bound every surrounding Convex audit mutation; no whole-action deadline proof is claimed.",
+        "source": [
+          "backend/convex/domains/mcp/mcpSourcingDraft.ts:31",
+          "backend/convex/domains/mcp/mcpSourcingDraft.ts:38",
+          "backend/convex/domains/mcp/mcpSourcingContract.ts:3"
+        ]
+      },
+      {
+        "id": "SSRF",
+        "result": "UNCHANGED_BY_PATCH",
+        "observation": "The provider URL is the existing fixed OpenAI HTTPS endpoint and redirect mode is error. No caller-supplied URL is fetched in this function.",
+        "source": [
+          "backend/convex/domains/mcp/mcpSourcingDraft.ts:39"
+        ]
+      },
+      {
+        "id": "BOUND_READ",
+        "result": "UNCHANGED_BY_PATCH",
+        "observation": "Every streamed chunk is checked against the fixed 128 KiB buffer before copying. Overflow aborts and throws SOURCING_MODEL_LIMIT.",
+        "source": [
+          "backend/convex/domains/mcp/mcpSourcingDraft.ts:46",
+          "backend/convex/domains/mcp/mcpSourcingDraft.ts:48"
+        ]
+      },
+      {
+        "id": "ERROR_BOUNDARY",
+        "result": "UNCHANGED_BY_PATCH",
+        "observation": "The existing provider try/catch/finally normalizes and rethrows errors and clears the timer. Input/config/start-run errors before the try still propagate to the caller. No fallback success path is introduced.",
+        "source": [
+          "backend/convex/domains/mcp/mcpSourcingDraft.ts:16",
+          "backend/convex/domains/mcp/mcpSourcingDraft.ts:25",
+          "backend/convex/domains/mcp/mcpSourcingDraft.ts:73"
+        ]
+      },
+      {
+        "id": "DETERMINISTIC",
+        "result": "UNCHANGED_BY_PATCH",
+        "observation": "Input/output hashes still use SHA-256 over existing recursively sorted-key canonicalSourcingValue. Request/project/revision bind the input hash. No compare-and-swap or hashing policy changes.",
+        "source": [
+          "backend/convex/domains/mcp/mcpSourcingDraft.ts:10",
+          "backend/convex/domains/mcp/mcpSourcingDraft.ts:19",
+          "backend/convex/domains/mcp/mcpSourcingContract.ts:54"
+        ]
+      }
+    ]
+  },
+  "preservation": {
+    "beforeAfterFinalGitStateExact": true,
+    "all7480DiskInputsExactDuringBothRunsAndFinalRead": true,
+    "all18NamedBindingsExact": true,
+    "previousVirtualReportsExact": true,
+    "previousGraphChangedOnlyProvider": [
+      "D:\\VSCode Projects\\cafecorner_nodebench\\nodebench_ai4\\nodebench-ai\\.worktrees\\portfolio-provider-20260904\\backend\\convex\\domains\\mcp\\mcpSourcingDraft.ts"
+    ],
+    "canonicalHeadTreeEqualsPreviousReviewedHeadTree": true,
+    "judgeSourceOrConfigOrGeneratedEdits": 0,
+    "judgeIndexOrRefEdits": 0,
+    "providerCalls": 0,
+    "databaseOperations": 0,
+    "credentialReads": 0,
+    "installs": 0,
+    "deployments": 0,
+    "emittedCodeExecuted": false
+  },
+  "limits": [
+    "The actual provider is loaded from disk without override in the current-source run, but the API declaration is still the retained unshipped module-local experiment.",
+    "The actual on-disk generated API/project graph remains unresolved. No whole-app typecheck pass, fresh global diagnostic count or whole-repo safety grade is claimed.",
+    "This requests only provider and contract semantic diagnostics. Runtime control observations are source inspection plus unchanged JavaScript, not new provider-network, HTTP, latency, failure-injection or deployment tests.",
+    "Existing JSON.parse and raw usage initializer values remain any; the two local declarations encode values already checked by runtime guards.",
+    "Emission comparison uses installed TypeScript transpileModule with actual app options and matching emission-only flags, source maps disabled. It is not a complete app build.",
+    "This is a source-only judgment before metadata publication, commit and normal shared CI. Those operations need their own exact bindings."
+  ],
+  "nextAction": "Parent may publish the bounded proof and handoff, then perform normal reviewed integration. Keep broader generated API and app readiness open; no scope expansion is needed for this erased annotation patch.",
+  "artifacts": {
+    "E4f-provider-return-source-review/actual-source.diff": {
+      "sha256": "ad3c2d131d93caf9ad8f64771ff71a5589fdd0fc815dde6c9991163310f21782",
+      "bytes": 1968
+    },
+    "E4f-provider-return-source-review/baseline/contract-fixture.ts.txt": {
+      "sha256": "7a78e176dee4172dca9002a58464bd1a12719766fd22debc9d6dc8ca567681f3",
+      "bytes": 2814
+    },
+    "E4f-provider-return-source-review/baseline/provider-annotated-emitted.js.txt": {
+      "sha256": "a7c565caab7cb53162aa6153158bb6690c6ad33bb5b9099aedbcbe2fb9eef13c",
+      "bytes": 8095
+    },
+    "E4f-provider-return-source-review/baseline/provider-baseline-emitted.js.txt": {
+      "sha256": "a7c565caab7cb53162aa6153158bb6690c6ad33bb5b9099aedbcbe2fb9eef13c",
+      "bytes": 8095
+    },
+    "E4f-provider-return-source-review/baseline/provider-current-source.ts.txt": {
+      "sha256": "9a6c3a620dbbbf6639dcfe1bdaf5ec89aada81d088ac7ebe92ebeea9774e7139",
+      "bytes": 7548
+    },
+    "E4f-provider-return-source-review/baseline/provider-git-baseline.ts.txt": {
+      "sha256": "1c00f9247f13f26aa3054dc3c5aa879ee3f28c480412e0536ffb7cd24c1e590f",
+      "bytes": 7478
+    },
+    "E4f-provider-return-source-review/baseline/report.json": {
+      "sha256": "6ea099307b12b4a916d058b9b0b2d5ab9ed7994c7110d5ccd4e3a0a15b4ab866",
+      "bytes": 1889861
+    },
+    "E4f-provider-return-source-review/current-source/contract-fixture.ts.txt": {
+      "sha256": "7a78e176dee4172dca9002a58464bd1a12719766fd22debc9d6dc8ca567681f3",
+      "bytes": 2814
+    },
+    "E4f-provider-return-source-review/current-source/provider-annotated-emitted.js.txt": {
+      "sha256": "a7c565caab7cb53162aa6153158bb6690c6ad33bb5b9099aedbcbe2fb9eef13c",
+      "bytes": 8095
+    },
+    "E4f-provider-return-source-review/current-source/provider-baseline-emitted.js.txt": {
+      "sha256": "a7c565caab7cb53162aa6153158bb6690c6ad33bb5b9099aedbcbe2fb9eef13c",
+      "bytes": 8095
+    },
+    "E4f-provider-return-source-review/current-source/provider-current-source.ts.txt": {
+      "sha256": "9a6c3a620dbbbf6639dcfe1bdaf5ec89aada81d088ac7ebe92ebeea9774e7139",
+      "bytes": 7548
+    },
+    "E4f-provider-return-source-review/current-source/provider-git-baseline.ts.txt": {
+      "sha256": "1c00f9247f13f26aa3054dc3c5aa879ee3f28c480412e0536ffb7cd24c1e590f",
+      "bytes": 7478
+    },
+    "E4f-provider-return-source-review/current-source/report.json": {
+      "sha256": "813bf45f39c92a27aa8d5495e30bea198373b1c04a30e6692104d22f3fa23d4d",
+      "bytes": 1891884
+    },
+    "E4f-provider-return-source-review/status.txt": {
+      "sha256": "69785fc10760907f3fdb701f31efeef69001a11097a8e767d3f73c0986128203",
+      "bytes": 50
+    },
+    "E4f-provider-return-source-probe.mjs": {
+      "sha256": "cb8ac456afb35c547bad1316362faec1a504dce9395379511f09102b60f04c0f",
+      "bytes": 12112
+    },
+    "E4f_NODEBENCH_RETURN_LEAF_PATCH_PLAN.md": {
+      "sha256": "2fe9048e1c822aebc46082597fbadb93691bcdfdfe544f31a26baf4dc8a7ebbb",
+      "bytes": 2654
+    },
+    "E4f-write-provider-return-source-judge.py": {
+      "sha256": "d170462db77cd893a8babda6ffb9c913ddf55f1227dacc29c89bfd2d4c984be6",
+      "bytes": 15318
+    }
+  }
+}

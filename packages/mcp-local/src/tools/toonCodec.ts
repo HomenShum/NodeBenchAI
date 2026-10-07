@@ -23,10 +23,8 @@ async function loadToonCodec(): Promise<ToonCodec> {
   if (!codecPromise) {
     codecPromise = (async () => {
       try {
-        const dynamicImport = new Function("specifier", "return import(specifier)") as (
-          specifier: string,
-        ) => Promise<Partial<ToonCodec>>;
-        const module = await dynamicImport("@toon-format/toon");
+        const specifier = "@toon-format/toon";
+        const module = await import(specifier) as Partial<ToonCodec>;
         if (typeof module.encode === "function" && typeof module.decode === "function") {
           return { encode: module.encode, decode: module.decode };
         }

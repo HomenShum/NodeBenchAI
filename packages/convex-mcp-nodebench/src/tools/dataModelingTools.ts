@@ -1,3 +1,4 @@
+import { findConvexDir } from "../project.js";
 import { readFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { getDb, genId } from "../db.js";
@@ -5,14 +6,6 @@ import { getQuickRef } from "./toolRegistry.js";
 import type { McpTool } from "../types.js";
 
 // ── Helpers ──────────────────────────────────────────────────────────
-
-function findConvexDir(projectDir: string): string | null {
-  const candidates = [join(projectDir, "convex"), join(projectDir, "src", "convex"), join(projectDir, "backend", "convex")];
-  for (const c of candidates) {
-    if (existsSync(c)) return c;
-  }
-  return null;
-}
 
 // ── Data Modeling Audit ─────────────────────────────────────────────
 
@@ -229,7 +222,7 @@ export const dataModelingTools: McpTool[] = [
       const projectDir = resolve(args.projectDir);
       const convexDir = findConvexDir(projectDir);
       if (!convexDir) {
-        return { error: "No convex/ directory found" };
+        return { error: "No configured Convex functions directory found" };
       }
 
       const { issues, stats } = auditDataModeling(convexDir);

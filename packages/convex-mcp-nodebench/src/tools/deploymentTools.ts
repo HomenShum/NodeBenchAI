@@ -1,3 +1,4 @@
+import { findConvexDir } from "../project.js";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { getDb, genId } from "../db.js";
@@ -5,14 +6,6 @@ import { getQuickRef } from "./toolRegistry.js";
 import type { McpTool, DeployGateResult } from "../types.js";
 
 // ── Helpers ──────────────────────────────────────────────────────────
-
-function findConvexDir(projectDir: string): string | null {
-  const candidates = [join(projectDir, "convex"), join(projectDir, "src", "convex"), join(projectDir, "backend", "convex")];
-  for (const c of candidates) {
-    if (existsSync(c)) return c;
-  }
-  return null;
-}
 
 // ── Pre-Deploy Gate ─────────────────────────────────────────────────
 
@@ -23,13 +16,13 @@ function runPreDeployChecks(projectDir: string): DeployGateResult {
   // Check 1: convex/ directory exists
   const convexDir = findConvexDir(projectDir);
   if (!convexDir) {
-    checks.push({ name: "convex_dir_exists", passed: false, message: "No convex/ directory found" });
-    blockers.push("No convex/ directory found");
+    checks.push({ name: "convex_dir_exists", passed: false, message: "No configured Convex functions directory found" });
+    blockers.push("No configured Convex functions directory found");
     return {
       passed: false,
       checks,
       blockers: blockers.map((b, i) => ({ priority: i + 1, blocker: b, fixFirst: i === 0 })),
-      fixOrder: "Fix #1: Create a convex/ directory. Then re-run convex_pre_deploy_gate.",
+      fixOrder: "Fix #1: Check convex.json functions and create that directory. Then re-run convex_pre_deploy_gate.",
     };
   }
   checks.push({ name: "convex_dir_exists", passed: true, message: `Found at ${convexDir}` });

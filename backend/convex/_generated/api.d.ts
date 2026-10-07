@@ -726,6 +726,8 @@ import type * as domains_mcp_mcpNarrativeEndpoints from "../domains/mcp/mcpNarra
 import type * as domains_mcp_mcpPlans from "../domains/mcp/mcpPlans.js";
 import type * as domains_mcp_mcpPlansHttp from "../domains/mcp/mcpPlansHttp.js";
 import type * as domains_mcp_mcpResearchEndpoints from "../domains/mcp/mcpResearchEndpoints.js";
+import type * as domains_mcp_mcpSourcingContract from "../domains/mcp/mcpSourcingContract.js";
+import type * as domains_mcp_mcpSourcingDraft from "../domains/mcp/mcpSourcingDraft.js";
 import type * as domains_mcp_mcpToolLedger from "../domains/mcp/mcpToolLedger.js";
 import type * as domains_mcp_mcpToolRegistry from "../domains/mcp/mcpToolRegistry.js";
 import type * as domains_mcp_mcpVerificationEndpoints from "../domains/mcp/mcpVerificationEndpoints.js";
@@ -2271,6 +2273,8 @@ declare const fullApi: ApiFromModules<{
   "domains/mcp/mcpPlans": typeof domains_mcp_mcpPlans;
   "domains/mcp/mcpPlansHttp": typeof domains_mcp_mcpPlansHttp;
   "domains/mcp/mcpResearchEndpoints": typeof domains_mcp_mcpResearchEndpoints;
+  "domains/mcp/mcpSourcingContract": typeof domains_mcp_mcpSourcingContract;
+  "domains/mcp/mcpSourcingDraft": typeof domains_mcp_mcpSourcingDraft;
   "domains/mcp/mcpToolLedger": typeof domains_mcp_mcpToolLedger;
   "domains/mcp/mcpToolRegistry": typeof domains_mcp_mcpToolRegistry;
   "domains/mcp/mcpVerificationEndpoints": typeof domains_mcp_mcpVerificationEndpoints;

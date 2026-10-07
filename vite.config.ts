@@ -6,7 +6,51 @@ import { visualizer } from "rollup-plugin-visualizer";
 import { imagetools } from "vite-imagetools";
 import { VitePWA } from "vite-plugin-pwa";
 import Critters from "critters";
+import { execFileSync } from "node:child_process";
 /// <reference types="vitest" />
+
+// Build identity, adapted from node-foyer's vite.config.ts (foyer-build-sha) via the
+// NodeVoice PR #10 pattern. Non-strict: falls back to "unavailable" rather than throwing
+// when no signal is available.
+const BUILD_SHA_PATTERN = /^[0-9a-f]{40}$/u;
+
+function resolveBuildSha(): string {
+  for (const value of [process.env.VERCEL_GIT_COMMIT_SHA, process.env.GITHUB_SHA]) {
+    const sha = value?.trim().toLowerCase();
+    if (sha && BUILD_SHA_PATTERN.test(sha)) return sha;
+  }
+  try {
+    const sha = execFileSync("git", ["rev-parse", "HEAD"], {
+      encoding: "utf8",
+      timeout: 5_000,
+      windowsHide: true,
+    }).trim();
+    if (BUILD_SHA_PATTERN.test(sha)) return sha;
+  } catch {
+    // fall through to unavailable
+  }
+  return "unavailable";
+}
+
+function buildIdentityMeta(): Plugin {
+  return {
+    name: "nodebench-build-identity",
+    transformIndexHtml() {
+      const sha = resolveBuildSha();
+      return [
+        {
+          tag: "meta",
+          attrs: {
+            name: "nodebench-build-sha",
+            content: sha,
+            "data-provenance": sha === "unavailable" ? "unavailable" : "commit",
+          },
+          injectTo: "head" as const,
+        },
+      ];
+    },
+  };
+}
 
 // Critical CSS plugin using Critters
 function criticalCSSPlugin(): Plugin {
@@ -177,6 +221,7 @@ export default defineConfig(({ mode }) => {
     envDir: __dirname,
     plugins: [
     react(),
+    buildIdentityMeta(),
     // Service Worker + PWA for aggressive caching
     VitePWA({
       registerType: 'autoUpdate',

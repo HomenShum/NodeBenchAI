@@ -1,0 +1,69 @@
+{
+  "at": "2026-09-05T09:02:26.095390+00:00",
+  "verdict": "SOURCE_JUDGMENT_FROZEN_PORTABILITY_ADAPTER_RESOLUTION_PASS",
+  "sourceJudgeSha256": "9fd0782ad6bd1396a3a3f52396d931d4ad6bcd7a2d90f7c02610a82ea8860675",
+  "sourceHash": "9a6c3a620dbbbf6639dcfe1bdaf5ec89aada81d088ac7ebe92ebeea9774e7139",
+  "statePreserved": {
+    "head": "673ba7dc4ed7bf90fab839322d832511550b8bbc",
+    "index": "19ff5cfde872a40954cb384e9f88b0741d2084e7081fe5aee604680badc3a481",
+    "status": "9db0752d0494f90907449243bcf4fa61bc6025800172a1d7c6304a3a7fc5415e",
+    "refs": "aabf0fd51bf2e0222ed2087112e88d097aad8b01c7b104e103c89aefde35bb34"
+  },
+  "all7480DiskCompilerInputsAnd18NamedBindingsStillExact": true,
+  "originalExecutedProbeExact": true,
+  "adapterValidation": "Syntax plus both mode argument/input resolution only; no compiler-program or runtime execution. The full compiler results remain bound to the original executed probe.",
+  "artifacts": {
+    "E4f_NODEBENCH_RETURN_LEAF_SOURCE_JUDGE.md": {
+      "sha256": "4f5bfd564f5c2e3e78a6ae91db4ccc9a00e79cb4a6ebf66691f70143fc2dce6f",
+      "bytes": 5392
+    },
+    "E4f_NODEBENCH_RETURN_LEAF_SOURCE_JUDGE.json": {
+      "sha256": "9fd0782ad6bd1396a3a3f52396d931d4ad6bcd7a2d90f7c02610a82ea8860675",
+      "bytes": 13119
+    },
+    "E4f_NODEBENCH_RETURN_LEAF_PORTABILITY.md": {
+      "sha256": "c853e84f673046bad02d7817cda1201ff7331a66e52b862287040b467418401d",
+      "bytes": 4255
+    },
+    "E4f-replay-provider-return-contract.mjs": {
+      "sha256": "048b99bd7577ecad092709aa5773e0248b5e9526f5e14a2be46dc841c0f3953b",
+      "bytes": 12777
+    },
+    "E4f-provider-return-source-probe.mjs": {
+      "sha256": "cb8ac456afb35c547bad1316362faec1a504dce9395379511f09102b60f04c0f",
+      "bytes": 12112
+    },
+    "E4f-provider-return-source-review/executed-probe.mjs.txt": {
+      "sha256": "cb8ac456afb35c547bad1316362faec1a504dce9395379511f09102b60f04c0f",
+      "bytes": 12112
+    },
+    "E4f-provider-return-portable-resolution/baseline.stderr.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "E4f-provider-return-portable-resolution/baseline.stdout.txt": {
+      "sha256": "8f83b254aa41d9ad9839b1fba9f42ea7999ea7a99c25c6c1e17694795155cbe8",
+      "bytes": 4259
+    },
+    "E4f-provider-return-portable-resolution/current-source.stderr.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "E4f-provider-return-portable-resolution/current-source.stdout.txt": {
+      "sha256": "535b0fc7d32885af31f7a2f26c7b22786089819b2af0cff64672b2bccd5084a5",
+      "bytes": 4272
+    },
+    "E4f-provider-return-portable-resolution/receipt.json": {
+      "sha256": "b75a6274b2d31ab92adc62dbbd4e0211d8d5b79002fdbfed22992bcde837e13d",
+      "bytes": 3596
+    },
+    "E4f-provider-return-portable-resolution/syntax.stderr.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "E4f-provider-return-portable-resolution/syntax.stdout.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    }
+  }
+}

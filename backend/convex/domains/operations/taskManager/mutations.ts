@@ -1319,6 +1319,24 @@ export const completeTraceForService = internalMutation({
     completeTraceForOwner(ctx, args, args.userId as Id<"users">),
 });
 
+// One service-owned run must not expose a completed trace with a still-running session.
+// Both existing lifecycle operations share this Convex transaction and roll back together.
+export const completeExecutionRunForService = internalMutation({
+  args: {
+    userId: v.string(),
+    traceId: v.id("agentTaskTraces"),
+    status: v.union(v.literal("completed"), v.literal("error")),
+    tokenUsage: v.optional(v.object({ input: v.number(), output: v.number(), total: v.number() })),
+    errorMessage: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const trace = await ctx.db.get(args.traceId);
+    if (!trace) throw new Error("Trace not found or unauthorized");
+    await completeTraceForOwner(ctx, args, args.userId as Id<"users">);
+    await updateSessionStatusForOwner(ctx, { sessionId: trace.sessionId, status: args.status === "completed" ? "completed" : "failed", errorMessage: args.errorMessage }, args.userId as Id<"users">);
+  },
+});
+
 export const recordStepForService = internalMutation({
   args: {
     userId: v.string(),

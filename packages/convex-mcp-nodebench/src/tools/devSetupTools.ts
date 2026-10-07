@@ -1,3 +1,4 @@
+import { findConvexDir } from "../project.js";
 import { readFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { getDb, genId } from "../db.js";
@@ -64,24 +65,14 @@ function auditDevSetup(projectDir: string): {
     }
   }
 
-  // Check 3: convex.json exists and points to valid deployment
-  const convexJsonPath = join(projectDir, "convex.json");
-  if (existsSync(convexJsonPath)) {
-    try {
-      const convexJson = JSON.parse(readFileSync(convexJsonPath, "utf-8"));
-      if (convexJson.project) {
-        checks.push({ area: "convex_json", status: "pass", detail: `convex.json configured for project: ${convexJson.project}` });
-      } else {
-        checks.push({ area: "convex_json", status: "warn", detail: "convex.json exists but no project configured" });
-      }
-    } catch {
-      checks.push({ area: "convex_json", status: "fail", detail: "convex.json exists but is invalid JSON" });
-      issues.push({
-        severity: "critical",
-        area: "convex_json",
-        message: "convex.json is invalid JSON. Convex CLI won't work.",
-        fix: "Fix the JSON syntax in convex.json or delete and run `npx convex dev` to regenerate",
-      });
+  // Check 3: configuration resolves to the backend actually being audited.
+  const convexDir = findConvexDir(projectDir);
+  if (existsSync(join(projectDir, "convex.json"))) {
+    if (convexDir) {
+      checks.push({ area: "convex_json", status: "pass", detail: "Convex functions directory resolved from project configuration" });
+    } else {
+      checks.push({ area: "convex_json", status: "fail", detail: "Convex configuration does not resolve to a functions directory" });
+      issues.push({ severity: "critical", area: "convex_json", message: "Convex configuration or functions directory is unavailable.", fix: "Check convex.json and its functions path; do not audit a stale directory." });
     }
   }
 
@@ -117,11 +108,10 @@ function auditDevSetup(projectDir: string): {
   }
 
   // Check 6: _generated/ directory exists (project initialized)
-  const convexDir = join(projectDir, "convex");
-  const generatedDir = join(convexDir, "_generated");
-  if (existsSync(generatedDir)) {
+  const generatedDir = convexDir ? join(convexDir, "_generated") : null;
+  if (generatedDir && existsSync(generatedDir)) {
     checks.push({ area: "initialization", status: "pass", detail: "_generated/ exists — project is initialized" });
-  } else if (existsSync(convexDir)) {
+  } else if (convexDir) {
     checks.push({ area: "initialization", status: "warn", detail: "_generated/ not found — run `npx convex dev` to initialize" });
     issues.push({
       severity: "warning",

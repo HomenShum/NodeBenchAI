@@ -1,17 +1,10 @@
+import { findConvexDir } from "../project.js";
 import { readFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { getQuickRef } from "./toolRegistry.js";
 import type { McpTool } from "../types.js";
 
 // ── Helpers ──────────────────────────────────────────────────────────
-
-function findConvexDir(projectDir: string): string | null {
-  const candidates = [join(projectDir, "convex"), join(projectDir, "src", "convex"), join(projectDir, "backend", "convex")];
-  for (const c of candidates) {
-    if (existsSync(c)) return c;
-  }
-  return null;
-}
 
 interface ComponentInfo {
   importName: string;
@@ -103,7 +96,7 @@ export const componentTools: McpTool[] = [
     handler: async (args: { projectDir: string }) => {
       const projectDir = resolve(args.projectDir);
       const convexDir = findConvexDir(projectDir);
-      if (!convexDir) return { error: "No convex/ directory found" };
+      if (!convexDir) return { error: "No configured Convex functions directory found" };
 
       const configPath = join(convexDir, "convex.config.ts");
       if (!existsSync(configPath)) {
