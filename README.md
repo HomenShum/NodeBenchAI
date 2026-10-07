@@ -6,8 +6,12 @@ Entity intelligence for any company, market, or question.
 **npm:** `npx nodebench-mcp` / `npx nodebench-mcp-power` / `npx nodebench-mcp-admin`  
 **GitHub:** [HomenShum/nodebench-ai](https://github.com/HomenShum/nodebench-ai)
 
-**New to this codebase?** Read [`docs/START_HERE.md`](docs/START_HERE.md) — it
-follows one user's question through the code in the order it actually runs, then
+**Developers and coding agents:** Read [`docs/START_HERE.md`](docs/START_HERE.md)
+for the first local start and one question's runtime path. Use
+[`docs/ONBOARDING.md`](docs/ONBOARDING.md) for orientation and
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for the contribution workflow. Agents read
+[`AGENTS.md`](AGENTS.md) and [`AGENT_COORDINATION.md`](AGENT_COORDINATION.md)
+before shared-file edits. Then
 [`.tours/`](.tours/) walks the same path inside the live source in VS Code
 (CodeTour extension). [`docs/codebase/`](docs/codebase/) has the stack,
 structure, conventions, integrations, testing and the honest list of known
@@ -740,7 +744,7 @@ nodebench-ai/
 
 ## Related Docs
 
-**Start here:** [`docs/ONBOARDING.md`](docs/ONBOARDING.md) · [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/architecture/README.md`](docs/architecture/README.md)
+**Start here:** [`docs/START_HERE.md`](docs/START_HERE.md) · [`docs/ONBOARDING.md`](docs/ONBOARDING.md) · [`CONTRIBUTING.md`](CONTRIBUTING.md). Broader architecture references: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/architecture/README.md`](docs/architecture/README.md).
 
 The 13 canonical architecture docs are organized in 4 tiers. See [`docs/architecture/README.md`](docs/architecture/README.md) for the indexed map:
 
@@ -758,11 +762,11 @@ Historical specs are preserved in [`docs/archive/2026-q1/`](docs/archive/2026-q1
 
 ## Production Readiness & Evaluation
 
-NodeBench ships with a comprehensive evaluation harness that proves correctness
-across 32+ scenarios, 9 user personas, and 9 feature categories. This is not
-hand-wavy "it works" — it is measured, versioned, and reproducible.
+The repository retains scenario-based evaluation harnesses and published April
+2026 results. The reports below describe their recorded revisions and inputs;
+they do not establish that current `main` or production passes these gates.
 
-### Latest Published Run Results
+### Published April 2026 Run Results
 
 **Pi-AI pipeline cascade:** merged to `main` on 2026-04-30 at
 `2a541037874c0f8c675ab393d5c08f50123cf6d2`.
@@ -820,26 +824,26 @@ The eval bank lives in
 
 ### Two-Layer Judge Architecture
 
-Every production run is evaluated by two independent systems:
+The Pi-AI pipeline includes two evaluation layers:
 
-**Layer 1: Deterministic Boolean Gates** (`server/pipeline/diligenceJudge.ts`)
+**Layer 1: Deterministic Boolean Gates** (`workers/node/pipeline/diligenceJudge.ts`)
 - 10 strict pass/fail checks: tier validity, latency budget, token tracking,
   source capture, terminal status
 - Verdicts: `verified` | `provisionally_verified` | `needs_review` | `failed`
 - Zero LLM involvement — pure deterministic validation
 
-**Layer 2: LLM Semantic Scoring** (`server/pipeline/diligenceLlmJudge.ts`)
+**Layer 2: LLM Semantic Scoring** (`workers/node/pipeline/diligenceLlmJudge.ts`)
 - 5 dimensions scored [0,1]: prose quality, citation coherence, source
   credibility, tier appropriateness, overall semantic fit
 - Prompt version tracking (`llmjudge-v1`) for cohort separation
 - Bounded: 30s timeout, 512KB response cap, honest error reporting
 
-This dual-layer approach means hallucinations and quality regressions are
-caught by **two independent systems** before they reach users.
+These layers record deterministic gate outcomes and semantic scores. Check
+coverage and evaluation timing for the relevant run.
 
-### Current Production Status
+### Recorded Production Evaluation — April 2026
 
-**Latest Full-Stack Eval:** `2026-04-23T06:46:53Z`
+**Recorded Full-Stack Eval:** `2026-04-23T06:46:53Z`
 
 ```text
 Overall Pass Rate:     100% ✅
@@ -854,16 +858,15 @@ Feature Breadth:       100% ✅ (31 scenarios)
 Retention/Continuity:  4/4 passed ✅
 ```
 
-All production gates **passing**:
+The April report listed these gates as passing:
 - ✅ Expanded Feature Coverage Production Gate
 - ✅ Answer Control Production Gate  
 - ✅ Dogfood Production Gate
 - ✅ Notebook Capacity Production Gate
 - ✅ History Soak Production Gate
 
-**Note:** The only outstanding item is p95 latency optimization (174s vs 90s
-target) — a performance enhancement, not a correctness blocker. The system is
-**production-ready for all quality scenarios**.
+The same report recorded p95 latency of 174s against a 90s target. These dated
+results do not establish current production readiness or exclude other open work.
 
 ### Evaluation Coverage
 
@@ -941,10 +944,11 @@ All artifacts are versioned in `docs/architecture/benchmarks/`:
 6. **Retention/continuity passes** — long-term memory works
 7. **Answer control 100%** — artifact decisions, ambiguity recovery solid
 
-The system meets all of these. The only remaining work is latency optimization
-— making fast answers even faster, not making broken answers work.
+This checklist describes the intended acceptance bar. Apply it to the exact
+revision and retain its current run receipts; the April summary is historical
+evidence.
 
-### Model Strategy
+### Model Strategy Recorded for the April Evaluation
 
 - **Primary:** `moonshotai/kimi-k2.6` (OpenRouter) — 100% capability pass
 - **Fallback:** `gpt-5.4` — automatic retry on empty/missing debrief

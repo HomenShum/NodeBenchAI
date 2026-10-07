@@ -7,8 +7,8 @@ You just cloned the repo. This page gets you oriented and productive in
 
 Read, in order:
 
-1. [`/README.md`](../README.md) — what the product is, 5 surfaces, core idea
-2. [`/ARCHITECTURE.md`](../ARCHITECTURE.md) — one-minute pipeline diagram
+1. [`/README.md`](../README.md) — product purpose and runtime entry points
+2. [`docs/START_HERE.md`](START_HERE.md) — first local start and one runtime-ordered question path
 3. [`docs/architecture/README.md`](architecture/README.md) — 13-doc index, 4 tiers
 
 If you stop reading here, you already understand: NodeBench is an
@@ -20,27 +20,26 @@ and surfaces them as living reports the user can keep, dismiss, or watch.
 ## Minute 5–15 — Run it locally
 
 ```bash
-# 1. Install deps
-npm install
-# or the preferred pnpm if pnpm-workspace.yaml is present
-
-# 2. Convex dev (backend)
-npx convex dev
-
-# 3. In another terminal — Vite dev server (frontend)
-npm run dev
-# opens http://localhost:5173
+nvm use                      # Node version from .nvmrc
+npm install                  # repository package manager: npm
+npx vite --port 5173          # frontend only
 ```
 
-Click around the 5 surfaces:
-- `?surface=home` — composer + recent reports
-- `?surface=chat` — conversation workspace
-- `?surface=reports` — entity grid
-- `?surface=nudges` — return-to queue
-- `?surface=me` — your context
+Open <http://localhost:5173/redesign/chat>. Without a valid `VITE_CONVEX_URL`,
+the frontend shows **Convex backend not configured**; it does not provide a
+fixture-backed product. Follow [`START_HERE.md`](START_HERE.md) to configure a
+real Convex deployment. `npm run dev` starts the frontend, Convex and voice
+worker together; it is not the first-run command when their configuration is
+missing.
+
+The main-site root's legacy `?surface=` links redirect into `/redesign/chat`.
+Reports, Inbox and Me context map to `?intent=reports`, `?intent=attention` and
+`?intent=account`; the dedicated Workspace host remains separate.
 
 ## Minute 15–20 — Know the rules
 
+Coding agents read [`AGENTS.md`](../AGENTS.md) and the shared-file ownership
+ledger [`AGENT_COORDINATION.md`](../AGENT_COORDINATION.md) before editing.
 If you're using Claude Code on this repo, the `.claude/rules/` directory
 is your contract. Skim these five first:
 
@@ -57,9 +56,9 @@ The full set is 31 rules with two-hop `related_` cross-references. Start narrow.
 ## Minute 20–25 — Know where the code lives
 
 ```
-src/features/<feature>/           ← UI, feature-first, 30 folders
-convex/domains/<domain>/          ← backend, 19 domain folders
-server/                           ← node runtime (Express routes, MCP gateway, pipeline)
+apps/web/src/features/<feature>/ ← UI, feature-first
+backend/convex/domains/<domain>/ ← backend domain functions
+workers/node/                   ← Node runtime (Express routes, MCP gateway, pipeline)
 packages/mcp-local/               ← the published nodebench-mcp npm package
 .claude/rules/ + .claude/skills/  ← Claude Code conventions
 docs/architecture/                ← 13 canonical docs
@@ -67,7 +66,7 @@ docs/architecture/                ← 13 canonical docs
 
 Each feature folder has the same shape:
 ```
-src/features/<name>/
+apps/web/src/features/<name>/
 ├── views/          ← top-level page components
 ├── components/     ← feature-internal components
 ├── hooks/          ← feature-internal hooks
@@ -91,9 +90,9 @@ Good first tasks:
 
 | Problem | Try |
 |---|---|
-| `npx tsc --noEmit` errors | You probably pulled without installing. `npm install` first. |
+| `npx tsc --noEmit` errors | Install dependencies, then compare diagnostics with the current CI baseline before attributing them to your change. |
 | Convex dev won't start | Check `.env.local` for `VITE_CONVEX_URL` — it must point to a deployed Convex instance or `npx convex dev` must be running. |
-| Vite port conflict | Kill existing dev servers. `lsof -i :5173` (Mac/Linux) or `netstat -ano | grep 5173` (Windows). |
+| Vite port conflict | Choose an available port with `npx vite --port <port>`, or stop only a server you own. |
 | Tests fail on fresh clone | Check Node version — `.nvmrc` or `package.json` engines field. |
 | `vite-*.log` files appear | These should be gitignored; if not, add them to `.gitignore`. |
 
@@ -112,14 +111,18 @@ Good first tasks:
 - Search existing code for a sibling pattern — most new work has a precedent
 - Then open a GitHub Discussion
 
-## What "shipped" looks like
+## Checks before handoff
 
 - `npx tsc --noEmit` → 0 errors
 - `npx vitest run` → all green
 - `npm run build` → clean
-- `npx playwright test tests/e2e/product-shell-smoke.spec.ts` → green
+- `npx playwright test evals/e2e/product-shell-smoke.spec.ts` → green
 - Visual verification: screenshot the change at 1440×900
 - If backend/infra: run the 8-point reliability checklist
+
+These checks are required evidence, not a claim that the current tree passes.
+Local checks alone do not prove deployment; verify the actual production
+revision and live content separately before claiming it shipped.
 
 ## Now go build
 

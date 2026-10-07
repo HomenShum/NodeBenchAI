@@ -5,12 +5,14 @@ where to start, what bar to meet, and how to ship.
 
 ## Start here — 30 minutes
 
-1. **Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) first.** Answers
-   "given this URL, what code runs?" Including: which component is
-   canonical vs `@deprecated`, where data flows from, what tests cover what.
-   Anything else in this repo's mental model is downstream of that map.
-2. **Read [`CLAUDE.md`](CLAUDE.md).** Project conventions, merge workflow,
-   the 13 hard rules.
+1. **Read [`docs/START_HERE.md`](docs/START_HERE.md) first.** It covers the
+   frontend-only start and follows one question through the current chat path.
+   Use [`docs/ONBOARDING.md`](docs/ONBOARDING.md) for orientation; the broader
+   [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) map needs its paths checked
+   against the current tree.
+2. **Agents read [`AGENTS.md`](AGENTS.md) and [`AGENT_COORDINATION.md`](AGENT_COORDINATION.md).**
+   Check shared-file claims before editing. Read [`CLAUDE.md`](CLAUDE.md) for
+   Claude Code conventions and the merge workflow.
 3. **Read [`docs/runbooks/PROD_PARITY_UI_KIT_WORKFLOW.md`](docs/runbooks/PROD_PARITY_UI_KIT_WORKFLOW.md)
    before any UI/design-kit work.
 4. **Skim [`.claude/rules/`](.claude/rules/)** — if you're using Claude Code
@@ -86,15 +88,15 @@ If your change touches the UI:
 ```bash
 npx vite preview --host 127.0.0.1 --port 4173 &
 BASE_URL=http://127.0.0.1:4173 npx playwright test \
-  tests/e2e/exact-kit-parity-prod.spec.ts \
-  tests/e2e/one-flow-regression.spec.ts \
+  evals/e2e/exact-kit-parity-prod.spec.ts \
+  evals/e2e/one-flow-regression.spec.ts \
   --project=chromium
 ```
 
 ### 3. Conventional Commits subject
 
 Format: `<type>(<scope>): <subject>` — e.g.
-`fix(a9): require >=3 live sessions to use live data, else seed`.
+`fix(chat): reject missing deployment URLs before loading`.
 
 ### 4. PR size
 
@@ -159,8 +161,8 @@ node scripts/github/configureRepoSettings.mjs --apply
 
 - **TypeScript strict mode** — no `any` in new code unless justified in comment
 - **No ESLint disables** without a comment explaining why
-- **Feature-first** — new code goes under `src/features/<feature>/`, not in loose `src/` folders
-- **Tests colocated** — `*.test.ts` next to the file it tests (except e2e which lives in `tests/e2e/`)
+- **Feature-first** — new browser code goes under `apps/web/src/features/<feature>/`, not in loose source folders
+- **Tests colocated** — `*.test.ts` next to the file it tests (except e2e which lives in `evals/e2e/`)
 - **Scenario tests, not shallow tests** — see `.claude/rules/scenario_testing.md`
 
 ## Commits
