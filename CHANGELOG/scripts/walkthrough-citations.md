@@ -1,5 +1,20 @@
 # Walkthrough citations
 
+## 2026-10-07 — Preserve the project heading beside the README banner
+
+Developers and coding agents can use the original project heading and title anchor alongside the generated banner and entry links. The banner is applied to the current README so the historical-score and failed-preflight disclosures from PR #636 remain intact.
+
+**PR / canonical main commit**: `PENDING #638 MAIN SHA / FINAL QA`.
+
+**Evidence state**:
+- Source: pending PR #638; current main `e36665206622d8fecbc5bb4e7b8fae571b62a2b8` is the integration base. The four existing banner assets are reused; runtime, workflows, gates and dependencies are preserved.
+- Checks: exact updated-revision checks pending. Earlier PR checks used an older main and do not verify this updated source. Current main's Pipeline preflight and scheduled health failures remain separate unresolved work.
+- Visual proof: not recorded for the updated revision. Earlier GitHub banner captures exposed the missing heading; browser capture scaling limits prevent a physical-device or full responsive grade.
+- Preview: not recorded.
+- Production live: not recorded.
+
+**Author**: Homen Shum + Codex.
+
 ## 2026-10-07 — Separate historical scores from current readiness
 
 A developer or coding agent deciding whether to hand off NodeBench should be able to distinguish recorded April scores from checks on the revision they are using. The README now labels those scores as historical and links the reviewed main CI, blocked Pipeline preflight and committed full-stack summary; it no longer claims latency is the only remaining work.
