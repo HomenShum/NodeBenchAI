@@ -634,4 +634,3 @@ describe("raw tool outcome contract", () => {
     expect(JSON.parse(accessibility[0].text).accessibilityTree).toEqual({ role: "document" });
   });
 });
-
