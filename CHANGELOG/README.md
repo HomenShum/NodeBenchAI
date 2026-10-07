@@ -32,6 +32,7 @@ This directory contains append-only per-surface changelog lanes. Each lane recor
 ### Scripts and operating systems
 
 - [`scripts/improvement-loop.md`](scripts/improvement-loop.md) — self-improvement loop tooling.
+- [`scripts/walkthrough-citations.md`](scripts/walkthrough-citations.md) — source citation checks and developer onboarding.
 - [`goals.md`](goals.md) — goal-driven development operating system.
 
 ## Format
