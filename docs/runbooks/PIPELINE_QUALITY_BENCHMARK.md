@@ -197,3 +197,73 @@ Preflight requires JSON health with `status: ok`, `pipeline: v2`, and true Linku
 Health booleans prove configuration presence, not valid credentials or provider availability. Only subsequent real queries exercise those capabilities. A successful run against the controlled scenario server proves runner behavior, not real answer quality, visual UI quality, responsiveness, accessibility or developer handoff for the full application.
 
 The regression scenarios cover a static page, missing POST route, absent provider configuration, redirects, oversized bodies, a real preflight timeout, degradation after preflight, concurrent evaluators, repeated invocations and stale local report replacement. Each invocation has a separate temporary report directory, printed for inspection, and its process and HTTP server are closed. Test reports use the operating system's temporary directory; normal temporary-file retention applies.
+
+## Separate frontend and Pipeline configuration (2026-10-08 source patch)
+
+An evaluator needs the research worker's JSON API, while a surface crawl needs
+the public frontend. This patch separates those destinations; it does not
+create or deploy a worker. The earlier shared-`api_url` paragraph in this
+runbook describes the e901 baseline and is superseded by this configuration
+after the patch is adopted. All earlier observations retain their capture dates.
+
+| Setting | Destination and behavior |
+| --- | --- |
+| Attrition QA `api_url` | Frontend surface crawl only; its existing ScratchNode default and crawl checks remain. |
+| Attrition QA `pipeline_api_url` | Optional manual input for an independently verified Pipeline v2 worker base URL. |
+| Repository variable `NODEBENCH_PIPELINE_API_URL` | Nonsecret worker base URL used when the manual Pipeline input is absent. No frontend, deployment-event or LangGraph fallback. |
+| Runner `NODEBENCH_API_URL` | The workflow always supplies the separate Pipeline setting. An empty or whitespace value blocks before any fetch. An unset variable retains the local CLI default `http://localhost:3100`. |
+
+If no Pipeline URL is configured, the runner exits 1 and writes a fresh
+`status: blocked` report: zero evaluated queries, all planned queries not run,
+empty results and null quality aggregates. It does not skip or invent a grade.
+The Golden job has a twenty-minute overall timeout. Existing preflight requests
+retain their ten-second timeout and 64-KiB response cap; query requests retain
+their sixty-second timeout and 1-MiB cap. Existing URL validation and redirect
+rejection remain unchanged. Provider presence booleans still do not prove that
+credentials work or that answers are correct.
+
+The scenario source retains all eleven original cases and adds one operator
+case for empty and whitespace targets. It requires the configuration error,
+zero requests to a reachable controlled server and replacement of the stale
+successful report. At this source-only capture, paired scenario execution and
+new automatic CI are **NOT_RUN**. Controlled answers cannot certify providers.
+
+### Private worker prerequisites remain unresolved
+
+Populate the endpoint only from an observed service/project/region and revision;
+do not infer the deployment workflow's project from the local cloud setting.
+The current Golden runner has no audience-bound authorization, so a private
+service's unauthenticated 401/403 remains a blocked result. A private-first
+worker needs a separately reviewed least-privilege invoker, credential-reference,
+resource/cost and first-deployment/rollback contract. The existing anonymous
+Cloud Build recipe is not that contract.
+
+The e901 provider path also retains an honest-failure blocker: provider errors
+can continue into packaging, trajectory/retention effects and HTTP200 success;
+source conversion includes artificial score floors. Adopt and verify the
+separately reviewed outcome, score and cancellation repair before provider-backed
+use. Endpoint separation does not fix those defects, authorize provider spend,
+or establish a live worker, successful Golden answers or application security.
+
+### Local verification captured on 2026-10-08 (UTC)
+
+After the source-only capture above, the root-controlled comparison used the
+same Windows Node 22.22.2 runtime and pre-existing explicit TSX 4.23.15 loader.
+This was not a normal installed e901 dependency graph. The unchanged suite
+passed 11/11 with no failures or skips (native exit 0, 18.1129387 seconds);
+the candidate passed 12/12 with no failures or skips (native exit 0,
+18.2130269 seconds). The original eleven scenario contracts were retained.
+
+The new blank-target criterion was also run separately against the authentic
+old CLI: it failed with native exit 1 because the old report said `Invalid URL`
+instead of the explicit unconfigured-target diagnostic. The old runner already
+blocked that malformed URL; this counterexample proves the diagnostic change,
+not a newly prevented provider request. The candidate's added case passed for
+both empty and whitespace targets, requiring zero controlled-server requests
+and fresh blocked reports with null quality aggregates.
+
+The baseline ran at 20:13:43–20:14:01 UTC, the candidate at 20:15:06–20:15:24,
+and the old-CLI counterexample at 20:17:08. No provider call was made. These
+controlled localhost results do not establish provider quality, a deployed
+worker, private invocation or the canonical installed CI graph. Updated
+source automatic CI and the private-worker prerequisites remain pending.

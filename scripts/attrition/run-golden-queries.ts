@@ -21,7 +21,11 @@ const REPORT_PATH = path.join(import.meta.dirname ?? __dirname, "golden-results.
 // The target is operator configuration, not untrusted request input. Local
 // worker URLs are supported; redirects and embedded credentials are not.
 function resolveApiUrl(): string {
-  const url = new URL(process.env.NODEBENCH_API_URL ?? "http://localhost:3100");
+  const configured = process.env.NODEBENCH_API_URL;
+  if (configured !== undefined && configured.trim() === "") {
+    throw new Error("NODEBENCH_API_URL is unconfigured; set an explicit Pipeline v2 worker base URL");
+  }
+  const url = new URL(configured ?? "http://localhost:3100");
   if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
     throw new Error("NODEBENCH_API_URL must be an HTTP(S) base URL without credentials, query or fragment");
   }

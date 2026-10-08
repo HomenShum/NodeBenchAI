@@ -8,8 +8,12 @@ on:
   workflow_dispatch:
     inputs:
       api_url:
-        description: 'NodeBench API URL'
+        description: 'NodeBench frontend URL for surface crawl'
         default: 'https://scratchnode.live'
+      pipeline_api_url:
+        description: 'Verified Pipeline v2 worker base URL (not the frontend)'
+        required: false
+        default: ''
 
 jobs:
   qa-crawl:
@@ -87,6 +91,7 @@ jobs:
   golden-queries:
     name: Pipeline quality benchmark
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: qa-crawl
     steps:
       - uses: actions/checkout@v6
@@ -103,11 +108,8 @@ jobs:
 
       - name: Run golden queries
         env:
-          NODEBENCH_API_URL: ${{ github.event.inputs.api_url || 'https://scratchnode.live' }}
+          NODEBENCH_API_URL: ${{ github.event.inputs.pipeline_api_url || vars.NODEBENCH_PIPELINE_API_URL }}
         run: |
-          if [[ "$NODEBENCH_API_URL" == https://vercel.com/* ]]; then
-            export NODEBENCH_API_URL="https://scratchnode.live"
-          fi
           npx tsx scripts/attrition/run-golden-queries.ts
 
       - name: Upload results

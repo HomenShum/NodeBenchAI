@@ -3,6 +3,39 @@
 Append-only lane for pipeline launch, activity, streaming, evaluation, schedule,
 and secret-gated MCP bridge ownership contracts. Newest entries first.
 
+## 2026-10-08 — Separate frontend crawl and Pipeline benchmark targets
+
+An evaluator needs the research worker's JSON API rather than the public
+frontend. The Attrition QA source patch keeps `api_url` for the surface crawl
+and gives the Golden job its own optional `pipeline_api_url` input or nonsecret
+`NODEBENCH_PIPELINE_API_URL` repository variable. No frontend or alternate
+service fallback is substituted. An explicitly blank runner target produces a
+fresh blocked report before any request; the unset-variable local CLI default
+remains. The Golden job has a twenty-minute overall timeout.
+
+**PR / canonical main commit**: `PENDING #NNN MAIN SHA / FINAL QA`.
+
+**Evidence state**:
+- Source at patch capture: external source-only candidate based on main `e9019b47ea495d2d881dd5f4ba21bc4127d54792`; no commit, publication or canonical adoption yet. Five existing owners change; the Golden fixture and all eleven existing scenario contracts remain unchanged.
+- Before: retained automatic jobs `113239753676` and `113240422271` at e901 target ScratchNode and stop at the 65,536-byte preflight bound with zero Golden queries. These are historical job observations, not a new endpoint request.
+- Checks: one added operator scenario covers empty/whitespace configuration, zero controlled-server requests and stale successful-report replacement. Paired scenario execution and updated automatic CI are **NOT_RUN** at this capture. The ten-second/64-KiB preflight and sixty-second/1-MiB answer limits remain unchanged.
+- Remaining blocker: a real private worker still needs observed project/service/revision, authorized invocation and provider/resource budget. Current provider failures can still become HTTP200 success and packaging/trajectory/retention effects, with artificial source-score floors; the separate honest-outcome/score/cancellation repair is required before provider-backed use.
+- Limits: source inspection does not establish a deployment, working keys, provider quality, visual proof, live content or a security pass. An unconfigured Pipeline lane remains a visible blocked failure.
+
+**Runbook**: [Separate frontend and Pipeline configuration](../../docs/runbooks/PIPELINE_QUALITY_BENCHMARK.md#separate-frontend-and-pipeline-configuration-2026-10-08-source-patch).
+**Author**: Homen Shum + Codex.
+
+**Dated local verification (2026-10-08, 20:13–20:17 UTC)**:
+After the source-only capture, the same Windows Node 22.22.2 and pre-existing
+explicit TSX 4.23.15 loader passed the unchanged 11/11 and candidate 12/12 cases
+with native exits 0 and no failures or skips. The added blank-target criterion
+failed against the authentic old CLI with native exit 1 (`Invalid URL` rather
+than the explicit configuration message); old blank input already blocked.
+The candidate verifies empty/whitespace reports and zero controlled-server
+requests. This is local runner proof, not an installed canonical graph,
+provider-quality or deployed-worker result. New automatic CI and private-worker
+readiness remain pending; the original capture-time NOT_RUN paragraph is retained.
+
 ## 2026-10-07 — Replace the provider HTTP dependency path with a measured transport
 
 A developer fetching source material needs private-address blocking and streaming
