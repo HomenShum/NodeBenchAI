@@ -93,6 +93,76 @@ application typecheck. Optional tool dependencies and browser binaries require
 their own invocation proofs. Local startup with false provider booleans cannot
 pass the provider-ready benchmark below or establish a deployed worker URL.
 
+## Verify provider HTTP compatibility without credentials
+
+A developer replacing the HTTP transport needs to preserve private-address
+blocking and response handling before trying a configured provider. The frozen
+`scripts/provider-http-compat.mjs` exercises actual installed provider-utils
+and its consumer-relative Undici, with DNS-only mocks for blocked-address cases
+and real local TCP for separately labelled transport cases. It makes no valid
+provider query. Its expected SHA256 is
+`5D30EE0091F1A1799971C038BE693EF1352372F65D18F70A2309CF5964820292`.
+
+From a clean checkout and an explicitly verified Linux Docker engine, build
+the worker using the existing recipe. Choose an unused owned container name;
+the commands supply no provider environment, mounts or published ports:
+
+```powershell
+$providerHttpProofImage = 'nodebench-worker-proof:provider-http-compat-local'
+$providerHttpProofContainer = 'nodebench-provider-http-compat-proof'
+docker build --platform linux/amd64 -f workers/node/Dockerfile -t $providerHttpProofImage .
+if ($LASTEXITCODE -ne 0) { throw 'Worker image build failed' }
+docker run -d --name $providerHttpProofContainer --network none --memory 2g --cpus 2 $providerHttpProofImage
+if ($LASTEXITCODE -ne 0) { throw 'Owned proof container did not start' }
+docker inspect $providerHttpProofContainer --format '{"networkMode":{{json .HostConfig.NetworkMode}},"mounts":{{json .Mounts}},"hostPorts":{{json .HostConfig.PortBindings}}}'
+docker inspect $providerHttpProofContainer --format '{{range .Config.Env}}{{println (index (split . "=") 0)}}{{end}}'
+docker logs $providerHttpProofContainer
+```
+
+Require actual network `none`, empty mounts/host-port bindings and only expected
+public environment-variable names. Inspect names without printing values.
+After the logs show the worker has started, copy the harness to its fixed
+in-container path and run it inside that same worker container:
+
+```powershell
+try {
+  if ((Get-FileHash scripts/provider-http-compat.mjs -Algorithm SHA256).Hash -ne '5D30EE0091F1A1799971C038BE693EF1352372F65D18F70A2309CF5964820292') { throw 'Frozen harness bytes differ' }
+  docker cp scripts/provider-http-compat.mjs "${providerHttpProofContainer}:/app/actual-consumer-scenarios.mjs"
+  if ($LASTEXITCODE -ne 0) { throw 'Harness copy failed' }
+  docker exec $providerHttpProofContainer node /app/actual-consumer-scenarios.mjs
+  $providerHttpProofExit = $LASTEXITCODE
+  if ($providerHttpProofExit -ne 0) { throw "HTTP compatibility proof failed: exit $providerHttpProofExit" }
+} finally {
+  docker logs $providerHttpProofContainer
+  docker stop --timeout 10 $providerHttpProofContainer
+}
+```
+
+Retain actual JSON output and exit status. Inspect `sources` for the loaded
+provider-utils/Undici paths, versions, entry hashes, lock hash and harness hash,
+then inspect every result and its scope. The recorded comparison used locked
+provider-utils 3.0.41, Undici 5.29.0 before and 6.29.0 after, and pinned Linux
+Node 22.22.2/npm 11.5.2. Both phases returned 49 PASS / 0 FAIL / 1 NOT_VERIFIED.
+Thirty default guard DNS failures and literal private URLs were blocked without
+socket connections; direct local response/stream/multipart/recovery, a 12-client
+burst and one fixed 60-second paced worker/transport observation passed.
+
+The external study images used source `0f5b3cc9e2403a1bbcb1df841ec5b39a7ddecd3f`;
+the adoption is prepared on combined local source
+`25b6a1698ef717fd3c8f680de1d92a93ec4c49d8`. The historical study does not certify
+that newer combined source. Its automatic CI and final main QA are pending.
+The exact parent-scoped override crosses upstream's Undici major range, so
+future graph or runtime changes require a new matched comparison.
+
+The measured production audit changed from 29 to 21 findings, HIGH 11 to 9;
+full findings changed from 57 to 51, with HIGH 27 and CRITICAL 2 unchanged.
+Busboy remains on a development path; all four npm audits exited 1. These
+counts are dependency findings, not proof of exploit reachability or a clean
+security grade. Default guarded public success remains NOT_VERIFIED under
+network isolation. Custom/trusted-origin or direct localhost success cannot
+replace it. No provider-backed Golden evaluation, deployment, strict typecheck,
+performance/SLA or lifetime memory result follows from this check.
+
 ## Run
 
 After installing the repository's declared development dependencies, verify the runner without provider calls:

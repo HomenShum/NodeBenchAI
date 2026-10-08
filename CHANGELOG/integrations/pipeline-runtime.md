@@ -3,6 +3,27 @@
 Append-only lane for pipeline launch, activity, streaming, evaluation, schedule,
 and secret-gated MCP bridge ownership contracts. Newest entries first.
 
+## 2026-10-07 — Replace the provider HTTP dependency path with a measured transport
+
+A developer fetching source material needs private-address blocking and streaming
+behavior preserved when replacing a vulnerable HTTP dependency. Add a parent-scoped
+Undici 6.29.0 override for the existing provider-utils range, retain locked
+provider-utils 3.0.41 and all 233 application ranges, and keep the exact comparison
+harness at `scripts/provider-http-compat.mjs`. This removes the old production
+Undici/Busboy path; the remaining findings still need separate repairs.
+
+**PR / canonical main commit**: #644 / `PENDING MAIN SHA / FINAL QA`.
+
+**Evidence state**:
+- External matched study: the same frozen harness `5D30EE0091F1A1799971C038BE693EF1352372F65D18F70A2309CF5964820292` ran on the actual original and replacement graphs with Linux Node 22.22.2/npm 11.5.2. Each returned 49 PASS / 0 FAIL / 1 NOT_VERIFIED. Real consumer-relative Undici changed from 5.29.0 to 6.29.0; the provider-utils 3.0.41 module stayed byte-identical. All 30 default DNS negative cases retained zero socket/global-wrapper calls; direct local transport, 12-client burst and one 60-second paced rejection/recovery observation passed on both graphs.
+- Dependency comparison: 2,452 to 2,451 lock records, with 2,449 unchanged. Root Undici changes; an existing development Vercel/blob copy deduplicates; Busboy 2.1.1 becomes development-only through unchanged Vercel/node. Production audit findings change from 29 to 21, HIGH 11 to 9. Full findings change from 57 to 51, with HIGH 27 and CRITICAL 2 unchanged. All four audit processes exit 1; the remaining OSS Stats/Pi-AI and development findings are unresolved.
+- Source boundary: the external images compile pinned `0f5b3cc9e2403a1bbcb1df841ec5b39a7ddecd3f`. This adoption starts from the normally integrated local source `25b6a1698ef717fd3c8f680de1d92a93ec4c49d8`; the copied manifest/lock/harness are exact studied bytes, but combined-source automatic CI and final main QA remain pending. Earlier lane entries retain their original observation dates and source scopes.
+- Limits: the Undici major override is outside provider-utils' declared `^5.29.0` dependency range and is qualified to the observed 3.0.41/Node 22.22.2 graph. Default guarded public success is NOT_VERIFIED; direct localhost, custom-fetch and trusted-origin positives do not replace that proof. No provider-backed Golden result, deployment, strict application typecheck (`build:voice` uses `--noCheck`), performance/SLA, lifetime memory or whole-application security claim is made.
+- External receipts: `NODEBENCH-PROVIDER-HTTP-SECURITY-STUDY-20261007.json`, SHA256 `E7F6816ECE5F0894FFCAFC36A61058779D3D1246D4AA57EB7A7200D9CE9AC17F`; independent study judge `74FB808A4A6D5075C42E2068656A0242C4D4EB475546E539AC88A1E9E074BB0B`; root acceptance `NODEBENCH-PROVIDER-HTTP-SECURITY-INDEPENDENT-ROOT-20261007.json`, SHA256 `774C44F7ED95E8F0F4DEFD195E0AFB8FBF2FB5E51ED5AE47E55D3D0063B59914`.
+
+**Reproduction**: [`Provider HTTP compatibility without credentials`](../../docs/runbooks/PIPELINE_QUALITY_BENCHMARK.md#verify-provider-http-compatibility-without-credentials).
+**Author**: Homen Shum + Codex.
+
 ## 2026-10-07 — Align the worker release contract with its pinned runtime
 
 A release operator needs the compiler and runtime to share the supported Node

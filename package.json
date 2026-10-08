@@ -450,6 +450,9 @@
   },
   "packageManager": "npm@11.5.2",
   "overrides": {
-    "@tiptap/pm": "3.22.3"
+    "@tiptap/pm": "3.22.3",
+    "@ai-sdk/provider-utils@^3.0.12": {
+      "undici": "6.29.0"
+    }
   }
 }
