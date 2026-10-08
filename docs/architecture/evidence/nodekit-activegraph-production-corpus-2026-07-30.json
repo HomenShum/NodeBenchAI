@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "nodebench.activegraph.production-corpus-receipt/v1",
+  "evaluatedAt": "2026-07-30T04:23:17.463Z",
+  "source": {
+    "kind": "nodebench-production",
+    "gatewayFunction": "exportNodeKitRun",
+    "authorization": "gateway-injected-owner",
+    "ownerDataIncluded": false
+  },
+  "bindings": {
+    "nodeBenchMainCommit": "6790041dc3999fc3dae3d533190be79bf2907b82",
+    "evaluatorFixCommit": "e910276c6c6a6cfc0f309d9ff36bed2b040cd176",
+    "activeGraphVersion": "1.10.0",
+    "sandboxImageAttestationHash": "sha256:4c2a5788c664e45657d10fd68438090799dfb64e1b0fdcb77e2c5442824b2df8"
+  },
+  "corpus": {
+    "exportCount": 20,
+    "uniqueExportHashCount": 20,
+    "allExportsComplete": true,
+    "allPersistenceReloadParity": true,
+    "workflowClasses": [
+      "agent-eval",
+      "aggregate",
+      "barrier",
+      "browser",
+      "build",
+      "check",
+      "context",
+      "decision",
+      "deliver",
+      "human-gate",
+      "repair",
+      "review"
+    ],
+    "includesFailSafeTerminalRun": true
+  },
+  "measurements": {
+    "baselineValidationMedianMs": 0.14412500000071304,
+    "activeGraphCanaryMedianMs": 2018.2705499999993,
+    "latencyRatio": 14003.61179524728,
+    "latencyThreshold": 2,
+    "materialExplanatoryValueObserved": false
+  },
+  "stopConditions": [
+    "median_latency_exceeded_2x",
+    "no_material_explanatory_value"
+  ],
+  "adoptionVerdict": "reject",
+  "authority": "offline evaluation evidence only; cannot answer, approve, mutate, schedule, or replace NodeBench state",
+  "limitations": [
+    "Gateway-injected ownership is enforced by NodeBench and is not cryptographically signed into each export.",
+    "The baseline is canonical NodeKit validation and does not include another graph database.",
+    "The reject verdict closes the adoption experiment but preserves the offline diagnostic canary."
+  ],
+  "sourceReportHash": "sha256:46b00a19d00f83be131ffa574f02def8577918032b9bab90a166756611778559"
+}

@@ -51,6 +51,13 @@ EVENT_TYPES = frozenset(
         "verification.recorded",
         "evidence.attached",
         "approval.requested",
+        "node.started",
+        "edge.consumed",
+        "artifact.produced",
+        "node.completed",
+        "node.failed",
+        "barrier.opened",
+        "barrier.blocked",
         "run.completed",
         "run.failed",
     }
@@ -66,6 +73,13 @@ SAFE_FIELDS_BY_EVENT = {
             "goalId",
             "sessionType",
             "sessionStartedAt",
+            "identityRef",
+            "workspaceId",
+            "agentId",
+            "nativeSessionId",
+            "nativeSessionGeneration",
+            "peerId",
+            "identitySnapshotHash",
         }
     ),
     "span.started": frozenset(
@@ -91,6 +105,109 @@ SAFE_FIELDS_BY_EVENT = {
     "approval.requested": frozenset(
         {"approvalId", "toolName", "riskLevel"}
     ),
+    "node.started": frozenset(
+        {
+            "graphId",
+            "graphHash",
+            "caseId",
+            "stageId",
+            "caseContentHash",
+            "nodeId",
+            "nodeRunId",
+            "nodeKind",
+            "frontierHash",
+            "reviewContextRef",
+        }
+    ),
+    "edge.consumed": frozenset(
+        {
+            "graphId",
+            "graphHash",
+            "caseId",
+            "stageId",
+            "caseContentHash",
+            "nodeId",
+            "nodeRunId",
+            "edgeId",
+            "bindingId",
+            "bindingHash",
+            "artifactId",
+            "artifactSchemaVersion",
+            "artifactContentHash",
+            "authorityKind",
+        }
+    ),
+    "artifact.produced": frozenset(
+        {
+            "graphId",
+            "graphHash",
+            "caseId",
+            "stageId",
+            "caseContentHash",
+            "nodeId",
+            "nodeRunId",
+            "artifactId",
+            "artifactSchemaVersion",
+            "artifactContentHash",
+            "authorityKind",
+        }
+    ),
+    "node.completed": frozenset(
+        {
+            "graphId",
+            "graphHash",
+            "caseId",
+            "stageId",
+            "caseContentHash",
+            "nodeId",
+            "nodeRunId",
+            "status",
+            "reviewContextRef",
+            "reviewSeparation",
+            "protectedEvaluator",
+        }
+    ),
+    "node.failed": frozenset(
+        {
+            "graphId",
+            "graphHash",
+            "caseId",
+            "stageId",
+            "caseContentHash",
+            "nodeId",
+            "nodeRunId",
+            "status",
+            "reasonCode",
+        }
+    ),
+    "barrier.opened": frozenset(
+        {
+            "graphId",
+            "graphHash",
+            "caseId",
+            "stageId",
+            "caseContentHash",
+            "nodeId",
+            "nodeRunId",
+            "frontierHash",
+            "status",
+        }
+    ),
+    "barrier.blocked": frozenset(
+        {
+            "graphId",
+            "graphHash",
+            "caseId",
+            "stageId",
+            "caseContentHash",
+            "nodeId",
+            "nodeRunId",
+            "frontierHash",
+            "status",
+            "reasonCode",
+            "blockingEdgeCount",
+        }
+    ),
     "run.completed": frozenset(
         {"status", "totalDurationMs", "crossCheckStatus", "dogfoodRunId"}
     ),
@@ -104,6 +221,98 @@ REQUIRED_FIELDS_BY_EVENT = {
     ),
     "span.started": frozenset({"spanId"}),
     "span.completed": frozenset({"spanId"}),
+    "node.started": frozenset(
+        {
+            "graphId",
+            "graphHash",
+            "caseId",
+            "stageId",
+            "caseContentHash",
+            "nodeId",
+            "nodeRunId",
+        }
+    ),
+    "edge.consumed": frozenset(
+        {
+            "graphId",
+            "graphHash",
+            "caseId",
+            "stageId",
+            "caseContentHash",
+            "nodeId",
+            "nodeRunId",
+            "edgeId",
+            "bindingId",
+            "bindingHash",
+            "artifactId",
+            "artifactSchemaVersion",
+            "artifactContentHash",
+            "authorityKind",
+        }
+    ),
+    "artifact.produced": frozenset(
+        {
+            "graphId",
+            "graphHash",
+            "caseId",
+            "stageId",
+            "caseContentHash",
+            "nodeId",
+            "nodeRunId",
+            "artifactId",
+            "artifactSchemaVersion",
+            "artifactContentHash",
+            "authorityKind",
+        }
+    ),
+    "node.completed": frozenset(
+        {
+            "graphId",
+            "graphHash",
+            "caseId",
+            "stageId",
+            "caseContentHash",
+            "nodeId",
+            "nodeRunId",
+            "status",
+        }
+    ),
+    "node.failed": frozenset(
+        {
+            "graphId",
+            "graphHash",
+            "caseId",
+            "stageId",
+            "caseContentHash",
+            "nodeId",
+            "nodeRunId",
+            "status",
+        }
+    ),
+    "barrier.opened": frozenset(
+        {
+            "graphId",
+            "graphHash",
+            "caseId",
+            "stageId",
+            "caseContentHash",
+            "nodeId",
+            "nodeRunId",
+            "frontierHash",
+        }
+    ),
+    "barrier.blocked": frozenset(
+        {
+            "graphId",
+            "graphHash",
+            "caseId",
+            "stageId",
+            "caseContentHash",
+            "nodeId",
+            "nodeRunId",
+            "frontierHash",
+        }
+    ),
     "run.completed": frozenset({"status"}),
     "run.failed": frozenset({"status"}),
 }
@@ -264,6 +473,83 @@ def _expect_safe_payload(
             "terminal_status_mismatch",
             f"{path} requires status {expected_terminal_status}",
         )
+    if event_type == "run.started":
+        identity_fields = {
+            "identityRef",
+            "workspaceId",
+            "agentId",
+            "nativeSessionId",
+            "nativeSessionGeneration",
+            "identitySnapshotHash",
+        }
+        present = identity_fields & set(fields)
+        if present and present != identity_fields:
+            _fail(
+                "native_identity_incomplete",
+                f"{path} must bind the complete native identity snapshot",
+            )
+        if present:
+            _expect_hash(
+                fields["identitySnapshotHash"],
+                f"{path}.fields.identitySnapshotHash",
+            )
+            generation = fields["nativeSessionGeneration"]
+            if (
+                type(generation) is not int
+                or generation < 0
+                or generation > 9_007_199_254_740_991
+            ):
+                _fail(
+                    "native_session_generation_invalid",
+                    f"{path}.fields.nativeSessionGeneration is invalid",
+                )
+    if event_type in {
+        "node.started",
+        "edge.consumed",
+        "artifact.produced",
+        "node.completed",
+        "node.failed",
+        "barrier.opened",
+        "barrier.blocked",
+    }:
+        graph_id = fields.get("graphId")
+        if (
+            not isinstance(graph_id, str)
+            or re.fullmatch(
+                r"execution-graph:sha256:[a-f0-9]{64}",
+                graph_id,
+            )
+            is None
+        ):
+            _fail("graph_id_invalid", f"{path}.fields.graphId is invalid")
+        for field in {
+            "graphHash",
+            "caseContentHash",
+            "frontierHash",
+            "bindingHash",
+            "artifactContentHash",
+        }:
+            if field in fields and (
+                not isinstance(fields[field], str)
+                or re.fullmatch(r"[a-f0-9]{64}", fields[field]) is None
+            ):
+                _fail(
+                    "graph_hash_invalid",
+                    f"{path}.fields.{field} is invalid",
+                )
+        binding_id = fields.get("bindingId")
+        if binding_id is not None and (
+            not isinstance(binding_id, str)
+            or re.fullmatch(
+                r"execution-edge-binding:sha256:[a-f0-9]{64}",
+                binding_id,
+            )
+            is None
+        ):
+            _fail(
+                "edge_binding_id_invalid",
+                f"{path}.fields.bindingId is invalid",
+            )
     if len(canonical_json_text(payload).encode("utf-8")) > MAX_STORED_PAYLOAD_BYTES:
         _fail("projected_payload_too_large", f"{path} exceeds its stored bound")
     return payload
@@ -314,7 +600,12 @@ def validate_nodekit_export(value: Any) -> dict[str, Any]:
     _expect_exact_keys(
         session,
         "$.session",
-        {"id", "typeAtRunStart", "startedAt"},
+        {
+            "id",
+            "typeAtRunStart",
+            "startedAt",
+            *(["nativeIdentity"] if "nativeIdentity" in session else []),
+        },
     )
     _expect_exact_keys(
         trace,
@@ -345,6 +636,67 @@ def validate_nodekit_export(value: Any) -> dict[str, Any]:
         session["startedAt"],
         "$.session.startedAt",
     )
+    native_identity = None
+    if "nativeIdentity" in session:
+        native_identity = _expect_object(
+            session["nativeIdentity"],
+            "$.session.nativeIdentity",
+        )
+        _expect_exact_keys(
+            native_identity,
+            "$.session.nativeIdentity",
+            {
+                "schemaVersion",
+                "identityRef",
+                "agentId",
+                "workspaceId",
+                "nativeSessionId",
+                "nativeSessionGeneration",
+                *(["peerId"] if "peerId" in native_identity else []),
+                "snapshotHash",
+            },
+        )
+        if (
+            native_identity["schemaVersion"]
+            != "nodekit.native-agent-session-identity/v1"
+        ):
+            _fail(
+                "native_identity_snapshot_mismatch",
+                "$.session.nativeIdentity schema is unsupported",
+            )
+        for field in {
+            "identityRef",
+            "agentId",
+            "workspaceId",
+            "nativeSessionId",
+        }:
+            _expect_string(
+                native_identity[field],
+                f"$.session.nativeIdentity.{field}",
+                non_empty=True,
+                max_length=256,
+            )
+        if "peerId" in native_identity:
+            _expect_string(
+                native_identity["peerId"],
+                "$.session.nativeIdentity.peerId",
+                non_empty=True,
+                max_length=256,
+            )
+        generation = native_identity["nativeSessionGeneration"]
+        if (
+            type(generation) is not int
+            or generation < 0
+            or generation > 9_007_199_254_740_991
+        ):
+            _fail(
+                "native_session_generation_invalid",
+                "$.session.nativeIdentity.nativeSessionGeneration is invalid",
+            )
+        _expect_hash(
+            native_identity["snapshotHash"],
+            "$.session.nativeIdentity.snapshotHash",
+        )
     _expect_string(trace["id"], "$.trace.id", non_empty=True)
     _expect_string(
         trace["runId"],
@@ -400,6 +752,9 @@ def validate_nodekit_export(value: Any) -> dict[str, Any]:
     }
     open_spans: set[str] = set()
     completed_spans: set[str] = set()
+    open_nodes: dict[str, str] = {}
+    closed_node_runs: set[str] = set()
+    graph_scope: str | None = None
     for index, candidate in enumerate(events):
         event = _expect_object(candidate, f"$.events[{index}]")
         _expect_exact_keys(event, f"$.events[{index}]", event_keys)
@@ -470,6 +825,54 @@ def validate_nodekit_export(value: Any) -> dict[str, Any]:
                 )
             open_spans.remove(span_id)
             completed_spans.add(span_id)
+        if event["eventType"] in {
+            "node.started",
+            "edge.consumed",
+            "artifact.produced",
+            "node.completed",
+            "node.failed",
+            "barrier.opened",
+            "barrier.blocked",
+        }:
+            fields = payload["fields"]
+            current_scope = "|".join(
+                str(fields[field])
+                for field in (
+                    "graphId",
+                    "graphHash",
+                    "caseId",
+                    "stageId",
+                    "caseContentHash",
+                )
+            )
+            if graph_scope is None:
+                graph_scope = current_scope
+            if current_scope != graph_scope:
+                _fail(
+                    "graph_scope_mismatch",
+                    "One export cannot mix execution graphs, cases, or stages",
+                )
+            node_run_id = fields["nodeRunId"]
+            node_id = fields["nodeId"]
+            if event["eventType"] == "node.started":
+                if (
+                    node_run_id in open_nodes
+                    or node_run_id in closed_node_runs
+                ):
+                    _fail(
+                        "graph_node_duplicate_start",
+                        f"Invalid start for {node_run_id}",
+                    )
+                open_nodes[node_run_id] = node_id
+            else:
+                if open_nodes.get(node_run_id) != node_id:
+                    _fail(
+                        "graph_node_not_running",
+                        f"{event['eventType']} is not bound to {node_run_id}",
+                    )
+                if event["eventType"] in {"node.completed", "node.failed"}:
+                    del open_nodes[node_run_id]
+                    closed_node_runs.add(node_run_id)
         previous_hash = event["contentHash"]
 
     if events[0]["eventType"] != "run.started":
@@ -490,6 +893,11 @@ def validate_nodekit_export(value: Any) -> dict[str, Any]:
         _fail(
             "span_lifecycle_incomplete",
             f"Terminal run retains {len(open_spans)} open span(s)",
+        )
+    if open_nodes:
+        _fail(
+            "graph_node_lifecycle_incomplete",
+            f"Terminal run retains {len(open_nodes)} open graph node(s)",
         )
 
     terminal_type = events[-1]["eventType"]
@@ -514,6 +922,54 @@ def validate_nodekit_export(value: Any) -> dict[str, Any]:
             "event_snapshot_mismatch",
             "Session or trace metadata differs from immutable event snapshots",
         )
+    identity_fields = {
+        "identityRef",
+        "workspaceId",
+        "agentId",
+        "nativeSessionId",
+        "nativeSessionGeneration",
+        "identitySnapshotHash",
+    }
+    present_identity_fields = identity_fields & set(start_fields)
+    if not present_identity_fields and native_identity is not None:
+        _fail(
+            "native_identity_snapshot_mismatch",
+            "Session identity is absent from run.started",
+        )
+    if present_identity_fields:
+        if present_identity_fields != identity_fields:
+            _fail(
+                "native_identity_incomplete",
+                "run.started does not bind a complete native identity snapshot",
+            )
+        expected_identity_body = {
+            "schemaVersion": "nodekit.native-agent-session-identity/v1",
+            "identityRef": start_fields["identityRef"],
+            "agentId": start_fields["agentId"],
+            "workspaceId": start_fields["workspaceId"],
+            "nativeSessionId": start_fields["nativeSessionId"],
+            "nativeSessionGeneration": start_fields[
+                "nativeSessionGeneration"
+            ],
+            **(
+                {}
+                if "peerId" not in start_fields
+                else {"peerId": start_fields["peerId"]}
+            ),
+        }
+        expected_identity = {
+            **expected_identity_body,
+            "snapshotHash": canonical_hash(expected_identity_body),
+        }
+        if (
+            native_identity != expected_identity
+            or start_fields["identitySnapshotHash"]
+            != expected_identity["snapshotHash"]
+        ):
+            _fail(
+                "native_identity_snapshot_mismatch",
+                "Session identity differs from immutable run.started fields",
+            )
     expected_completeness = {
         "eventChainComplete": True,
         "spanLifecycleComplete": True,
