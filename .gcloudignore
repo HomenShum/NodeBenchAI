@@ -25,5 +25,17 @@ test-agents
 tmp-chrome-procs.txt
 tmp-playwright-*
 .npmrc
+# Include only the checked public root install policy; nested configs stay excluded.
+!/.npmrc
 .env*
-!python-mcp-servers/langgraph_agent/.env
+**/.env*
+**/.mcpregistry_registry_token
+**/.mcpregistry_github_token
+
+# Keep only the two public descriptors required by the worker runtime image.
+/packages/mcp-local/.claude/**
+!/packages/mcp-local/.claude/
+!/packages/mcp-local/.claude/plugin.json
+/packages/mcp-local/.cursor/**
+!/packages/mcp-local/.cursor/
+!/packages/mcp-local/.cursor/plugin.json

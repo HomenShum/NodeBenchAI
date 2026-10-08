@@ -141,11 +141,18 @@ describe("release workflow contracts", () => {
     const cloudbuild = readRepoFile("workers/node/cloudbuild.yaml");
     const codeowners = readRepoFile(".github/CODEOWNERS");
 
-    expect(dockerfile).toContain("FROM node:20-slim AS build");
+    const nodeMajor = readRepoFile(".nvmrc").trim();
+    expect(dockerfile).toMatch(
+      new RegExp(
+        `^FROM node:${nodeMajor}\\.\\d+\\.\\d+-[^\\s@]+@sha256:[a-f0-9]{64} AS base\\r?$`,
+        "m",
+      ),
+    );
+    expect(dockerfile).toMatch(/^FROM base AS build\r?$/m);
     expect(dockerfile).toContain("COPY workers/node/ workers/node/");
     expect(dockerfile).toContain("COPY backend/convex/ backend/convex/");
     expect(dockerfile).toContain("RUN npm run build:voice");
-    expect(dockerfile).toContain("FROM node:20-slim AS runtime");
+    expect(dockerfile).toMatch(/^FROM base AS runtime\r?$/m);
     expect(dockerfile).toContain("RUN npm ci --omit=dev");
     expect(dockerfile).toContain(
       "COPY --from=build /app/backend/convex/_generated/api.js dist/backend/convex/_generated/api.js",
