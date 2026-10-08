@@ -27,7 +27,6 @@ const MAX_BUFFER_ENTRIES = 256;
 let _buffer: AuditEntry[] = [];
 let _flushTimer: ReturnType<typeof setTimeout> | null = null;
 let _db: any = null;
-let _initialized = false;
 
 function getAuditDbPath(): string {
   const configured = process.env.NODEBENCH_DATA_DIR?.trim();
@@ -42,19 +41,17 @@ function genId(): string {
 function getDb(): any {
   if (_db) return _db;
 
+  let db: any = null;
   try {
     const dbPath = getAuditDbPath();
     const dir = path.dirname(dbPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-    _db = openOptionalSqliteDatabase(dbPath);
-    if (!_db) {
-      _initialized = false;
-      return null;
-    }
-    _db.pragma("journal_mode = WAL");
+    db = openOptionalSqliteDatabase(dbPath);
+    if (!db) return null;
+    db.pragma("journal_mode = WAL");
 
-    _db.exec(`
+    db.exec(`
       CREATE TABLE IF NOT EXISTS audit_log (
         id         TEXT PRIMARY KEY,
         timestamp  TEXT NOT NULL,
@@ -71,17 +68,19 @@ function getDb(): any {
     `);
 
     // Auto-prune entries older than 30 days
-    _db
+    db
       .prepare(
         "DELETE FROM audit_log WHERE timestamp < datetime('now', '-30 days')",
       )
       .run();
 
-    _initialized = true;
+    _db = db;
     return _db;
-  } catch {
-    // SQLite unavailable — use in-memory only
-    _initialized = false;
+  } catch (error: unknown) {
+    // A failed initialization must not poison the next storage attempt.
+    try { db?.close(); } catch { /* best-effort release */ }
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[audit] SQLite initialization failed: ${message.slice(0, 300)}`);
     return null;
   }
 }
@@ -242,5 +241,4 @@ export function _resetAuditForTesting(): void {
     _flushTimer = null;
   }
   _db = null;
-  _initialized = false;
 }

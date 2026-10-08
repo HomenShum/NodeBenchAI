@@ -26,6 +26,7 @@ import { createMcpGateway } from "../../../../workers/node/mcpGateway.js";
 import { hashApiKey, hashPrefix } from "../../../../workers/node/mcpAuth.js";
 import type { SessionTelemetry } from "../../../../workers/node/mcpSession.js";
 describe("coding agent compiled stdio and CLI handoff", () => {
+  const stdioBudgetMs = 30_000;
   const packageRoot = resolve(import.meta.dirname, "../..");
   const entry = join(packageRoot, "dist/index.js");
   const literal = '{"error":true} is screenshot content';
@@ -51,11 +52,16 @@ describe("coding agent compiled stdio and CLI handoff", () => {
     return { data, env: environment(data), nodeArgs: ["--experimental-loader", pathToFileURL(loader).href] };
   }
   it("lets a coding agent stop after returned failure and preserves successful ordered image evidence across dynamic loading", async () => {
+    const deadline = performance.now() + stdioBudgetMs;
     const { data, env, nodeArgs } = fixture();
     const transport = new StdioClientTransport({
       command: process.execPath,
       args: [...nodeArgs, entry, "--toolsets", "ui_ux_dive,delta", "--no-embedding", "--no-toon", "--profile"],
       cwd: packageRoot, env, stderr: "pipe",
+    });
+    let childStderr = "";
+    transport.stderr?.on("data", (chunk: Buffer) => {
+      childStderr = (childStderr + chunk.toString()).slice(-65_536);
     });
     const client = new Client({ name: "honest-result-proof", version: "1" });
     const callTool = async (params: Parameters<Client["callTool"]>[0]): Promise<CallToolResult> =>
@@ -92,7 +98,6 @@ describe("coding agent compiled stdio and CLI handoff", () => {
       const thrown = await callTool({ name: "capture_ui_screenshot", arguments: { url: "https://example.invalid/", viewport: "custom" } });
       expect(thrown.isError).toBe(true);
       expect(firstText(thrown)).toContain("Custom viewport requires");
-      await new Promise((resolve) => setTimeout(resolve, 150));
       const Database = (await import("better-sqlite3")).default;
       const db = new Database(join(data, "nodebench.db"));
       const rows = db.prepare("SELECT result_status,error FROM tool_call_log WHERE tool_name='dive_snapshot' ORDER BY rowid").all();
@@ -104,20 +109,29 @@ describe("coding agent compiled stdio and CLI handoff", () => {
       const malformedRows = db.prepare("SELECT result_status FROM tool_call_log WHERE tool_name='getMethodology'").all();
       expect.soft(malformedRows).toEqual([{ result_status: "error" }]);
       db.close();
-      const audit = new Database(join(data, "security_audit.db"));
-      const auditRows = audit.prepare("SELECT allowed,metadata FROM audit_log WHERE tool_name='dive_snapshot' ORDER BY rowid").all() as any[];
-      expect.soft(auditRows.map(row => [row.allowed, JSON.parse(row.metadata).resultStatus])).toEqual([[1,"error"],[1,"success"],[1,"success"]]);
-      const thrownAudit = audit.prepare("SELECT allowed,metadata FROM audit_log WHERE tool_name='capture_ui_screenshot' ORDER BY rowid").all() as any[];
-      expect.soft(thrownAudit.map(row => [row.allowed, JSON.parse(row.metadata).resultStatus])).toEqual([[1,"success"],[1,"error"]]);
-      const malformedAudit = audit.prepare("SELECT allowed,metadata FROM audit_log WHERE tool_name='getMethodology'").all() as any[];
-      expect.soft(malformedAudit.map(row => [row.allowed, JSON.parse(row.metadata).resultStatus])).toEqual([[1,"error"]]);
-      audit.close();
+      // A parent delay cannot acknowledge the child's batched persistence.
+      // Readonly prevents this observer from creating a blank audit database.
+      try {
+        await vi.waitFor(() => {
+          const audit = new Database(join(data, "security_audit.db"), { readonly: true, timeout: 0 });
+          try {
+            const auditRows = audit.prepare("SELECT allowed,metadata FROM audit_log WHERE tool_name='dive_snapshot' ORDER BY rowid").all() as any[];
+            expect(auditRows.map(row => [row.allowed, JSON.parse(row.metadata).resultStatus])).toEqual([[1,"error"],[1,"success"],[1,"success"]]);
+            const thrownAudit = audit.prepare("SELECT allowed,metadata FROM audit_log WHERE tool_name='capture_ui_screenshot' ORDER BY rowid").all() as any[];
+            expect(thrownAudit.map(row => [row.allowed, JSON.parse(row.metadata).resultStatus])).toEqual([[1,"success"],[1,"error"]]);
+            const malformedAudit = audit.prepare("SELECT allowed,metadata FROM audit_log WHERE tool_name='getMethodology'").all() as any[];
+            expect(malformedAudit.map(row => [row.allowed, JSON.parse(row.metadata).resultStatus])).toEqual([[1,"error"]]);
+          } finally { audit.close(); }
+        }, { timeout: Math.max(1, deadline - performance.now()), interval: 20 });
+      } catch (error) {
+        throw new Error(`Audit receipt did not become ready within the scenario budget. Child stderr tail:\n${childStderr}`, { cause: error });
+      }
       const analytics = new Database(join(data, ".nodebench", "analytics.db"));
       const tracked = analytics.prepare("SELECT success FROM tool_usage WHERE tool_name='dive_snapshot' ORDER BY rowid").all() as any[];
       expect.soft(tracked.map(row => row.success)).toEqual([0,1,1]);
       analytics.close();
     } finally { await client.close(); }
-  }, 30_000);
+  }, stdioBudgetMs);
   it("gives an automation caller nonzero exits for invalid work and preserves the local success path", () => {
     const { env, nodeArgs } = fixture();
     const cli = (args: string[]) => spawnSync(process.execPath, [...nodeArgs, entry, ...args, "--no-embedding"], {
@@ -450,6 +464,31 @@ describe("MCP-HONEST-RESULT-02: a developer needs trustworthy capture evidence",
     expect(callbackResults).toEqual([{ status: "fulfilled", value: blocks }, { status: "rejected", reason: thrownFailure }]);
     expect(await proxied[0].handler({})).toBe(returnedFailure);
     expect(storage.collector.prepare("SELECT success FROM unified_events WHERE session_id = ?").all("profile-storage-outage")).toEqual([{ success: 0 }]);
+  });
+
+  it("lets a developer repair a failed cold audit initialization and persist the next call without resetting the owner", () => {
+    const Database = getOptionalDatabaseCtor();
+    const dbPath = join(dataDir, "security_audit.db");
+    storage.audit.close();
+    const failedAudit = new Database(dbPath);
+    storage.audit = failedAudit;
+    failedAudit.exec("CREATE TABLE audit_log (id TEXT PRIMARY KEY)");
+    try {
+      auditLog("tool_call", "lost_cold_init", "incompatible local schema", true);
+      flushAuditLog();
+      const repair = new Database(dbPath);
+      try {
+        expect(repair.prepare("SELECT COUNT(*) AS count FROM audit_log").get()).toEqual({ count: 0 });
+        repair.exec("DROP TABLE audit_log");
+      } finally { repair.close(); }
+      storage.audit = new Database(dbPath);
+      auditLog("tool_call", "after_schema_repair", "next call", true, undefined, { resultStatus: "success" });
+      flushAuditLog();
+      const rows = storage.audit.prepare("SELECT tool_name,metadata FROM audit_log ORDER BY rowid").all();
+      expect(rows).toEqual([{ tool_name: "after_schema_repair", metadata: '{"resultStatus":"success"}' }]);
+    } finally {
+      if (failedAudit.open) failedAudit.close();
+    }
   });
 
   it.each(["prepare", "transaction", "run"] as const)("keeps audit bursts bounded through three %s outages, timer flushes, and recovery", async (failurePoint) => {
