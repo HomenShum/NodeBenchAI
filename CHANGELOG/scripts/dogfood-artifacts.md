@@ -1,5 +1,22 @@
 # Dogfood artifact capture
 
+## 2026-10-07 — Close the observed-state capture repair
+
+A PR reviewer can distinguish an observed guest state from research that was never submitted. PR #652 merged the reviewed capture repair; its canonical source tree exactly matches the tested nine-file candidate.
+
+**PR / canonical main commit**: [#652](https://github.com/HomenShum/NodeBenchAI/pull/652) / `92969cfe5aed32ba23151f4d09abf045ac81918b`.
+
+**Evidence state**:
+- Source: merged; canonical tree `f18f03d87577008edc3577fd4d77f5d03d159d10` matches reviewed head `6aaf21eca2f68e74775e5b277e3453879a16b0a2`.
+- Checks: that PR head settled at **16 success, 1 skipped, 1 failure, 0 pending**. Visual QA Gate, Typecheck, Runtime smoke and Build passed. Pipeline quality benchmark failed because `https://scratchnode.live` exceeded the 65,536-byte response cap; no golden queries were evaluated. The failure was preserved.
+- Visual proof: the prior entry records the seven Before/seven After PNGs, nine Scribe steps, ten settled frames, 23/23 integrity checks and one missing-composer knockout. Generated captures were excluded from the commit.
+- Preview: fixed local guest proof completed; owned previews stopped.
+- Production build identity: Production deployment `6929128872` succeeded at `2026-10-08T06:49:19Z`. A bounded unauthenticated GET of `https://www.nodebenchai.com/` at `06:49:46–06:49:47Z` returned HTTP 200 and raw `nodebench-build-sha` exactly matching the canonical commit. This verifies build identity, not a new authenticated workflow or a whole-app grade.
+
+A separate new-main snapshot contained 14 check runs: **8 success, 4 Dependabot failures, 2 pending** (Pipeline benchmark and post-deploy verification), with an additional successful Vercel status. This snapshot is distinct from the settled PR results and does not establish all-CI-green. Live research and saved-report reopening remain **NOT_RUN**.
+
+**Author**: Homen Shum + Codex.
+
 ## 2026-10-07 — Verify truthful guest captures
 
 A PR reviewer can now tell which guest state was observed and which research action was not performed. A fresh seven-image baseline reproduced the light settings screenshot mislabeled as dark; the repaired gallery records light from the actual page attribute. Nine Scribe steps and ten settled video frames now describe ready entries, an unsubmitted question, the actual theme toggle, and Saved research instructions without claiming a completed answer or reopened report.
