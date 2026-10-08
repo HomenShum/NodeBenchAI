@@ -3,6 +3,33 @@
 Append-only lane for pipeline launch, activity, streaming, evaluation, schedule,
 and secret-gated MCP bridge ownership contracts. Newest entries first.
 
+## 2026-10-07 — Stop failed research from becoming a successful report
+
+A developer or coding agent requesting a company brief needs an explicit failure
+when search or analysis fails. Previously JSON returned HTTP200, streaming sent
+`complete`, and failed runs could create report, replay, evaluation or retention
+records. The existing Pipeline now stops at its first terminal failure, propagates
+client cancellation and one 55-second budget through owned provider reads, and
+keeps usable evidence when another eligible provider fails.
+
+**PR / canonical main commit**: `PENDING MAIN SHA / FINAL QA`.
+
+**Changes**:
+- JSON uses 503 for missing configuration, 422 for valid empty evidence, 502 for upstream/invalid responses, 504 for the total deadline and 500 for internal failure. Cancellation writes no response. After SSE headers, a terminal failure emits one `error` and no `complete` or successful artifact.
+- Search/Gemini/SEC bodies have byte caps, readers retain at most 4,096 chunks, and complete SEC lookup maps retain at most 25,000 keys. Invalid or oversized ticker input is never admitted partially. Required provider source text is checked before shared filtering, so one malformed result cannot erase another provider's usable evidence. Existing successful paid-secondary eligibility, source order and ranker remain intact; exhausted paid variants use already configured free evidence without another paid retry.
+- Finite provided source scores keep their actual value within 0–100; missing/nonfinite source scores stay absent and genuine model confidence 0 stays 0. Source quality and the existing readiness calculation are heuristics/provided scores, not calibrated certainty. Provider-reported token counts remain; JSON/SSE and Attrition report total cost as `null` / `not_measured`. The cost-requiring evaluator and promotion are explicitly skipped instead of recording a fabricated zero. Shared cost schema/archive and envelope/asset identities are unchanged.
+
+**Evidence state**:
+- Same frozen 46-scenario public-route harness on Windows Node 22.22.2/npm 10.9.7, Vitest 3.2.7 and unchanged application manifest/lock: canonical `643d705d` baseline 2 PASS / 44 FAIL; final candidate on `b46bfec9` 46 PASS / 0 FAIL. The latter main update changes only an orphan Git index entry and its existing cleanup lane; all Pipeline/runtime/graph inputs stay identical. Final runner binds 17 source/graph hashes before and after. Harness SHA256 `66EF3539A6C35E4495AE56EC5407625A1BA747F20DB2728FAEF9FEDEFD535C5F`; final raw JSON SHA256 `4940F6C1645EE090B92187234EF2CDE507FA1C165D991A5473382B578B712B3C`.
+- Actual provider-fixture cascade: baseline 57,026 ms completed without a terminal failure; candidate 55,002 ms ends with `TIMEOUT` and zero active work. Separate 60,018 ms paced observation: 54 requests, 18 malformed inputs return 502, 36 valid/stall-recovery requests return 200, no fixture errors, zero active work and bounded existing context cache. Twelve concurrent mixed requests pass. These are bounded local observations, not a speedup, SLA or lifetime memory certificate.
+- Five selected regression suites pass 25/25, including five new-only provider-alias/cache cases plus the explicit browser SSE-error case. Production search bundle and Vite build pass; existing Vite native-config and PostCSS warnings remain. Root `tsc --noEmit` exits 0 but its reference-only configuration does not typecheck the application; the new HTTP helper's strict check passes. Full worker strict baseline reached its 90-second limit without diagnostics and remains NOT_VERIFIED. SQLite evaluator/archive tests are NOT_RUN under the explicitly script-disabled install; route persistence/evaluation boundaries are mocked before imports.
+- Local source is pending publication and automatic CI. Six relevant suites were added to the existing required Runtime smoke list without changing its gate/install policy. The local npm 10 proof differs from declared npm 11.5.2. No real provider, backend, deployed endpoint, Golden quality, UI/SEO, all-checks-green or production security claim is made. An explicit received SSE error avoids the browser's legacy JSON retry; untouched pre-header 503 fallback may still retry. Earlier V3/V5 proof attempts are retained as confounded; the V4 single-stage budget fixture is superseded by the final real-clock V6 comparison.
+
+**Reproduction**: `npx vitest run workers/node/pipelineRoute.test.ts workers/node/pipeline/searchPipeline.test.ts workers/node/searchPipelineStateToResultPacket.test.ts workers/node/streamingSearchRoute.test.ts apps/web/src/hooks/useStreamingSearch.test.ts apps/web/src/features/controlPlane/components/proofModel.test.ts` after installing this checkout's locked dependencies. Fixtures run the actual public JSON/SSE routes with external provider responses and persistence mocked; this command makes no live-provider claim.
+
+**Named proof**: `PIPELINE-HONEST-FAILURE-01`.
+**Author**: Homen Shum + Codex.
+
 ## 2026-10-07 — Replace the provider HTTP dependency path with a measured transport
 
 A developer fetching source material needs private-address blocking and streaming
