@@ -1,5 +1,21 @@
 # Walkthrough citations
 
+## 2026-10-08 — Remove the orphan checkout reference
+
+A developer or coding agent cloning the repository encountered a Git cleanup warning because a local worktree was accidentally tracked as a submodule without a .gitmodules entry. Remove that tracked reference while preserving the underlying files, historical documentation and recoverable commit history.
+
+**PR / canonical main commit**: `PENDING #649 MAIN SHA / FINAL QA`.
+
+**Evidence state**:
+- Source: pending two-path metadata change on main `643d705d1201cf0def8acc7d555155fd75436c06`: remove only the mode-160000 Gitlink `.claude/worktrees/festive-mclaren-0555d3` and prepend this existing lane. No worktree files, branches, application code, dependencies or workflows are removed or changed.
+- Checks: the isolated Git-index diagnosis captured the checkout cleanup command failing with exit128 before reference removal and exit0 afterward. This is the minimal index behavior proof; exact source-revision CI and full-checkout proof remain pending. Existing Pipeline endpoint failures and dependency findings are not resolved by this change.
+- Recovery: original object `cab5646af79ee7227f73d825392e540f44047dbb` remains recoverable through unchanged existing commit ancestry; the two historical UI verification documents are preserved.
+- Visual proof: not applicable to this source-control metadata change; no UI grade asserted.
+- Preview: not recorded.
+- Production live: not recorded.
+
+**Author**: Homen Shum + Codex.
+
 ## 2026-10-07 — Align developer onboarding with the current entrypoints
 
 A developer or coding agent starting from CONTRIBUTING or ONBOARDING could launch unconfigured backend processes, follow retired source paths, or mistake the chat walkthrough for every route. These documents now point first to START_HERE, use the frontend-only start and current source paths, and scope routing and streaming explanations to the conversation path. The README retains its newer historical-score and failed-preflight disclosures, generated banner and project heading.
