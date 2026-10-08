@@ -3,6 +3,29 @@
 Append-only lane for pipeline launch, activity, streaming, evaluation, schedule,
 and secret-gated MCP bridge ownership contracts. Newest entries first.
 
+## 2026-10-07 — Verify the standalone worker's clean build inputs
+
+A developer starting the standalone worker needs the committed dependency
+inputs and actual compiled startup, rather than a frontend build. This local
+packaging candidate restores the root lock, shares supported Node 22/npm 11.5.2
+and the public peer policy, removes the missing patch-script copy, promotes
+the existing dotenv range to runtime dependencies and excludes credential
+files from cloud context. The worker entrypoint, routes and all 233 declared
+version ranges remain unchanged.
+
+**PR / canonical main commit**: `PENDING MAIN SHA / FINAL QA`.
+
+**Evidence state**:
+- Source at local-proof capture: local worktree candidate on baseline `e2e82cafe7619e5ea986cb883601f2bca1c4b073`; not committed, published or merged. All six packaging/helper source files match the independently reviewed candidate; only this lane and the existing runbook record observed outcomes.
+- Checks: current-manifest npm 11.5.2 lock generation and `npm ci --dry-run` pass. The first Docker attempt could not reach the Linux engine; after recovery, the actual unchanged clean-source build exits 1 because `package-lock.json` and `scripts/patch-crons-exports.mjs` are absent at `COPY`. The repaired native Linux/amd64 image builds and runs the compiled worker with Node v22.22.2/npm 11.5.2. Local proof `NODEBENCH-PIPELINE-CLEAN-BUILD-01` passes: actual Docker network `none`, empty mounts/host-port bindings, only seven expected public environment-variable names, HTTP200 root/MCP/Pipeline health, 573 registered tools, Linkup/Gemini configuration false, 12 concurrent plus 20 repeated empty-query HTTP400s, malformed JSON HTTP400 and zero sessions. These 33 rejections completed in 94 ms, a burst/repeated observation. A separate 60,005 ms paced stability observation in the same image retained healthy responses and zero sessions across 61 invalid HTTP400 requests and 13 recovery snapshots; it does not certify a production SLA or long-term memory behavior. Both owned worker containers were stopped normally.
+- Security limit: install audit reports 29 production vulnerabilities (7 low, 11 moderate, 11 high) and 57 full-build vulnerabilities (7 low, 21 moderate, 27 high, 2 critical). Separate audit-only proof `PIPELINE-LOCK-AUDIT-01` used the same image/lock and public npm registry on Docker network `bridge`, ran no worker and exited 1 with the same 29 production findings (zero critical). No dependency update or security pass is claimed; no baseline installed graph existed for a vulnerability comparison. This registry diagnostic is separate from the worker containers' network isolation.
+- Visual proof: not applicable; no UI change.
+- Preview: not recorded; no deployment.
+- Production live: not verified; no worker URL, provider-backed golden result or all-green certificate.
+
+**Author**: Homen Shum + Codex.
+**Runbook**: [`Clean container prerequisite`](../../docs/runbooks/PIPELINE_QUALITY_BENCHMARK.md#verify-the-clean-container-prerequisite).
+
 ## 2026-07-16 - Ground chat follow-ups in bounded receipt context
 
 The pending candidate extends redesign chat runs with optional, sanitized conversation

@@ -1,9 +1,12 @@
-FROM node:20-slim AS build
+FROM node:22.22.2-bookworm-slim@sha256:9f6d5975c7dca860947d3915877f85607946403fc55349f39b4bc3688448bb6e AS base
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-COPY scripts/patch-crons-exports.mjs scripts/patch-crons-exports.mjs
+# Match the declared package manager and share the public install policy.
+RUN npm install --global npm@11.5.2 --no-audit --no-fund
+COPY package.json package-lock.json .npmrc ./
+
+FROM base AS build
 
 # The compiler and TypeScript source runner are development dependencies.
 RUN npm ci
@@ -18,12 +21,7 @@ COPY scripts/ui/runDogfoodGeminiQa.mjs scripts/ui/runDogfoodGeminiQa.mjs
 COPY tsconfig.json ./
 RUN npm run build:voice
 
-FROM node:20-slim AS runtime
-
-WORKDIR /app
-
-COPY package.json package-lock.json ./
-COPY scripts/patch-crons-exports.mjs scripts/patch-crons-exports.mjs
+FROM base AS runtime
 RUN npm ci --omit=dev
 
 COPY --from=build /app/dist/ dist/

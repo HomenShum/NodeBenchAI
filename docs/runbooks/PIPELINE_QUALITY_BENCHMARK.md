@@ -17,6 +17,82 @@ As observed on September 8, 2026:
 
 These observations do not establish a substitute production URL or authorize a new deployment. A Vercel deployment event and a green frontend crawl do not establish that the worker exists.
 
+## Verify the clean container prerequisite
+
+The packaging candidate keeps the existing worker, routes and `build:voice`
+compiler command. Both image stages share a pinned Node 22 base, npm 11.5.2,
+the checked root lock and the public root `legacy-peer-deps=true` policy.
+The existing `dotenv` range moves to production dependencies because
+`workers/node/index.ts` imports it at startup. No application version range
+changes. The obsolete patch-script copy is removed. The cloud ignore rules
+exclude environment files and nested registry-token files; the checked root
+npm policy contains no credentials.
+
+With an already functioning Linux Docker engine, from a clean checkout:
+
+```powershell
+docker build --platform linux/amd64 -f workers/node/Dockerfile -t nodebench-worker-proof:local .
+docker run -d --name nodebench-worker-proof --network none --memory 2g --cpus 2 nodebench-worker-proof:local
+docker inspect nodebench-worker-proof --format '{"networkMode":{{json .HostConfig.NetworkMode}},"mounts":{{json .Mounts}},"hostPorts":{{json .HostConfig.PortBindings}}}'
+docker inspect nodebench-worker-proof --format '{{range .Config.Env}}{{println (index (split . "=") 0)}}{{end}}'
+Get-Content -Raw scripts/worker-container-smoke.mjs | docker exec -i nodebench-worker-proof node --input-type=module
+docker logs nodebench-worker-proof
+docker stop nodebench-worker-proof
+```
+
+Use an unused container name, retain the logs, and stop only the container you
+started. This proof supplies no provider environment, published host port or
+mounted personal data. Verify the actual network mode is `none`, mounts and
+host-port bindings are empty, and environment-variable names contain only
+expected public settings. Inspect names without printing values. The helper
+cannot inspect Docker configuration itself. Use an explicitly verified Linux
+engine; the recorded Windows proof used the Linux daemon, not the Windows default.
+The helper captures the actual localhost root/MCP/Pipeline
+health responses, requires a nonempty tool inventory and absent Linkup/Gemini
+configuration, then checks 12 concurrent and 20 repeated empty-query rejections,
+malformed JSON and stable tool/session state. It does not send a valid query.
+
+In the October 7, 2026 local-date proof, the current-manifest lock was generated with
+npm 11.5.2 and its `npm ci --dry-run` passed. The first native Docker attempt
+could not reach the Linux engine. After the engine recovered, the unchanged
+clean-source build failed at `COPY` because both `package-lock.json` and
+`scripts/patch-crons-exports.mjs` are absent. The repaired Linux/amd64 image
+built successfully and started the actual compiled worker with Node v22.22.2
+and npm 11.5.2. Docker inspection confirmed network mode `none`, no mounts or
+published ports and seven expected public environment-variable names.
+
+The helper observed HTTP200 root/MCP/Pipeline health, 573 registered tools,
+false Linkup/Gemini configuration booleans, 12 concurrent and 20 repeated
+empty-query HTTP400 rejections, malformed-JSON HTTP400 and unchanged zero
+sessions. These 33 rejection cases completed in 94 ms; they are a burst and
+repeated-request observation, not a sustained-duration result.
+
+A separate, bounded 60-second stability observation used the same image in
+another inspected network-`none` container. In 60,005 ms, 61 paced empty or
+whitespace queries returned HTTP400 and 13 recovery snapshots retained
+HTTP200 root/MCP/Pipeline health, 573 tools and zero sessions. Worker PID1 RSS
+was 126,036 KiB at the start and 112,820 KiB at the end; container cgroup memory
+was 100,499,456 and 94,007,296 bytes respectively. These two snapshots do not
+establish a production SLA or long-term memory behavior. Both owned worker
+containers were stopped normally after proof. No valid
+provider query, cloud upload, image push, deployment or manual CI was performed.
+
+The install audits remain unresolved: production reported 29 vulnerabilities
+(7 low, 11 moderate, 11 high), and the full build install reported 57
+(7 low, 21 moderate, 27 high, 2 critical). These are observations from the
+new frozen graph, not a baseline/new vulnerability comparison or a security pass.
+An audit-only container using that image and the exact same lock separately
+ran `npm audit --omit=dev --json` against the public npm registry. Its process
+exited 1 and confirmed 29 production findings, including 11 high and no
+critical findings. That diagnostic used Docker network `bridge`, ran no worker,
+and applied no dependency updates. Its external network access is separate
+from the two isolated worker observations.
+
+The existing compile command uses `--noCheck`; an emitted worker is not a full
+application typecheck. Optional tool dependencies and browser binaries require
+their own invocation proofs. Local startup with false provider booleans cannot
+pass the provider-ready benchmark below or establish a deployed worker URL.
+
 ## Run
 
 After installing the repository's declared development dependencies, verify the runner without provider calls:
