@@ -3,6 +3,68 @@
 Append-only lane for pipeline launch, activity, streaming, evaluation, schedule,
 and secret-gated MCP bridge ownership contracts. Newest entries first.
 
+## 2026-10-08 — Keep failed research out of successful Pipeline artifacts
+
+A researcher or coding agent needs a failed provider request to remain a failed
+research attempt. This fourteen-owner source candidate starts from canonical
+`8b4846baa9adedd5107b8eae1acd46805a8f272d`. A shared terminal outcome stops failed
+search or analysis before successful packet, context, trajectory, report, nudge,
+evaluation or retention effects. JSON uses the owned non-success status; an
+accepted SSE stream emits one terminal error without completion. Caller
+cancellation propagates through the fifty-five-second run budget and optional
+SEC enrichment, with owned timers and listeners disposed.
+
+The fixed-host HTTPS reader rejects redirects, invalid UTF-8/JSON and oversized
+bodies. Both provider-array owners reject more than thirty rows before mapping
+or image expansion. Existing paid eligibility, provider priority, usable partial
+evidence, successful source/image ordering and valuation formulas remain.
+Finite provided source confidence, including zero, survives projection; missing
+values stay omitted. The existing readiness fallback is labeled a heuristic and
+can reach zero. Unknown dollar cost stays null/not_measured, with actual token
+usage retained; this route explicitly skips the numeric-cost evaluator rather
+than pretending that unmeasured means free.
+
+**PR / canonical main commit**: `PENDING MAIN SHA / FINAL QA`.
+
+**Evidence state**:
+- Current-source basis: the closed plan frozen at 21:32 UTC on October 8, 2026
+  binds the earlier native source capture; preparation is an external fourteen-file
+  packet, not a shared checkout, publication or canonical adoption. Ten existing
+  owners exactly match the retained historical before bytes. Current CI and this
+  lane preserve their newer complete contents, including merged #655's separate
+  frontend/Pipeline target history and Storybook checks. The helper and real-route
+  scenario file are new at this source basis.
+- Desired comparison: preserve all original forty-six scenario identities and
+  assertions, and add four provider admission personas: Brave, Serper, Tavily and
+  primary Linkup. Each accepts thirty complete valid rows, rejects thirty-one
+  without success artifacts, then recovers with thirty and checks ordered content.
+  Planned fifty identities are not an observed runner count. Six genuine suite
+  paths are added to Runtime smoke while all twenty-eight current suites remain;
+  no combined test count is predicted.
+- Historical proof remains historical: the retained same forty-six scenarios
+  changed from 2 PASS/44 FAIL to 46 PASS on Windows Node 22.22.2/Vitest 3.2.7 with
+  ignored install scripts and mocked external/durable boundaries. Those results
+  do not certify current Vitest 4, native SQLite, this amended source or providers.
+- Current checks: source-only review and byte bindings are being prepared.
+  Imports, installed compatibility, parser/type/build checks, matched baseline/new
+  execution, new-head automatic CI and canonical main QA are **NOT_RUN** here.
+  The named comparison is `PIPELINE-HONEST-FAILURE-CURRENT-01`; both sides need the
+  same declared runtime/config/graph and mocked boundaries before execution.
+- Limits: the merged endpoint configuration remains intact, and blank worker
+  configuration stays BLOCKED with zero Golden queries. Service/project/private
+  invoker identity, working keys, provider grounding, full worker strict compile,
+  native installed behavior, trusted retention/auth, dependency findings,
+  production/live content and visual/SEO grades remain separate unresolved work.
+  No local runtime, provider/cloud request, shared Convex deployment or held
+  dependency sequence is performed by this source preparation.
+
+**Reproduction after reviewed prerequisites**: the same desired real-route
+harness on authentic canonical source and the candidate, then the six retained
+target suites and unchanged regressions under the approved finite comparison
+contract. Record actual exits, discovery counts, failures, skips, bounded raw
+streams, source/graph preservation and recovery rather than reusing dated results.
+**Author**: Homen Shum + Codex.
+
 ## 2026-10-08 — Separate frontend crawl and Pipeline benchmark targets
 
 An evaluator needs the research worker's JSON API rather than the public

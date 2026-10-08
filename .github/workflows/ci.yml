@@ -116,6 +116,12 @@ jobs:
           backend/convex/domains/redesign/chatRuns.contract.test.ts
           apps/web/src/features/redesign/components/UniversalComposer.test.tsx
           apps/web/src/features/redesign/surfaces/ScratchnodeEventsSurface.test.tsx
+          workers/node/pipelineRoute.test.ts
+          workers/node/pipeline/searchPipeline.test.ts
+          workers/node/searchPipelineStateToResultPacket.test.ts
+          workers/node/streamingSearchRoute.test.ts
+          apps/web/src/hooks/useStreamingSearch.test.ts
+          apps/web/src/features/controlPlane/components/proofModel.test.ts
 
   scratchnode-launch-gates:
     name: ScratchNode launch gates
@@ -172,3 +178,482 @@ jobs:
 
       - name: Retained Storybook index
         run: npm run storybook:verify:index
+
+  pipeline-honest-pair:
+    name: Pipeline honest-failure paired proof
+    if: github.event_name == 'pull_request' && github.head_ref == 'fix/pipeline-honest-failure-20261008'
+    runs-on: ubuntu-latest
+    # Three <=600s children, owned drainage and artifact-upload headroom.
+    # Existing job/test timeouts and default Vitest worker policy remain intact.
+    timeout-minutes: 35
+    env:
+      CONVEX_URL: ""
+      VITE_CONVEX_URL: ""
+    steps:
+      # Read current main, then require exact authentic 8b in the source guard.
+      # Checking out an old SHA alone would conceal intervening main changes.
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          path: pipeline-pair/baseline
+          persist-credentials: false
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pipeline-pair/candidate
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          package-manager-cache: false
+          node-version-file: "pipeline-pair/candidate/.nvmrc"
+
+      - name: One installed graph and genuine baseline/new Pipeline criteria
+        env:
+          PAIR_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node <<'PIPELINE_PAIR_NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const crypto = require("node:crypto");
+          const { spawn, spawnSync } = require("node:child_process");
+
+          const BASE = "8b4846baa9adedd5107b8eae1acd46805a8f272d";
+          const BASE_TREE = "1c122bfd61e18448c2fb486ad44eab376ed90310";
+          const AFTER = {
+            "workers/node/pipeline/searchPipeline.ts": "b43bb029b5b8c86651c3bda8b26a0ab64911b9a1",
+            "workers/node/lib/multiSearch.ts": "e977390bade699d11c33c39e4169f1cbb91046be",
+            "workers/node/lib/dcfModel.ts": "20e6296d9783b7507c8d95756975b3b17e9904d7",
+            "workers/node/lib/secEdgar.ts": "7813aead64ad4da45960f71aa13c1438bf1c2b20",
+            "workers/node/routes/pipelineRoute.ts": "d00af1ecef55aa37e6810e58f2dc334799b03265",
+            "workers/node/routes/streamingSearch.ts": "25d97df558b6b4b9e1b828e57606a2d081a06504",
+            "apps/web/src/features/controlPlane/components/proofModel.ts": "e542be24871206875f7d4c8ec60b637f15284451",
+            "workers/node/lib/pipelineHttp.ts": "15fb2a1b5d55a0694d1184a709d0c78ae208aa94",
+            "workers/node/pipelineRoute.test.ts": "021bdf2bd033e783897973d4086141f6e804c622",
+            "workers/node/pipeline/searchPipeline.test.ts": "4a377f63a4df2735e06f3aa760db4300781bd466",
+            "workers/node/streamingSearchRoute.test.ts": "612cff706c74e91483eee5564654553f58714a51",
+            "apps/web/src/hooks/useStreamingSearch.test.ts": "7c74256d25d1204ac69bf1dfaa50f9bc04176056",
+            "CHANGELOG/integrations/pipeline-runtime.md": "95253e059bf2f4f7226a75bf8677abf40b068394"
+          };
+          const SUITES = [
+            "workers/node/pipelineRoute.test.ts",
+            "workers/node/pipeline/searchPipeline.test.ts",
+            "workers/node/streamingSearchRoute.test.ts",
+            "apps/web/src/hooks/useStreamingSearch.test.ts",
+            "apps/web/src/features/controlPlane/components/proofModel.test.ts",
+            "workers/node/searchPipelineStateToResultPacket.test.ts"
+          ];
+          const ROUTE_NAMES = [
+            "Researcher and coding-agent real-route failure contract configuration none rejects JSON and SSE before provider work",
+            "Researcher and coding-agent real-route failure contract configuration missinggemini rejects JSON and SSE before provider work",
+            "Researcher and coding-agent real-route failure contract searchfail400 cannot create a successful research packet",
+            "Researcher and coding-agent real-route failure contract searchfail429 cannot create a successful research packet",
+            "Researcher and coding-agent real-route failure contract searchfail503 cannot create a successful research packet",
+            "Researcher and coding-agent real-route failure contract analyzefail400 cannot create a successful research packet",
+            "Researcher and coding-agent real-route failure contract analyzefail429 cannot create a successful research packet",
+            "Researcher and coding-agent real-route failure contract analyzefail503 cannot create a successful research packet",
+            "Researcher and coding-agent real-route failure contract malformed cannot create a successful research packet",
+            "Researcher and coding-agent real-route failure contract invalidutf8 cannot create a successful research packet",
+            "Researcher and coding-agent real-route failure contract noanswer cannot create a successful research packet",
+            "Researcher and coding-agent real-route failure contract noconfidence cannot create a successful research packet",
+            "Researcher and coding-agent real-route failure contract searchcapped cannot create a successful research packet",
+            "Researcher and coding-agent real-route failure contract searchcappeddeclared cannot create a successful research packet",
+            "Researcher and coding-agent real-route failure contract geminicapped cannot create a successful research packet",
+            "Researcher and coding-agent real-route failure contract geminicappeddeclared cannot create a successful research packet",
+            "Researcher and coding-agent real-route failure contract valid empty evidence returns422 and no success artifacts",
+            "Researcher and coding-agent real-route failure contract free retains usable evidence and reports unknown total cost honestly",
+            "Researcher and coding-agent real-route failure contract paid retains usable evidence and reports unknown total cost honestly",
+            "Researcher and coding-agent real-route failure contract partial retains usable evidence and reports unknown total cost honestly",
+            "Researcher and coding-agent real-route failure contract paidfree retains usable evidence and reports unknown total cost honestly",
+            "Researcher and coding-agent real-route failure contract SSE failure after headers emits one terminal error and no complete/report",
+            "Researcher and coding-agent real-route failure contract valid SSE preserves output and the same unmeasured-cost projection",
+            "Researcher and coding-agent real-route failure contract already cancelled agent run performs no external work or package stage",
+            "Researcher and coding-agent real-route failure contract caller cancellation during provider headers stops fallback and later success writes",
+            "Researcher and coding-agent real-route failure contract closed streaming client cancels provider work and never stores a report",
+            "Researcher and coding-agent real-route failure contract 55-second owned budget terminates the real paced provider cascade without packaging",
+            "Researcher and coding-agent real-route failure contract actual zero model confidence stays zero on usable research",
+            "Researcher and coding-agent real-route failure contract optional EDGAR outage leaves usable research intact and failed cache admission can retry",
+            "Researcher and coding-agent real-route failure contract optional EDGAR oversize never admits a partial ticker cache",
+            "Researcher and coding-agent real-route failure contract optional EDGAR entries never admits a partial ticker cache",
+            "Researcher and coding-agent real-route failure contract abort during optional EDGAR cannot become a completed research artifact",
+            "Researcher and coding-agent real-route failure contract 12 mixed coding-agent requests isolate failures and recover with valid health",
+            "Researcher and coding-agent real-route failure contract 60-second paced malformed/stall/success observation remains bounded and recovers",
+            "Researcher and coding-agent real-route failure contract provided source score 0 survives server/client projection without invented certainty",
+            "Researcher and coding-agent real-route failure contract provided source score 0.5 survives server/client projection without invented certainty",
+            "Researcher and coding-agent real-route failure contract provided source score 12 survives server/client projection without invented certainty",
+            "Researcher and coding-agent real-route failure contract provided source score 44.5 survives server/client projection without invented certainty",
+            "Researcher and coding-agent real-route failure contract provided source score 95 survives server/client projection without invented certainty",
+            "Researcher and coding-agent real-route failure contract provided source score 100 survives server/client projection without invented certainty",
+            "Researcher and coding-agent real-route failure contract provided source score -5 survives server/client projection without invented certainty",
+            "Researcher and coding-agent real-route failure contract provided source score 105 survives server/client projection without invented certainty",
+            "Researcher and coding-agent real-route failure contract provided source score undefined survives server/client projection without invented certainty",
+            "Researcher and coding-agent real-route failure contract provided source score NaN survives server/client projection without invented certainty",
+            "Researcher and coding-agent real-route failure contract provided source score Infinity survives server/client projection without invented certainty",
+            "Researcher and coding-agent real-route failure contract low readiness and synthetic sources keep unknown or low values; supplied readiness wins",
+            "Researcher and coding-agent real-route failure contract brave researcher admits30 rows, rejects31 without success artifacts, then recovers",
+            "Researcher and coding-agent real-route failure contract serper researcher admits30 rows, rejects31 without success artifacts, then recovers",
+            "Researcher and coding-agent real-route failure contract tavily researcher admits30 rows, rejects31 without success artifacts, then recovers",
+            "Researcher and coding-agent real-route failure contract linkup researcher admits30 rows, rejects31 without success artifacts, then recovers"
+          ];
+          const CI_OWNER = ".github/workflows/ci.yml";
+          const OVERLAYS = ["workers/node/pipelineRoute.test.ts", "workers/node/pipeline/searchPipeline.test.ts", "workers/node/streamingSearchRoute.test.ts", "apps/web/src/hooks/useStreamingSearch.test.ts"];
+          const GRAPH_INPUTS = {
+            "package.json": "26c1fc2e9707d3bf0d2c0b9826f6ef029e400b55",
+            "package-lock.json": "a7c3facbdad31d318c34d9ca3cc27a138e2f266c",
+            "vitest.config.ts": "8b3692187d7ec9b00abd0a731b75c4043d3dfabd",
+            "apps/web/src/test/setup.ts": "6d17a2bf3c7a54772b374938ca98c55274e2efe0"
+          };
+          const MAX_STREAM = 32 * 1024 * 1024;
+          const MAX_JSON = 32 * 1024 * 1024;
+          const ROLE_MS = 600000;
+          const CLOSE_MS = 5000;
+          const workspace = process.env.GITHUB_WORKSPACE;
+          const runnerTemp = process.env.RUNNER_TEMP;
+          const expectedHead = process.env.PAIR_EXPECTED_HEAD;
+          const check = (value, message) => { if (!value) throw new Error(message); };
+          check(process.platform === "linux" && workspace && runnerTemp && /^[a-f0-9]{40}$/.test(expectedHead || ""), "Missing Linux/source metadata");
+          const baseline = path.resolve(workspace, "pipeline-pair/baseline");
+          const candidate = path.resolve(workspace, "pipeline-pair/candidate");
+          const output = path.resolve(runnerTemp, "pipeline-honest-pair");
+          check(!fs.existsSync(output), "Proof output must be absent");
+          fs.mkdirSync(output);
+          const summary = { schema: "nodebench.pipeline-paired-ci/v1", capturedUtc: new Date().toISOString(), baseline: BASE, candidate: expectedHead, phases: {}, status: "NOT_COMPLETED", limits: { roleMs: ROLE_MS, closeMs: CLOSE_MS, streamBytes: MAX_STREAM, frameworkBytes: MAX_JSON }, scope: "Controlled source seam; mocked providers/persistence; no deployment or Golden quality certificate" };
+          const digest = (data) => crypto.createHash("sha256").update(data).digest("hex");
+          function writeJson(name, value) {
+            const data = Buffer.from(JSON.stringify(value, null, 2));
+            check(data.length <= MAX_JSON, "Metadata JSON cap: " + name);
+            fs.writeFileSync(path.join(output, name), data, { flag: "wx" });
+          }
+          function hashFile(file, max = 2 * 1024 * 1024) {
+            const stat = fs.statSync(file);
+            check(stat.isFile() && stat.size <= max, "File type/size: " + file);
+            const hash = crypto.createHash("sha256");
+            const fd = fs.openSync(file, "r");
+            const block = Buffer.alloc(65536);
+            try { let n; while ((n = fs.readSync(fd, block, 0, block.length, null))) hash.update(block.subarray(0, n)); }
+            finally { fs.closeSync(fd); }
+            return { bytes: stat.size, sha256: hash.digest("hex") };
+          }
+          function blobFile(file) {
+            check(fs.statSync(file).size <= 2 * 1024 * 1024, "Source cap");
+            const data = Buffer.from(fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n"));
+            return crypto.createHash("sha1").update("blob " + data.length + "\0").update(data).digest("hex");
+          }
+          function cleanEnv(label) {
+            const home = path.join(output, label + "-home");
+            const temp = path.join(output, label + "-temp");
+            const data = path.join(output, label + "-data");
+            [home, temp, data].forEach((dir) => fs.mkdirSync(dir, { recursive: true }));
+            const userConfig = path.join(home, "empty-user.npmrc");
+            const globalConfig = path.join(home, "empty-global.npmrc");
+            fs.writeFileSync(userConfig, ""); fs.writeFileSync(globalConfig, "");
+            return { PATH: process.env.PATH, HOME: home, TMPDIR: temp, TMP: temp, TEMP: temp, CI: "true", NODE_ENV: "test", NODEBENCH_DATA_DIR: data, npm_config_userconfig: userConfig, npm_config_globalconfig: globalConfig, npm_config_cache: path.join(home, "npm-cache"), GIT_TERMINAL_PROMPT: "0" };
+          }
+          const controlEnv = cleanEnv("control");
+          function local(command, args, cwd) {
+            const result = spawnSync(command, args, { cwd, env: controlEnv, shell: false, timeout: 30000, maxBuffer: 2 * 1024 * 1024 });
+            check(!result.error && result.status === 0, "Read-only command failed: " + command + " " + args.join(" "));
+            check(result.stderr.length === 0, "Unexpected read-only command stderr");
+            return result.stdout;
+          }
+          function git(role, args) {
+            return local("git", ["--no-replace-objects", "--no-optional-locks", "-c", "diff.autoRefreshIndex=false", "-C", role, ...args], role);
+          }
+          function tree(role) {
+            const rows = git(role, ["ls-tree", "-r", "-z", "--full-tree", "HEAD"]).toString("utf8").split("\0").filter(Boolean);
+            check(rows.length <= 10000, "Native leaf-count cap");
+            const result = new Map();
+            for (const row of rows) {
+              const match = /^([0-7]{6}) (blob|commit) ([a-f0-9]{40})\t(.+)$/.exec(row);
+              check(match && !result.has(match[4]), "Invalid/duplicate native leaf");
+              result.set(match[4], { mode: match[1], type: match[2], sha: match[3] });
+            }
+            return result;
+          }
+          function signature(role, leaves) {
+            const files = [...new Set([...Object.keys(AFTER), CI_OWNER, ...SUITES, ...Object.keys(GRAPH_INPUTS), ".npmrc", ".nvmrc", "apps/web/src/hooks/useStreamingSearch.ts"])];
+            const result = {};
+            for (const file of files) if (leaves.has(file) || OVERLAYS.includes(file)) result[file] = hashFile(path.join(role, file));
+            return result;
+          }
+          function status(role, isBaseline) {
+            const rows = git(role, ["status", "--porcelain=v1", "-z", "--untracked-files=normal"]).toString("utf8").split("\0").filter(Boolean);
+            const expected = isBaseline ? new Map(OVERLAYS.map((file) => [file, file === OVERLAYS[0] ? "??" : " M"])) : new Map();
+            check(rows.length === expected.size, "Unexpected source status count");
+            for (const row of rows) { const file = row.slice(3); check(expected.get(file) === row.slice(0, 2), "Unexpected source status: " + file); expected.delete(file); }
+            check(expected.size === 0, "Missing expected desired-test overlay");
+          }
+          function cacheMetadata() {
+            const roots = ["node_modules/.vite", "node_modules/.vite-temp", "node_modules/.cache/vitest"];
+            const rows = [];
+            function visit(relative, depth) {
+              const absolute = path.join(candidate, relative);
+              if (!fs.existsSync(absolute)) return;
+              const stat = fs.lstatSync(absolute);
+              check(!stat.isSymbolicLink() && depth <= 6 && rows.length < 512, "Cache inventory bound/type");
+              rows.push({ path: relative, kind: stat.isDirectory() ? "directory" : "file", bytes: stat.size, mtimeMs: stat.mtimeMs });
+              if (stat.isDirectory()) for (const child of fs.readdirSync(absolute).sort()) visit(path.join(relative, child), depth + 1);
+            }
+            roots.forEach((root) => visit(root, 0));
+            return rows;
+          }
+          function memorySnapshot() {
+            const text = fs.readFileSync("/proc/meminfo", "utf8");
+            check(text.length <= 65536, "OS metadata cap");
+            const available = /^MemAvailable:\s+(\d+) kB$/m.exec(text);
+            const total = /^MemTotal:\s+(\d+) kB$/m.exec(text);
+            check(available && total, "OS memory metadata unavailable");
+            return { utc: new Date().toISOString(), availableKiB: Number(available[1]), totalKiB: Number(total[1]), numericAdmissionFloor: null };
+          }
+          function installedGraph() {
+            const files = ["node_modules/.package-lock.json", "node_modules/vitest/package.json", "node_modules/vitest/vitest.mjs", "node_modules/vitest/dist/cli.js", "node_modules/vitest/dist/chunks/index.UpGiHP7g.js", "node_modules/express/package.json", "node_modules/jsdom/package.json", "node_modules/@vitejs/plugin-react/package.json"];
+            const result = {};
+            files.forEach((file) => { result[file] = hashFile(path.join(candidate, file)); });
+            return result;
+          }
+          async function owned(label, executable, args, cwd, env, framework) {
+            const phase = path.join(output, label);
+            check(!fs.existsSync(phase), "Phase must be absent");
+            fs.mkdirSync(phase);
+            const fds = {};
+            const counts = { stdout: { received: 0, written: 0 }, stderr: { received: 0, written: 0 }, json: { received: 0, written: 0 } };
+            const record = { label, executable, args, cwd, environmentNames: Object.keys(env).sort(), launchAttempts: 1, invocationCount: 0, pid: null, nativeExit: null, childClosed: false, streamsEnded: { stdout: false, stderr: false }, jsonDrained: !framework, stopReasons: [], counts, startedUtc: new Date().toISOString() };
+            let child, fifo, jsonFd, deadline, poll, closeTimer, killTimer, completed = false;
+            const started = performance.now();
+            const done = new Promise((resolve) => {
+              function killOwned(signal) {
+                if (!record.pid || completed) return;
+                try { process.kill(-record.pid, signal); } catch (error) { if (error.code !== "ESRCH") record.stopReasons.push("owned-group-signal:" + error.code); }
+              }
+              function stop(reason) {
+                if (!record.stopReasons.includes(reason) && record.stopReasons.length < 16) record.stopReasons.push(reason);
+                killOwned("SIGTERM");
+                if (!killTimer) killTimer = setTimeout(() => killOwned("SIGKILL"), 500);
+                armClose();
+              }
+              function armClose() {
+                if (closeTimer) return;
+                closeTimer = setTimeout(() => {
+                  stop("close-or-pipe-budget");
+                  killOwned("SIGKILL");
+                  if (child) { child.stdout.destroy(); child.stderr.destroy(); child.unref(); }
+                  finish();
+                }, CLOSE_MS);
+              }
+              function finish() {
+                if (completed) return;
+                completed = true;
+                [deadline, poll, closeTimer, killTimer].forEach((timer) => { if (timer) { clearTimeout(timer); clearInterval(timer); } });
+                resolve();
+              }
+              function maybeFinish() {
+                if (record.childClosed && record.streamsEnded.stdout && record.streamsEnded.stderr && record.jsonDrained) finish();
+              }
+              function capture(name, data, cap) {
+                counts[name].received += data.length;
+                if (counts[name].written + data.length > cap) { stop(name + "-cap"); return; }
+                try {
+                  let offset = 0;
+                  while (offset < data.length) { const n = fs.writeSync(fds[name], data, offset, data.length - offset); check(n > 0, "No capture progress"); offset += n; counts[name].written += n; }
+                } catch (error) { stop(name + "-write:" + error.code); }
+              }
+              try {
+                ["stdout", "stderr"].forEach((name) => { fds[name] = fs.openSync(path.join(phase, name + ".log"), "wx"); });
+                if (framework) {
+                  fifo = path.join(phase, "framework.fifo");
+                  local("mkfifo", ["--", fifo], cwd);
+                  check(fs.lstatSync(fifo).isFIFO(), "JSON FIFO type");
+                  // No blocking open/read: zero before reporter startup is not completion.
+                  jsonFd = fs.openSync(fifo, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK);
+                  fds.json = fs.openSync(path.join(phase, "vitest-actual-results.json"), "wx");
+                  const block = Buffer.alloc(65536);
+                  poll = setInterval(() => {
+                    try {
+                      for (let i = 0; i < 64; i++) {
+                        let n;
+                        try { n = fs.readSync(jsonFd, block, 0, block.length, null); }
+                        catch (error) { if (error.code === "EAGAIN" || error.code === "EWOULDBLOCK") break; throw error; }
+                        if (n === 0) { if (record.childClosed) record.jsonDrained = true; break; }
+                        capture("json", block.subarray(0, n), MAX_JSON);
+                        if (record.stopReasons.length) break;
+                      }
+                      maybeFinish();
+                    } catch (error) { stop("json-read:" + error.code); }
+                  }, 10);
+                  args = [...args, "--outputFile", fifo]; record.args = args;
+                }
+                deadline = setTimeout(() => stop("role-deadline"), ROLE_MS);
+                child = spawn(executable, args, { cwd, env, shell: false, detached: true, stdio: ["ignore", "pipe", "pipe"] });
+                child.once("spawn", () => { record.invocationCount = 1; record.pid = child.pid; });
+                child.once("error", (error) => { record.launchError = error.code || error.message; stop("launch-error"); });
+                ["stdout", "stderr"].forEach((name) => {
+                  child[name].on("data", (data) => capture(name, data, MAX_STREAM));
+                  child[name].once("end", () => { record.streamsEnded[name] = true; maybeFinish(); });
+                  child[name].once("error", (error) => stop(name + "-stream:" + error.code));
+                });
+                child.once("exit", (code, signal) => {
+                  record.nativeExit = { code, signal, observedUtc: new Date().toISOString() };
+                  try { fs.writeFileSync(path.join(phase, "native-exit.json"), JSON.stringify(record.nativeExit), { flag: "wx" }); }
+                  catch (error) { stop("native-exit-write:" + error.code); }
+                  armClose();
+                });
+                child.once("close", () => { record.childClosed = true; armClose(); maybeFinish(); });
+              } catch (error) { record.launchError = error.code || error.message; stop("prelaunch-error"); }
+            });
+            try { await done; }
+            finally {
+              if (jsonFd !== undefined) { try { fs.closeSync(jsonFd); } catch (error) { record.stopReasons.push("fifo-close:" + error.code); } }
+              for (const fd of Object.values(fds)) { try { fs.closeSync(fd); } catch (error) { record.stopReasons.push("capture-close:" + error.code); } }
+              if (fifo && fs.existsSync(fifo)) { check(fs.lstatSync(fifo).isFIFO(), "Owned FIFO changed type"); fs.unlinkSync(fifo); }
+            }
+            record.elapsedMs = performance.now() - started;
+            record.completeRawStreams = record.childClosed && record.streamsEnded.stdout && record.streamsEnded.stderr && record.stopReasons.length === 0;
+            record.frameworkCompleteCapture = !framework || (record.jsonDrained && counts.json.written > 0 && counts.json.received === counts.json.written && record.stopReasons.length === 0);
+            record.files = {};
+            ["stdout.log", "stderr.log", ...(framework ? ["vitest-actual-results.json"] : [])].forEach((name) => { const file = path.join(phase, name); if (fs.existsSync(file)) record.files[name] = hashFile(file, MAX_STREAM); });
+            writeJson(label + "-capture.json", record); summary.phases[label] = record;
+            check(record.invocationCount === 1 && record.nativeExit && record.completeRawStreams && record.frameworkCompleteCapture, "Incomplete phase: " + label);
+            return { record, phase };
+          }
+
+          function parseFramework(run, role, expectedExit) {
+            check(run.record.nativeExit.code === expectedExit && !run.record.nativeExit.signal, "Unexpected native framework exit");
+            const file = path.join(run.phase, "vitest-actual-results.json");
+            const stat = fs.statSync(file);
+            check(stat.size > 0 && stat.size <= MAX_JSON, "Framework JSON size");
+            const report = JSON.parse(fs.readFileSync(file, "utf8"));
+            check(Array.isArray(report.testResults) && report.testResults.length === SUITES.length, "Framework file inventory");
+            const remaining = new Set(SUITES);
+            const identities = [];
+            let passed = 0, failed = 0;
+            for (const result of report.testResults) {
+              const relative = path.relative(role, result.name).replace(/\\/g, "/");
+              check(remaining.has(relative), "Missing/extra framework file"); remaining.delete(relative);
+              check(result.message === "" && ["passed", "failed"].includes(result.status), "File load/setup error");
+              check(Array.isArray(result.assertionResults) && result.assertionResults.length > 0 && result.assertionResults.length <= 2048, "Assertion inventory cap");
+              const source = fs.readFileSync(path.join(role, relative), "utf8").split("\n");
+              const allowedLines = new Set();
+              source.forEach((line, index) => { if (line.includes("expect(")) for (let i = Math.max(1, index - 1); i <= Math.min(source.length, index + 9); i++) allowedLines.add(i); });
+              for (const item of result.assertionResults) {
+                check(identities.length < 4096 && typeof item.fullName === "string" && item.fullName.length <= 8192 && ["passed", "failed"].includes(item.status), "Identity/status cap or skip");
+                check(Array.isArray(item.failureMessages) && item.failureMessages.length <= 16 && item.failureMessages.every((message) => typeof message === "string" && message.length <= 131072), "Failure message cap");
+                if (item.status === "passed") { passed++; check(item.failureMessages.length === 0, "Passing row with errors"); }
+                else {
+                  failed++; check(item.failureMessages.length > 0, "Failure without cause");
+                  const escaped = result.name.replace(/[.*+?^\x24{}()|[\]\\]/g, "\\$&");
+                  const locations = new RegExp(escaped + ":(\\d+):\\d+", "g");
+                  for (const message of item.failureMessages) {
+                    check(!/\b(beforeAll|beforeEach|afterAll|afterEach|drainRoutes|configure)\b|Hook timed out|Failed to load|Cannot find module/i.test(message), "Hook/setup/load failure");
+                    const matches = [...message.matchAll(locations)];
+                    const assertion = /^AssertionError\b/.test(message) && matches.some((match) => allowedLines.has(Number(match[1])));
+                    const authoredTimeout = relative === SUITES[0] && (
+                      (item.fullName === ROUTE_NAMES[26] && /^Error: Test timed out in 65000ms\b/.test(message)) ||
+                      (item.fullName === ROUTE_NAMES[33] && /^Error: Test timed out in 75000ms\b/.test(message))
+                    );
+                    check(assertion || authoredTimeout, "Unclassified within-test failure; root review required");
+                  }
+                }
+                identities.push({ file: relative, fullName: item.fullName, status: item.status, failureCount: item.failureMessages.length, failureMessagesSha256: digest(Buffer.from(JSON.stringify(item.failureMessages))) });
+              }
+              check(result.status === (result.assertionResults.some((item) => item.status === "failed") ? "failed" : "passed"), "File status disagreement");
+            }
+            check(remaining.size === 0 && report.numTotalTests === identities.length && report.numPassedTests === passed && report.numFailedTests === failed && report.numPendingTests === 0 && report.numTodoTests === 0, "Framework counters/skip disagreement");
+            const route = identities.filter((item) => item.file === SUITES[0]).map((item) => item.fullName).sort();
+            check(JSON.stringify(route) === JSON.stringify([...ROUTE_NAMES].sort()), "Exact desired50 route multiset");
+            const raw = ["stdout.log", "stderr.log"].map((name) => fs.readFileSync(path.join(run.phase, name), "utf8").replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "")).join("\n");
+            check(!/Vitest caught .*unhandled|Unhandled Errors|Unhandled Rejection|Uncaught Exception/i.test(raw), "Unhandled framework error");
+            check(expectedExit === 1 ? failed > 0 && report.success === false : failed === 0 && report.success === true, "Expected negative/candidate criterion");
+            return { passed, failed, identities, rawFramework: run.record.files["vitest-actual-results.json"] };
+          }
+          (async () => {
+            try {
+              check(git(baseline, ["rev-parse", "HEAD"]).toString().trim() === BASE && git(baseline, ["rev-parse", "HEAD^{tree}"]).toString().trim() === BASE_TREE, "Current main moved; fixed authentic baseline unavailable");
+              check(git(candidate, ["rev-parse", "HEAD"]).toString().trim() === expectedHead, "Candidate head mismatch");
+              const beforeTree = tree(baseline), afterTree = tree(candidate);
+              check(beforeTree.size === 6853 && afterTree.size === 6855, "Complete leaf counts");
+              const admitted = new Set([...Object.keys(AFTER), CI_OWNER]);
+              let changed = 0, same = 0, added = 0;
+              for (const [file, value] of beforeTree) {
+                const next = afterTree.get(file);
+                check(next && value.mode === next.mode && value.type === next.type, "Removed or changed leaf type");
+                if (next.sha === value.sha) { same++; check(!admitted.has(file), "Required owner unexpectedly unchanged"); }
+                else { changed++; check(admitted.has(file), "Outside owner changed"); }
+              }
+              for (const [file, value] of afterTree) if (!beforeTree.has(file)) { added++; check(admitted.has(file) && value.mode === "100644" && value.type === "blob", "Outside/addition type"); }
+              check(changed === 12 && added === 2 && same === 6841, "Exact fourteen projection");
+              for (const [file, sha] of Object.entries(AFTER)) check(afterTree.get(file).sha === sha && blobFile(path.join(candidate, file)) === sha, "Frozen non-CI source mismatch: " + file);
+              for (const [file, sha] of Object.entries(GRAPH_INPUTS)) check(beforeTree.get(file).sha === sha && afterTree.get(file).sha === sha && blobFile(path.join(baseline, file)) === sha && blobFile(path.join(candidate, file)) === sha, "Graph/config source mismatch");
+              for (const file of [".npmrc", ".nvmrc"]) check(beforeTree.get(file) && afterTree.get(file) && beforeTree.get(file).sha === afterTree.get(file).sha && blobFile(path.join(baseline, file)) === beforeTree.get(file).sha && blobFile(path.join(candidate, file)) === afterTree.get(file).sha, "Peer/runtime policy changed");
+              for (const role of [baseline, candidate]) for (const file of [".env", ".env.local", ".env.test", ".env.test.local", ".env.production"]) check(!fs.existsSync(path.join(role, file)), "Auto-loaded env file present; values not read");
+              status(candidate, false);
+              check(git(baseline, ["status", "--porcelain=v1", "-z", "--untracked-files=normal"]).length === 0, "Baseline checkout dirty before overlay");
+              summary.source = { baselineTree: BASE_TREE, candidateTree: git(candidate, ["rev-parse", "HEAD^{tree}"]).toString().trim(), actualCI: { blob: afterTree.get(CI_OWNER).sha, ...hashFile(path.join(candidate, CI_OWNER)) }, changed, added, same, circularSelfPin: false, externalRootComparison: "Required exact finalCI/tree/job/head comparison" };
+              summary.versions = { node: process.version, nodeExecutable: process.execPath, nodeHash: hashFile(process.execPath, 256 * 1024 * 1024), npm: local("npm", ["--version"], candidate).toString().trim(), declaredPackageManager: JSON.parse(fs.readFileSync(path.join(candidate, "package.json"), "utf8")).packageManager, policy: "Existing .nvmrc/bundled npm, same actual Linux graph; not prior Windows pinned runtime proof" };
+              summary.beforeInstallMemory = memorySnapshot();
+              const originalCandidate = signature(candidate, afterTree);
+              const installEnv = cleanEnv("install");
+              delete installEnv.NODE_ENV;
+              delete installEnv.NODEBENCH_DATA_DIR;
+              const install = await owned("install", "npm", ["ci", "--no-audit", "--no-fund"], candidate, installEnv, false);
+              check(install.record.nativeExit.code === 0 && !install.record.nativeExit.signal, "Normal npm ci failed; no fallback");
+              status(candidate, false);
+              check(JSON.stringify(originalCandidate) === JSON.stringify(signature(candidate, afterTree)), "Install changed tracked source/lock/config");
+              for (const file of OVERLAYS) { const target = path.join(baseline, file); check(blobFile(path.join(candidate, file)) === AFTER[file], "Desired overlay not frozen"); fs.writeFileSync(target, fs.readFileSync(path.join(candidate, file))); }
+              check(!fs.existsSync(path.join(baseline, "node_modules")), "Baseline graph path not absent");
+              fs.symlinkSync(path.join(candidate, "node_modules"), path.join(baseline, "node_modules"), "dir");
+              check(fs.realpathSync(path.join(baseline, "node_modules")) === fs.realpathSync(path.join(candidate, "node_modules")), "Graph attachment mismatch");
+              const graph = installedGraph();
+              summary.installedGraph = graph;
+              const versions = {};
+              for (const pkg of ["vitest", "express", "jsdom", "@vitejs/plugin-react"]) versions[pkg] = JSON.parse(fs.readFileSync(path.join(candidate, "node_modules", pkg, "package.json"), "utf8")).version;
+              check(versions.vitest === "4.1.11", "Actual reporter schema differs from reviewed Vitest4.1.11");
+              summary.installedVersions = versions;
+              check(graph["node_modules/vitest/dist/chunks/index.UpGiHP7g.js"].sha256 === "cdafaf8e508042dddba72f8c7bbae84e2836ddb6b06c7026520c35d91af4e798", "Reviewed JSON reporter implementation changed");
+              const parsed = {};
+              for (const [label, role, leaves, expectedExit] of [["baseline", baseline, beforeTree, 1], ["candidate", candidate, afterTree, 0]]) {
+                status(role, label === "baseline");
+                const sourceBefore = signature(role, leaves), cacheBefore = cacheMetadata(), memoryBefore = memorySnapshot();
+                check(JSON.stringify(graph) === JSON.stringify(installedGraph()), "Graph preguard changed");
+                const env = cleanEnv(label);
+                const args = [path.join(role, "node_modules/vitest/vitest.mjs"), "run", ...SUITES, "--reporter=default", "--reporter=json"];
+                const run = await owned(label, process.execPath, args, role, env, true);
+                status(role, label === "baseline");
+                check(JSON.stringify(sourceBefore) === JSON.stringify(signature(role, leaves)), "Role source/config drift");
+                check(JSON.stringify(graph) === JSON.stringify(installedGraph()), "Role installed immutable graph drift");
+                check(fs.readdirSync(env.NODEBENCH_DATA_DIR).length === 0 && !fs.existsSync(path.join(role, ".tmp")), "Unexpected real persistence");
+                parsed[label] = parseFramework(run, role, expectedExit);
+                writeJson(label + "-observed.json", { sourceBefore, sourceAfter: signature(role, leaves), graph, allowedCacheBefore: cacheBefore, allowedCacheAfter: cacheMetadata(), memoryBefore, memoryAfter: memorySnapshot(), results: parsed[label], scope: "Selected immutable graph bindings only; normal cache metadata writes allowed" });
+              }
+              const keys = (value) => value.identities.map((row) => row.file + "\0" + row.fullName).sort();
+              check(JSON.stringify(keys(parsed.baseline)) === JSON.stringify(keys(parsed.candidate)), "Six-suite identity multiset changed");
+              summary.comparison = { baseline: parsed.baseline, candidate: parsed.candidate, identityMultiset: "EXACT", rawFullFailureMessages: "Retained complete in bounded native frameworkJSON; summaries retain hashes, never truncate raw failure data" };
+              summary.status = "CONTROLLED_PAIRED_CRITERION_PASS";
+            } catch (error) {
+              summary.status = "STOP_OR_FAILURE"; summary.failure = { message: error.message, stack: error.stack }; process.exitCode = 1;
+            } finally {
+              summary.completedUtc = new Date().toISOString();
+              writeJson("comparison-summary.json", summary);
+              console.log(JSON.stringify({ status: summary.status, proofOutput: output, baseline: BASE, candidate: expectedHead, failure: summary.failure?.message || null }));
+            }
+          })();
+
+          PIPELINE_PAIR_NODE
+
+      - name: Preserve complete paired evidence, including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-honest-pair-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/pipeline-honest-pair/*-capture.json
+            ${{ runner.temp }}/pipeline-honest-pair/*-observed.json
+            ${{ runner.temp }}/pipeline-honest-pair/comparison-summary.json
+            ${{ runner.temp }}/pipeline-honest-pair/install/*.log
+            ${{ runner.temp }}/pipeline-honest-pair/install/native-exit.json
+            ${{ runner.temp }}/pipeline-honest-pair/baseline/*.log
+            ${{ runner.temp }}/pipeline-honest-pair/baseline/*.json
+            ${{ runner.temp }}/pipeline-honest-pair/candidate/*.log
+            ${{ runner.temp }}/pipeline-honest-pair/candidate/*.json
+          if-no-files-found: error
+          retention-days: 14
