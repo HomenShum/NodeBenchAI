@@ -1,5 +1,15 @@
 # NodeBench MCP Changelog
 
+## Unreleased — ExcelJS UUID compatibility (2026-10-07)
+
+A developer generating spreadsheet fixtures needs the dependency update to preserve real workbook data and conditional formatting. Pin ExcelJS's nested UUID dependency to `11.1.1`, the patched CommonJS line, while retaining ExcelJS `4.4.0`, the package version, scripts, Node floor and other dependencies ([retained issue #642](https://github.com/HomenShum/NodeBenchAI/issues/642)).
+
+- [GHSA-w5hq-g745-h8pq](https://github.com/uuidjs/uuid/security/advisories/GHSA-w5hq-g745-h8pq) concerns invalid caller-buffer offsets in `v3`/`v5`/`v6`. ExcelJS's actual caller uses zero-argument `require('uuid').v4()`, so this is dependency hygiene; repository reachability to that advisory API was not demonstrated.
+- Matched isolated ExcelJS graphs changed only the UUID leaf. On Windows Node `18.0.0`, `20.20.2` and `22.22.2`, each before/after run wrote and reopened 73 genuine XLSX files, checked data/formulas and 146 extended conditional-format IDs, and covered eight concurrent exports, 64 sustained exports, corrupt input and failed writes. The separate advisory buffer scenario changed from partial writes to rejection before writes.
+- On the actual fixed MCP graph at `e2e82cafe7619e5ea986cb883601f2bca1c4b073`, both strict builds passed; both declared nine-file package suites passed 378 tests with the same existing `discover_vision_env` skip; both honest-result regressions passed all 31 scenarios. All 439 installed-lock entries were compared; only UUID's entry changed, alongside its generated binary shims. No broad dependency resolution ran.
+- The first baseline spreadsheet-preview test timed out during concurrent graph-file hashing. Its failure is retained; the final serial baseline and candidate both passed. Do not attribute that timeout's disappearance to UUID. Reproduce package checks from `packages/mcp-local`: `npm run build`, `npm test`, then `npx vitest run src/__tests__/mcpResultStatus.test.ts`.
+- These are fixed-graph local results. Fresh installation, automatic exact-source CI, complete MCP compatibility on Node18 and rendered Office output remain separately unverified. No provider or backend calls were made.
+
 ## Unreleased — Honest tool outcomes (2026-10-07)
 
 A developer or coding agent needs to stop when a capture fails, rather than continue using an unsuccessful attempt as evidence. Returned capture/provider errors now carry an explicit failure status through stdio, WebSocket, CLI, profiling, and the local engine (MCP-HONEST-RESULT-02).
