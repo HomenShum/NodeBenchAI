@@ -1,5 +1,14 @@
 # NodeBench MCP Changelog
 
+## Unreleased — Audit initialization and regression observation (2026-10-07)
+
+A developer repairing local audit storage needs the next tool call to be recorded. Audit initialization previously cached its database handle before the schema was ready, so later calls could keep using a failed handle after storage was repaired. Cache only after WAL, schema and pruning succeed; close a failed handle and report bounded initialization error text. The lost initial batch remains lost, and unavailable optional SQLite keeps its existing discard behavior.
+
+- The compiled stdio regression now drains a bounded child stderr tail and observes the actual audit rows through a readonly connection with no SQLite busy wait. It retains every ordered status/content/storage assertion and the existing 30-second scenario budget. A parent-process sleep can no longer create an empty audit database and mistake it for child persistence.
+- On the same fixed UUID11.1.1 graph and Windows Node22.22.2/nativeABI127, an external delayed real audit flush made the original observer fail with no table; the corrected observer waited for the actual schema and all required rows. Ordinary original/corrected observations both passed. No delay setting was added to production.
+- The same five-file Delta proof changed from 43 passed / 1 failed to 44 passed / 0 failed, with no skips. Its new scenario seeds an incompatible native SQLite schema, repairs it through a separate connection, then verifies the next event persists without resetting the owner. Both strict slice typechecks and package builds passed; the matched compiled native recovery scenario also changed from failure to success.
+- These local proofs do not establish the cause of [PR643's historical Linux Delta failure](https://github.com/HomenShum/NodeBenchAI/actions/runs/37706652266/job/113082503131). Local Node20 attempts remain blocked by the existing Node22 SQLite binary's ABI; no dependency refresh, provider call, fresh Linux pass or production persistence certificate is claimed. Reproduce from `packages/mcp-local`: `npm run build`, then `npx vitest run src/__tests__/deltaDogfoodGate.test.ts src/__tests__/deltaTools.test.ts src/__tests__/founderDirectionAssessment.test.ts src/__tests__/toonCodec.test.ts src/__tests__/mcpResultStatus.test.ts`.
+
 ## Unreleased — ExcelJS UUID compatibility (2026-10-07)
 
 A developer generating spreadsheet fixtures needs the dependency update to preserve real workbook data and conditional formatting. Pin ExcelJS's nested UUID dependency to `11.1.1`, the patched CommonJS line, while retaining ExcelJS `4.4.0`, the package version, scripts, Node floor and other dependencies ([retained issue #642](https://github.com/HomenShum/NodeBenchAI/issues/642)).
