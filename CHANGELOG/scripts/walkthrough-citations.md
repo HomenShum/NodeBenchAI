@@ -4,7 +4,7 @@
 
 A developer or coding agent cloning the repository encountered a Git cleanup warning because a local worktree was accidentally tracked as a submodule without a .gitmodules entry. Remove that tracked reference while preserving the underlying files, historical documentation and recoverable commit history.
 
-**PR / canonical main commit**: `PENDING #NNN MAIN SHA / FINAL QA`.
+**PR / canonical main commit**: `PENDING #649 MAIN SHA / FINAL QA`.
 
 **Evidence state**:
 - Source: pending two-path metadata change on main `643d705d1201cf0def8acc7d555155fd75436c06`: remove only the mode-160000 Gitlink `.claude/worktrees/festive-mclaren-0555d3` and prepend this existing lane. No worktree files, branches, application code, dependencies or workflows are removed or changed.
