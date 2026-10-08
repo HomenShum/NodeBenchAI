@@ -95,6 +95,12 @@ jobs:
           apps/web/src/features/workspace/data/eventWorkspaceMemory.test.ts
           backend/convex/__tests__/scratchnode.events.test.ts
           workers/node/searchRoute.test.ts
+          workers/node/pipelineRoute.test.ts
+          workers/node/pipeline/searchPipeline.test.ts
+          workers/node/searchPipelineStateToResultPacket.test.ts
+          workers/node/streamingSearchRoute.test.ts
+          apps/web/src/hooks/useStreamingSearch.test.ts
+          apps/web/src/features/controlPlane/components/proofModel.test.ts
           backend/convex/workflows/ainewsBriefFormat.test.ts
           backend/convex/__tests__/agentRuntimeTierFallback.test.ts
           backend/convex/domains/mcp/mcpSourcingDraft.integration.test.ts

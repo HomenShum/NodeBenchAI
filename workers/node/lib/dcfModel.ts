@@ -184,13 +184,14 @@ export function runReverseDCF(input: ReverseDCFInput): ReverseDCFResult {
 export async function enrichDCFWithEdgar(
   entityName: string,
   dcfInputs: { canRunDCF: boolean; dcfInput?: DCFInput; reverseDCFInput?: ReverseDCFInput; reason?: string },
+  signal?: AbortSignal,
 ): Promise<typeof dcfInputs> {
   // Only try EDGAR if we couldn't extract revenue from search results
   if (dcfInputs.canRunDCF) return dcfInputs;
 
   try {
     const { fetchEdgarFinancials } = await import("./secEdgar.js");
-    const edgar = await fetchEdgarFinancials(entityName);
+    const edgar = await fetchEdgarFinancials(entityName, signal);
     if (!edgar?.revenue) return dcfInputs;
 
     return {
@@ -205,7 +206,8 @@ export async function enrichDCFWithEdgar(
       },
       // No reverse DCF without market cap from EDGAR (would need a separate source)
     };
-  } catch {
+  } catch (error) {
+    if (signal?.aborted) throw error;
     return dcfInputs;
   }
 }
