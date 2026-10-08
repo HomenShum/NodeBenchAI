@@ -1,4 +1,4 @@
-import { defineConfig, configDefaults } from "vitest/config";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import path from "path";
 
@@ -20,7 +20,11 @@ export default defineConfig({
     setupFiles: ["./apps/web/src/test/setup.ts"],
     // Playwright tests live under `tests/` and should run via Playwright, not Vitest.
     exclude: [
-      ...configDefaults.exclude,
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/cypress/**",
+      "**/.{idea,git,cache,output,temp}/**",
+      "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build,eslint,prettier}.config.*",
       "evals/**",
       ".tmp/**",
       ".nodebench-ref/**",

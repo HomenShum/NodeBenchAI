@@ -2,8 +2,8 @@ import type { StorybookConfig } from '@storybook/react-vite';
 
 const config: StorybookConfig = {
   "stories": [
-    "../src/**/*.mdx",
-    "../src/**/*.stories.@(js|jsx|mjs|ts|tsx)"
+    "../apps/web/src/**/*.mdx",
+    "../apps/web/src/**/*.stories.@(js|jsx|mjs|ts|tsx)"
   ],
   "addons": [
     "@chromatic-com/storybook",
@@ -15,6 +15,10 @@ const config: StorybookConfig = {
   "framework": {
     "name": "@storybook/react-vite",
     "options": {}
+  },
+  // Keep Vite from loading app environment files into the component preview.
+  viteFinal(config) {
+    return { ...config, envDir: false };
   }
 };
 export default config;
