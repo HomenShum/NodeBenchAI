@@ -3,6 +3,25 @@
 Append-only lane for pipeline launch, activity, streaming, evaluation, schedule,
 and secret-gated MCP bridge ownership contracts. Newest entries first.
 
+## 2026-10-07 — Align the worker release contract with its pinned runtime
+
+A release operator needs the compiler and runtime to share the supported Node
+image. The container repair in #644 uses one digest-pinned base, but its existing
+release test still required two independent Node 20 stages. Read the declared
+Node major from `.nvmrc`, require a version and digest pin, and require both
+stages to inherit the shared base. Existing compile, production-install, asset,
+credential-exclusion and emitted-ESM checks remain unchanged.
+
+**PR / canonical main commit**: #644 / `PENDING MAIN SHA / FINAL QA`.
+
+**Evidence state**:
+- Before: automatic Linux Runtime smoke on `0f5b3cc9e2403a1bbcb1df841ec5b39a7ddecd3f` passes 405/406 regressions; the stale stage assertion fails and dependent Build is skipped.
+- Comparison: the same 14 existing source-contract scenarios on Windows Node 22.22.2 and the unchanged existing Vitest 4.1.11 graph change from 13 pass/1 fail to 14 pass/0 fail, with no skips. Removing the image digest or making runtime use an independent image still fails the intended existing case. Both counterexamples affect only an isolated source copy.
+- Source review: independent root verification binds all 24 raw artifacts, 135 source inputs and the exact two assertion substitutions. Dockerfile, application manifest and packaging lock remain unchanged. Proof: `NODEBENCH-PR644-RELEASE-CONTRACT-01`.
+- Limits: this local graph differs from the packaging lock and Linux Vitest 3 graph; exact updated-source automatic CI is pending. Existing Vite configuration warnings remain. No timing improvement, security pass, provider/Golden result, deployment or UI change is claimed. The separate HTTP dependency study has not been adopted.
+
+**Reproduction**: `npx vitest run scripts/__tests__/releaseWorkflowContracts.test.ts --reporter verbose` after installing the reviewed checkout's dependencies. This command does not itself certify container startup.
+
 ## 2026-10-07 — Verify the standalone worker's clean build inputs
 
 A developer starting the standalone worker needs the committed dependency
