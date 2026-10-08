@@ -1,4 +1,5 @@
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 
@@ -20,10 +21,6 @@ function slugify(input) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
-}
-
-function isMacPlatform() {
-  return process.platform === "darwin";
 }
 
 function sleep(ms) {
@@ -76,6 +73,7 @@ async function installOverlay(page) {
   });
 
   await page.evaluate(() => {
+    document.getElementById("__nodebench_scribe_overlay")?.remove();
     const el = document.createElement("div");
     el.id = "__nodebench_scribe_overlay";
     el.innerHTML = `<strong>Dogfood How-to</strong><div class="sub">Initializing...</div>`;
@@ -94,7 +92,7 @@ async function setOverlay(page, title, sub) {
   );
 }
 
-async function setDogfoodLocalStorage(page) {
+export async function setDogfoodLocalStorage(page) {
   await page.addInitScript(() => {
     localStorage.setItem("nodebench-onboarded", "1");
     localStorage.setItem(
@@ -109,82 +107,67 @@ async function setDogfoodLocalStorage(page) {
       }),
     );
     localStorage.setItem("theme", "dark");
+    localStorage.setItem("nodebench:redesign:theme", "dark");
   });
 }
 
-async function maybeSignIn(page) {
-  const anonymousButton = page.getByRole("button", { name: /sign in anonymously/i }).first();
-  if (await anonymousButton.count()) {
-    await anonymousButton.click();
-    await page.waitForLoadState("domcontentloaded");
-    // Auth can trigger a client-side refresh; wait for the shell to stabilize.
-    await page.waitForSelector("#main-content", { state: "visible", timeout: 60_000 });
-    await page.waitForTimeout(900);
-    return;
-  }
+// These public guest observations are shared by Scribe and the video recorder.
+// An entry being ready does not certify the action suggested by that entry.
+export const PUBLIC_DOGFOOD_STEPS = [
+  { kind: "route", path: "/?surface=home", name: "Home", description: "Home entry: the guest workspace and empty composer are ready." },
+  { kind: "route", path: "/?surface=chat", name: "Chat", description: "Chat entry: the guest workspace is ready. No question is submitted." },
+  { kind: "route", path: "/?surface=reports", name: "Reports", readyTitle: "Saved research", description: "Reports entry: Saved research instructions are visible. No saved report is reopened." },
+  { kind: "route", path: "/?surface=inbox", name: "Inbox", readyTitle: "Attention review", description: "Inbox entry: Attention review context is visible." },
+  { kind: "route", path: "/?surface=me", name: "Me", readyTitle: "Account controls", description: "Me entry: Account controls context is visible. No account action is taken." },
+  { kind: "interaction", path: "/?surface=home", name: "Interaction: Home to Chat", status: "NOT_RUN", cause: "This guest capture does not submit live research. An email-backed account and a live answer have not been exercised.", description: "NOT_RUN: live question submission and its answer. The image shows only the ready Home entry." },
+  { kind: "interaction", path: "/?surface=home", name: "Interaction: Composer preparation", action: "prepare", description: "Composer preparation: the question is filled and Run research is enabled. The button is not clicked; no answer is claimed." },
+  { kind: "interaction", name: "Interaction: Theme toggle", action: "theme", description: "Theme interaction: switch from dark to light and capture the observed light workspace." },
+  { kind: "interaction", path: "/?surface=reports", name: "Interaction: Reports to Chat", readyTitle: "Saved research", status: "NOT_RUN", cause: "The guest Reports entry shows Saved research instructions. No saved report is selected or opened in Chat.", description: "NOT_RUN: reopen a saved report in Chat. The image shows only the Saved research entry instructions." },
+];
 
-  const signInButton = page.getByRole("button", { name: /^sign in$/i }).first();
-  if (await signInButton.count()) {
-    await signInButton.click();
-    await page.waitForTimeout(500);
-
-    const modalAnonymousButton = page.getByRole("button", { name: /sign in anonymously/i }).first();
-    if (await modalAnonymousButton.count()) {
-      await modalAnonymousButton.click();
-      await page.waitForLoadState("domcontentloaded");
-      await page.waitForSelector("#main-content", { state: "visible", timeout: 60_000 });
-      await page.waitForTimeout(900);
-    }
-  }
+export async function waitForAppReady(page, readyTitle) {
+  const workspace = page.getByTestId("one-surface-workspace");
+  await workspace.waitFor({ state: "visible", timeout: 20_000 });
+  const ready = readyTitle
+    ? page.getByTestId("chat-launch-context").locator("strong").filter({ hasText: new RegExp(`^${readyTitle}$`) })
+    : page.getByRole("heading", { name: "What do you need to know?", exact: true });
+  await ready.waitFor({ state: "visible", timeout: 20_000 });
+  // A fresh guest profile must stay a guest; the header's sign-in button is not an auth wall.
+  await page.getByRole("button", { name: /^sign in$/i }).waitFor({ state: "visible", timeout: 20_000 });
+  const composer = page.locator("textarea:visible");
+  if (await composer.count() !== 1) throw new Error("Required capture control missing or ambiguous: composer textarea");
+  await page.getByRole("button", { name: /^run research$/i }).waitFor({ state: "visible", timeout: 20_000 });
+  const theme = await page.locator("[data-redesign-theme]").getAttribute("data-redesign-theme");
+  if (theme !== "dark" && theme !== "light") throw new Error(`Required capture state missing: data-redesign-theme (${theme})`);
+  return { theme, observedUrl: page.url(), observedState: readyTitle ?? "Empty guest workspace" };
 }
 
-async function waitForAppReady(page, fallbackPath = "/?surface=home") {
-  try {
-    await page.waitForSelector("#main-content", { state: "visible", timeout: 20_000 });
-  } catch {
-    await page.goto(fallbackPath, { waitUntil: "domcontentloaded" });
-    await page.waitForSelector("#main-content", { state: "visible", timeout: 60_000 });
+export async function prepareComposer(page) {
+  const observation = await waitForAppReady(page);
+  const question = "What changed, why does it matter, and what should I do next?";
+  const composer = page.locator("textarea:visible");
+  await composer.fill(question);
+  if (await composer.inputValue() !== question || !await page.getByRole("button", { name: /^run research$/i }).isEnabled()) {
+    throw new Error("Required capture state missing: filled composer and enabled Run research");
   }
-  await page.waitForTimeout(250);
+  return { ...observation, observedState: "Question filled; Run research enabled; not submitted" };
 }
 
-async function dismissBlockingModal(page) {
-  const overlay = page.locator('div.fixed.inset-0.z-50');
-  if (!(await overlay.count())) return false;
-
-  const closeBtn = page.getByRole("button", { name: /close|cancel|dismiss|done/i }).first();
-  if (await closeBtn.count()) {
-    await closeBtn.click({ force: true });
-    await page.waitForTimeout(350);
-    return true;
+export async function observePublicStep(page, step) {
+  if (step.path) await page.goto(step.path, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  let observation;
+  if (step.action === "prepare") {
+    observation = await prepareComposer(page);
+  } else if (step.action === "theme") {
+    const before = await page.locator("[data-redesign-theme]").getAttribute("data-redesign-theme");
+    if (before !== "dark") throw new Error(`Theme capture expected dark before toggle, observed ${before}`);
+    await page.getByRole("button", { name: "Switch to light mode", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("[data-redesign-theme]")?.getAttribute("data-redesign-theme") === "light");
+    observation = { theme: "light", observedUrl: page.url(), observedState: "Switched from dark to light; prepared question remains unsubmitted" };
+  } else {
+    observation = await waitForAppReady(page, step.readyTitle);
   }
-
-  await page.keyboard.press("Escape");
-  await page.waitForTimeout(350);
-  return true;
-}
-
-async function ensureNoModal(page) {
-  for (let i = 0; i < 6; i++) {
-    const did = await dismissBlockingModal(page);
-    if (!did) return;
-  }
-}
-
-function describeStep(step) {
-  if (step.kind === "route") {
-    return `Navigate to ${step.path} to review the ${step.name} screen.`;
-  }
-  if (step.kind === "interaction" && /home to chat/i.test(step.name)) {
-    return "Start from Home, submit a question, and confirm the live Chat session opens with the answer surface active.";
-  }
-  if (step.kind === "interaction" && /theme toggle/i.test(step.name)) {
-    return "Toggle the public shell theme to verify readability and surface consistency in both modes.";
-  }
-  if (step.kind === "interaction" && /reports to chat/i.test(step.name)) {
-    return "Open a saved report and route it back into Chat to confirm the memory-to-execution loop works.";
-  }
-  return "Review the UI and fix any root-cause issues found.";
+  return { ...observation, status: step.status ?? "CAPTURED", ...(step.cause ? { cause: step.cause } : {}) };
 }
 
 async function main() {
@@ -194,6 +177,9 @@ async function main() {
   const settleMs = Number(args.get("settleMs") ?? 1000);
   const headless = (args.get("headless") ?? "true") !== "false";
   const outRoot = path.resolve(process.cwd(), "public", "dogfood", "scribe");
+  const manifestOut = path.resolve(process.cwd(), "public", "dogfood", "scribe.json");
+  await rm(manifestOut, { force: true });
+  await rm(path.resolve(process.cwd(), "public", "dogfood", "scribe.md"), { force: true });
   await rm(outRoot, { recursive: true, force: true });
   await mkdir(outRoot, { recursive: true });
   const capturedAtIso = new Date().toISOString();
@@ -201,16 +187,7 @@ async function main() {
   await rm(userDataDir, { recursive: true, force: true });
   await mkdir(userDataDir, { recursive: true });
 
-  const steps = [
-    { kind: "route", path: "/?surface=home", name: "Home" },
-    { kind: "route", path: "/?surface=chat&q=ditto%20ai&lens=founder", name: "Chat" },
-    { kind: "route", path: "/?surface=reports", name: "Reports" },
-    { kind: "route", path: "/?surface=inbox", name: "Inbox" },
-    { kind: "route", path: "/?surface=me", name: "Me" },
-    { kind: "interaction", path: "(interaction)", name: "Interaction: Home to Chat" },
-    { kind: "interaction", path: "(interaction)", name: "Interaction: Theme toggle" },
-    { kind: "interaction", path: "(interaction)", name: "Interaction: Reports to Chat" },
-  ];
+  const steps = PUBLIC_DOGFOOD_STEPS;
 
   const context = await chromium.launchPersistentContext(userDataDir, {
     headless,
@@ -220,103 +197,49 @@ async function main() {
   });
 
   const page = await context.newPage();
-  await setDogfoodLocalStorage(page);
-  await page.goto("/", { waitUntil: "domcontentloaded" });
-  await maybeSignIn(page);
-  await waitForAppReady(page);
-  if (showOverlay) await installOverlay(page);
-  await page.waitForTimeout(500);
-
   const publishedSteps = [];
+  try {
+    await setDogfoodLocalStorage(page);
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await waitForAppReady(page);
+    await page.waitForTimeout(500);
 
-  for (const [idx, step] of steps.entries()) {
-    const stepNum = idx + 1;
-    const title = `${stepNum}. ${step.name}`;
-    // Overlay updates can race with client-side navigations; retry if needed.
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        // eslint-disable-next-line no-await-in-loop
-        if (showOverlay) await setOverlay(page, `Step ${stepNum}/${steps.length}`, `${step.name} — ${step.path}`);
-        break;
-      } catch (err) {
-        const msg = String(err?.message ?? err ?? "");
-        if (!msg.includes("Execution context was destroyed") || attempt === 2) throw err;
-        // eslint-disable-next-line no-await-in-loop
-        await page.waitForTimeout(250);
-      }
-    }
-
-    if (step.kind === "route") {
-      await ensureNoModal(page);
-      if (step.path === "/?surface=home") {
-        await page.goto(step.path, { waitUntil: "domcontentloaded" });
-      } else {
-        await page.evaluate((targetPath) => {
-          history.pushState({}, "", targetPath);
-          window.dispatchEvent(new PopStateEvent("popstate", { state: {} }));
-        }, step.path);
-      }
-      await waitForAppReady(page);
+    for (const [idx, step] of steps.entries()) {
+      const stepNum = idx + 1;
+      const title = `${stepNum}. ${step.name}`;
+      const observation = await observePublicStep(page, step);
       await page.waitForTimeout(settleMs);
-    } else if (/home to chat/i.test(step.name)) {
-      await ensureNoModal(page);
-      await page.goto("/?surface=home", { waitUntil: "domcontentloaded" });
-      await waitForAppReady(page);
-      const homeInput = page.getByLabel("Ask anything or upload anything").first();
-      if (await homeInput.count()) {
-        await homeInput.fill("What does Ditto AI do and what matters most right now?");
-        await page.waitForTimeout(350);
-        const askButton = page.getByRole("button", { name: /^ask$/i }).first();
-        if (await askButton.count()) {
-          await askButton.click();
-          await page.waitForTimeout(2200);
-        }
+      if (showOverlay) {
+        await installOverlay(page);
+        await setOverlay(page, `${step.name}: ${observation.status}`, step.description);
       }
-    } else if (/theme toggle/i.test(step.name)) {
-      await ensureNoModal(page);
-      const themeToggle = page.getByRole("button", { name: /switch to (light|dark) mode/i }).first();
-      if (await themeToggle.count()) {
-        await themeToggle.click();
-        await page.waitForTimeout(800);
-        await themeToggle.click();
-        await page.waitForTimeout(500);
-      }
-    } else if (/reports to chat/i.test(step.name)) {
-      await ensureNoModal(page);
-      await page.goto("/?surface=reports", { waitUntil: "domcontentloaded" });
-      await waitForAppReady(page);
-      const openInChat = page.getByRole("button", { name: /open in chat/i }).first();
-      if (await openInChat.count()) {
-        await openInChat.click();
-        await page.waitForTimeout(2200);
-      }
+
+      const fileBase = `${String(stepNum).padStart(2, "0")}-${slugify(step.name) || "step"}.png`;
+      const absPath = path.join(outRoot, fileBase);
+      await page.screenshot({ path: absPath, fullPage: false });
+
+      publishedSteps.push({
+        index: stepNum,
+        kind: step.kind,
+        name: step.name,
+        path: step.path ?? "(interaction)",
+        title,
+        description: step.description,
+        ...observation,
+        image: `/dogfood/scribe/${fileBase}`,
+      });
     }
-
-    const fileBase = `${String(stepNum).padStart(2, "0")}-${slugify(step.name) || "step"}.png`;
-    const absPath = path.join(outRoot, fileBase);
-    await page.screenshot({ path: absPath, fullPage: false });
-
-    publishedSteps.push({
-      index: stepNum,
-      kind: step.kind,
-      name: step.name,
-      path: step.path,
-      title,
-      description: describeStep(step),
-      image: `/dogfood/scribe/${fileBase}`,
-    });
+  } finally {
+    await context.close();
   }
-
-  await page.close();
-  await context.close();
 
   const manifest = {
     capturedAtIso,
     baseURL,
+    captureScope: "public-guest-read-only",
     steps: publishedSteps,
   };
 
-  const manifestOut = path.resolve(process.cwd(), "public", "dogfood", "scribe.json");
   await safeWriteTextFile(manifestOut, JSON.stringify(manifest, null, 2) + "\n", "utf8");
 
   const mdLines = [
@@ -324,12 +247,13 @@ async function main() {
     ``,
     `Captured: ${capturedAtIso}`,
     ``,
-    `This is an auto-generated how-to (Scribe-style) artifact: screenshots + editable step text.`,
+    `Public guest observations only. CAPTURED means the described state was observed; NOT_RUN actions were not performed. This is not a live research or saved-report completion certificate.`,
     ``,
   ];
   for (const s of publishedSteps) {
     mdLines.push(`## ${s.title}`);
     mdLines.push(s.description);
+    mdLines.push(`Status: ${s.status}${s.cause ? ` — ${s.cause}` : ""}. Observed theme: ${s.theme}.`);
     mdLines.push(``);
     mdLines.push(`![${s.title}](${s.image})`);
     mdLines.push(``);
@@ -341,4 +265,4 @@ async function main() {
   console.log(`Wrote Scribe artifact:\n- public/dogfood/scribe.json\n- public/dogfood/scribe.md\n- public/dogfood/scribe/*.png`);
 }
 
-await main();
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) await main();

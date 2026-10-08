@@ -1,6 +1,6 @@
 import path from "node:path";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 
 let ffmpegPath = null;
@@ -64,6 +64,7 @@ async function writeFileWithRetries(filePath, contents, encoding = "utf8", attem
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const repoRoot = process.cwd();
+  await rm(path.resolve(repoRoot, "public", "dogfood", "frames.json"), { force: true });
 
   const walkthroughPath = path.resolve(repoRoot, "public", "dogfood", "walkthrough.json");
   if (!existsSync(walkthroughPath)) {
@@ -72,12 +73,9 @@ async function main() {
 
   const walk = JSON.parse(await readFile(walkthroughPath, "utf8"));
 
-  const mp4 = path.resolve(repoRoot, "public", "dogfood", "walkthrough.mp4");
-  const webm = path.resolve(repoRoot, "public", "dogfood", "walkthrough.webm");
-  const input = existsSync(mp4) ? mp4 : existsSync(webm) ? webm : null;
-  if (!input) {
-    throw new Error("Missing walkthrough video file. Expected public/dogfood/walkthrough.mp4 or .webm");
-  }
+  if (!["/dogfood/walkthrough.mp4", "/dogfood/walkthrough.webm"].includes(walk.videoPath)) throw new Error("Walkthrough manifest must reference its actual local static video");
+  const input = path.resolve(repoRoot, "public", walk.videoPath.slice(1));
+  if (!existsSync(input)) throw new Error(`Missing manifest video: ${input}`);
 
   const outDir = path.resolve(repoRoot, "public", "dogfood", "frames");
   await mkdir(outDir, { recursive: true });
@@ -93,13 +91,15 @@ async function main() {
   const items = [];
   let idx = 0;
   for (const c of selected) {
-    const startSec = Number(c?.startSec ?? 0);
+    const sampleSec = c?.sampleSec;
+    if (!Number.isFinite(sampleSec) || sampleSec < 0 || !Number.isFinite(c?.actionStartSec) || sampleSec < c.actionStartSec) {
+      throw new Error(`Chapter ${idx + 1} is missing a valid settled sampleSec; navigation start is not a frame sample`);
+    }
     const name = String(c?.name ?? `chapter-${idx + 1}`);
     const outFile = `${String(idx + 1).padStart(2, "0")}-${slugify(name)}.${format}`;
     const outPath = path.join(outDir, outFile);
 
-    // One frame at the chapter start.
-    // -ss before -i is faster; we do a small seek window for accuracy.
+    // Seek the state observed after readiness and settling. No inferred offset.
     await run(
       ffmpeg,
       [
@@ -107,7 +107,7 @@ async function main() {
         "-loglevel",
         "error",
         "-ss",
-        `${Math.max(0, startSec)}`,
+        `${sampleSec}`,
         "-i",
         input,
         "-frames:v",
@@ -126,7 +126,14 @@ async function main() {
       index: idx + 1,
       name,
       path: c?.path ?? "",
-      startSec,
+      startSec: c.startSec,
+      sampleSec,
+      actionStartSec: c.actionStartSec,
+      status: c.status,
+      ...(c.cause ? { cause: c.cause } : {}),
+      theme: c.theme,
+      observedUrl: c.observedUrl,
+      observedState: c.observedState,
       file: outFile,
       image: `/dogfood/frames/${encodeURIComponent(outFile)}`,
     });
@@ -134,8 +141,9 @@ async function main() {
   }
 
   const manifest = {
-    capturedAtIso: new Date().toISOString(),
-    videoPath: existsSync(mp4) ? "/dogfood/walkthrough.mp4" : "/dogfood/walkthrough.webm",
+    capturedAtIso: walk.capturedAtIso,
+    captureScope: walk.captureScope,
+    videoPath: walk.videoPath,
     items,
   };
 

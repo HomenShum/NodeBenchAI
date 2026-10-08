@@ -33,6 +33,7 @@ This directory contains append-only per-surface changelog lanes. Each lane recor
 
 - [`scripts/improvement-loop.md`](scripts/improvement-loop.md) — self-improvement loop tooling.
 - [`scripts/walkthrough-citations.md`](scripts/walkthrough-citations.md) — source citation checks and developer onboarding.
+- [`scripts/dogfood-artifacts.md`](scripts/dogfood-artifacts.md) — truthful public guest captures, actual theme metadata, and settled video samples.
 - [`scripts/notebook-hourly.md`](scripts/notebook-hourly.md) — hourly notebook health output and truthful failure receipts.
 - [`goals.md`](goals.md) — goal-driven development operating system.
 
