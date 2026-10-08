@@ -102,6 +102,17 @@ test('an evaluator gets a completed scorecard only after health and empty-query 
   });
 });
 
+test('an operator with a blank Pipeline target gets a fresh blocked report without network requests', async () => {
+  await runtime('healthy', async (_url, requests) => {
+    for (const url of ['', ' \t\n ']) {
+      const result = await cli(url); blocked(result);
+      assert.equal(result.report.apiUrl, null);
+      assert.match(result.report.message, /^NODEBENCH_API_URL is unconfigured;/);
+    }
+    assert.equal(requests.length, 0);
+  });
+});
+
 for (const mode of ['html', 'wrong-post', 'missing-provider', 'oversized-health', 'redirect', 'timeout']) {
   test(`a developer targeting ${mode} gets no provider queries and no quality grade`, { timeout: 30000 }, async () => {
     await runtime(mode, async (url, requests) => {
