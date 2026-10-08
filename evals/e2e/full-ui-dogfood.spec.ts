@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import path from "node:path";
+import { mkdir, writeFile } from "node:fs/promises";
+import { prepareComposer } from "../../scripts/ui/captureDogfoodScribe.mjs";
 
 const ROUTES = [
   {
@@ -84,6 +86,32 @@ function getScreenshotPath(fileName: string) {
     ? configuredDir
     : path.join("test-results", "full-ui-dogfood");
   return path.join(baseDir, fileName);
+}
+
+async function captureScreenshot(
+  page: Page,
+  file: string,
+  kind: "route" | "interaction" | "settings",
+  label: string,
+  expectedTheme: "dark" | "light",
+  observedState: string,
+) {
+  const theme = await page.locator("[data-redesign-theme]").getAttribute("data-redesign-theme");
+  expect(theme, `Actual theme for ${file}`).toBe(expectedTheme);
+  const dimensions = page.viewportSize();
+  expect(dimensions).not.toBeNull();
+  const imagePath = getScreenshotPath(file);
+  await mkdir(path.dirname(imagePath), { recursive: true });
+  await page.screenshot({ path: imagePath, fullPage: true });
+  await writeFile(`${imagePath}.json`, JSON.stringify({
+    file, kind, label, theme,
+    viewport: dimensions!.width === 390 ? "mobile" : "desktop",
+    dimensions,
+    observedUrl: page.url(),
+    observedState,
+    status: "CAPTURED",
+    capturedAtIso: new Date().toISOString(),
+  }, null, 2) + "\n");
 }
 
 async function resetBrowserStorage(page: Page) {
@@ -282,10 +310,7 @@ test.describe("Full UI Dogfood", () => {
         activeRoute = route.path;
         await navigateWithinApp(page, route.path);
         await ensureSurfaceReady(page, route);
-        await page.screenshot({
-          path: getScreenshotPath(`${route.name}${variant.suffix}.png`),
-          fullPage: true,
-        });
+        await captureScreenshot(page, `${route.name}${variant.suffix}.png`, "route", "Decision workspace", variant.theme, "Empty guest workspace ready");
       }
     }
 
@@ -301,19 +326,13 @@ test.describe("Full UI Dogfood", () => {
       await workspaceInput.fill(workspaceQuery);
       await expect(workspaceInput).toHaveValue(workspaceQuery);
       await expect(page.getByRole("button", { name: /^run research$/i })).toBeEnabled();
-      await page.screenshot({
-        path: getScreenshotPath("interaction-workspace-ready.png"),
-        fullPage: true,
-      });
+      await captureScreenshot(page, "interaction-workspace-ready.png", "interaction", "Composer preparation", "dark", "Question filled; Run research enabled; not submitted");
 
       const themeToggle = page.getByRole("button", { name: /toggle theme|switch to (light|dark) mode/i }).first();
       await expect(themeToggle).toBeVisible({ timeout: 20_000 });
       await themeToggle.click();
       await page.waitForTimeout(700);
-      await page.screenshot({
-        path: getScreenshotPath("settings-theme-toggle.png"),
-        fullPage: true,
-      });
+      await captureScreenshot(page, "settings-theme-toggle.png", "settings", "Theme toggle", "light", "Switched from dark to light; question remains unsubmitted");
       await themeToggle.click();
       await page.waitForTimeout(500);
 
@@ -322,15 +341,22 @@ test.describe("Full UI Dogfood", () => {
       await expect(page).toHaveURL(
         /\/redesign\/chat\?report=dogfood-report&artifact=notebook/,
       );
-      await expect(page.getByText(/notebook context/i).first()).toBeVisible();
+      await expect(page.getByText("Notebook context unavailable", { exact: true })).toBeVisible();
       await expect(page.locator('[data-product-surface="decision-workspace"]')).toHaveCount(1);
       await expect(page.locator("textarea:visible")).toHaveCount(1);
-      await page.screenshot({
-        path: getScreenshotPath("interaction-report-context.png"),
-        fullPage: true,
-      });
+      await captureScreenshot(page, "interaction-report-context.png", "interaction", "Missing report context", "dark", "Notebook context unavailable; no report attached; composer ready");
     }
 
     expect(browserIssues, formatBrowserIssues(browserIssues)).toEqual([]);
+  });
+
+  test("guest capture rejects a missing required composer instead of claiming preparation", async ({ page }) => {
+    await page.goto("/redesign/chat", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { name: "What do you need to know?", exact: true })).toBeVisible();
+    await expect(page.locator("textarea:visible")).toHaveCount(1);
+    // A reviewer must not receive a completion caption when a required control
+    // disappears. This mutation is confined to this isolated guest test page.
+    await page.locator("textarea").evaluate((element) => element.remove());
+    await expect(prepareComposer(page)).rejects.toThrow("Required capture control missing or ambiguous: composer textarea");
   });
 });

@@ -1,6 +1,6 @@
 import path from "node:path";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, copyFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, copyFile, readFile, rm, writeFile } from "node:fs/promises";
 
 const DEFAULT_SRC_DIR = path.resolve(process.cwd(), "test-results", "full-ui-dogfood");
 const SRC_DIR = process.env.DOGFOOD_SCREENSHOT_DIR
@@ -8,37 +8,6 @@ const SRC_DIR = process.env.DOGFOOD_SCREENSHOT_DIR
   : DEFAULT_SRC_DIR;
 const OUT_DIR = path.resolve(process.cwd(), "public", "dogfood", "screenshots");
 const MANIFEST_PATH = path.resolve(process.cwd(), "public", "dogfood", "manifest.json");
-
-function titleCase(input) {
-  return String(input)
-    .split(/[\s-_]+/)
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
-
-/** Parse variant suffix from filename: -light, -mobile, -mobile-light */
-function parseVariant(file) {
-  const name = file.replace(/\.png$/i, "");
-  if (name.endsWith("-mobile-light")) {
-    return { baseName: name.replace(/-mobile-light$/, ""), theme: "light", viewport: "mobile" };
-  }
-  if (name.endsWith("-mobile")) {
-    return { baseName: name.replace(/-mobile$/, ""), theme: "dark", viewport: "mobile" };
-  }
-  if (name.endsWith("-light")) {
-    return { baseName: name.replace(/-light$/, ""), theme: "light", viewport: "desktop" };
-  }
-  return { baseName: name, theme: "dark", viewport: "desktop" };
-}
-
-function classify(baseName) {
-  if (baseName.startsWith("settings-")) return { kind: "settings", label: titleCase(baseName.replace(/^settings-/, "")) };
-  if (baseName.startsWith("interaction-")) return { kind: "interaction", label: titleCase(baseName.replace(/^interaction-/, "")) };
-  if (baseName === "command-palette") return { kind: "interaction", label: "Command Palette" };
-  if (baseName === "assistant-panel") return { kind: "interaction", label: "Assistant Panel" };
-  return { kind: "route", label: titleCase(baseName) };
-}
 
 function isRetryableWriteError(error) {
   const code = String(error?.code ?? "").toUpperCase();
@@ -63,6 +32,7 @@ async function writeFileWithRetry(targetPath, contents, attempts = 6) {
 }
 
 async function main() {
+  await rm(MANIFEST_PATH, { force: true });
   if (!existsSync(SRC_DIR)) {
     throw new Error(
       `Missing ${SRC_DIR}. Run the dogfood e2e first:\n` +
@@ -82,16 +52,17 @@ async function main() {
 
   const items = [];
   for (const file of files) {
+    const metadataPath = path.join(SRC_DIR, `${file}.json`);
+    if (!existsSync(metadataPath)) throw new Error(`Missing actual capture metadata: ${metadataPath}. Re-run the current dogfood e2e; filenames do not prove theme or state.`);
+    const meta = JSON.parse(await readFile(metadataPath, "utf8"));
+    if (meta.file !== file || meta.status !== "CAPTURED" || !["dark", "light"].includes(meta.theme) ||
+        !["route", "interaction", "settings"].includes(meta.kind) || !["desktop", "mobile"].includes(meta.viewport) ||
+        !meta.dimensions || !meta.observedUrl || !meta.observedState || !meta.label || !Number.isFinite(Date.parse(meta.capturedAtIso))) {
+      throw new Error(`Invalid actual capture metadata: ${metadataPath}`);
+    }
     await copyFile(path.join(SRC_DIR, file), path.join(OUT_DIR, file));
-    const { baseName, theme, viewport } = parseVariant(file);
-    const meta = classify(baseName);
-    items.push({
-      file,
-      kind: meta.kind,
-      label: meta.label,
-      theme,
-      viewport,
-    });
+    await copyFile(metadataPath, path.join(OUT_DIR, `${file}.json`));
+    items.push(meta);
   }
 
   items.sort((a, b) => {
@@ -112,7 +83,9 @@ async function main() {
   const lightMobile = items.filter((i) => i.theme === "light" && i.viewport === "mobile").length;
 
   const manifest = {
-    capturedAtIso: new Date().toISOString(),
+    // Publication cannot make old screenshots fresh again.
+    capturedAtIso: new Date(Math.min(...items.map((item) => Date.parse(item.capturedAtIso)))).toISOString(),
+    captureScope: "public-guest-read-only",
     basePath: "/dogfood/screenshots",
     variants: {
       darkDesktop,
