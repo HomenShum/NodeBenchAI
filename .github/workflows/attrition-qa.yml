@@ -109,7 +109,8 @@ jobs:
       - name: Run golden queries
         env:
           NODEBENCH_API_URL: ${{ github.event.inputs.pipeline_api_url || vars.NODEBENCH_PIPELINE_API_URL }}
-        run: npx tsx scripts/attrition/run-golden-queries.ts
+        run: |
+          npx tsx scripts/attrition/run-golden-queries.ts
 
       - name: Upload results
         if: always()
