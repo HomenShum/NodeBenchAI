@@ -189,3 +189,43 @@ Research bundles and Workspace documents now distinguish `sourcesConsulted` from
 
 **Author**: Homen Shum + Codex.
 **Touches**: [`../pages/exact-cockpit.md`](../pages/exact-cockpit.md), [`../pages/agents.md`](../pages/agents.md), and [`../components/fast-agent-panel.md`](../components/fast-agent-panel.md).
+
+## 2026-10-08: PIPELINE-CALLABLE-CONTRACT-01 (source-only; next paired proof NOT_RUN)
+
+A researcher comparing malformed-provider failure and usable partial evidence needs the
+failure-reader API to exist before evaluating its result. Authentic old code has no
+getPipelineFailure export, so the desired fixture previously threw a TypeError before
+reaching its criterion assertion. The verifier correctly refused that unclassified error.
+
+The first natural paired job on source 8635991308dd7f93603974f82f1734eed2b989f1,
+tree 1ea448a976373d4064e50122b74b090dc66721e2, remains FAIL:
+run 37855916502 / job 113579926168, artifact 11584201919 (21,438 bytes,
+SHA256 494CED046911C713155BC8315C3897CFA6E547866C6726D3FA405F663F319007).
+Normal lifecycle-enabled npm ci succeeded. The authentic 8b controlled baseline then
+exited 1 with complete stdout, stderr, framework capture and child closure: six selected
+files, 75 tests, 20 PASS / 55 FAIL / 0 SKIP / 0 TODO. Its fifty route cases were 2 PASS / 48 FAIL.
+All 55 failure rows were retained: 52 criterion AssertionErrors and 3 TypeErrors
+(getPipelineFailure is not a function) at two desired search-test getter sites.
+The unchanged classifier admitted the 52 criterion errors and correctly stopped on the
+three unclassified TypeErrors; no file-load message or unhandled framework marker was
+reported. The candidate was never invoked: candidate invocations 0, results NOT_RUN.
+
+This forward three-owner amendment adds two explicit
+expect(typeof getPipelineFailure).toBe("function") assertions immediately before those
+observed getter calls. One site covers the malformed-provider scenario; the other covers
+both title/content variants. Imports, scenario names, mocks, goals, all previous assertions
+and the whole original 50-route fixture remain unchanged. Production/provider/helper source
+does not change. CI changes only the two actual AFTER blob bindings for this test and
+this append-only history; its classifier, FIFO, environment, one normal installed graph,
+default workers, budgets, captures and guards remain identical. The whole prior 19,584-byte
+history and existing 6,602-byte feature CI prefix remain preserved.
+
+At this source-only checkpoint the amended baseline and candidate paired proof, imports,
+project tests, installed-tree validation and new natural CI are NOT_RUN. Source/static
+approval cannot turn the earlier FAIL into PASS. Root owns review, ordinary publication
+and a new naturally triggered exact-head proof; baseline admission still requires genuine
+within-test criterion failures and complete guards before the candidate may execute.
+Provider quality, private worker/authentication ownership, paid-call budgets and scanner
+gates remain separate. The deployed benchmark's blank target/zero Golden failure is not
+resolved by these fixture assertions, and no deployment, production, visual, security or
+whole-portfolio success is certified.

@@ -175,6 +175,7 @@ describe("researcher recovery at provider and ticker-cache boundaries", () => {
     const fetchMock = configureFreeSources(false);
     const { runSearchPipeline, getPipelineFailure, pipelineFailureHttpStatus } = await import("./searchPipeline.js");
     const state = await runSearchPipeline("Acme robotics", "founder");
+    expect(typeof getPipelineFailure).toBe("function");
     const failure = getPipelineFailure(state);
     expect(failure?.code).toBe("INVALID_PROVIDER_RESPONSE");
     expect(pipelineFailureHttpStatus(failure!.code)).toBe(502);
@@ -200,6 +201,7 @@ describe("researcher recovery at provider and ticker-cache boundaries", () => {
     });
     const { search, classify, createInitialPipelineState, getPipelineFailure } = await import("./searchPipeline.js");
     const state = await search(classify(createInitialPipelineState("Acme robotics", "founder")));
+    expect(typeof getPipelineFailure).toBe("function");
     expect(getPipelineFailure(state)).toBeNull();
     expect(state.searchSources.map((source) => source.url)).toContain("https://primary.example/acme");
     expect(state.searchSources.map((source) => source.url)).toContain("https://acme.example/research");
