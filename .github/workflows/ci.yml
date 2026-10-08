@@ -166,3 +166,9 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+      - name: Storybook build
+        run: npm run build-storybook
+
+      - name: Retained Storybook index
+        run: npm run storybook:verify:index

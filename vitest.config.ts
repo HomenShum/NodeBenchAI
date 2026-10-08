@@ -21,6 +21,11 @@ export default defineConfig({
     // Playwright tests live under `tests/` and should run via Playwright, not Vitest.
     exclude: [
       ...configDefaults.exclude,
+      // Vitest 4 narrows its defaults; retain the previous discovery scope.
+      "**/dist/**",
+      "**/cypress/**",
+      "**/.{idea,git,cache,output,temp}/**",
+      "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build,eslint,prettier}.config.*",
       "evals/**",
       ".tmp/**",
       ".nodebench-ref/**",

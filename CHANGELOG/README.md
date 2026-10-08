@@ -28,6 +28,7 @@ This directory contains append-only per-surface changelog lanes. Each lane recor
 ### Build and bundling
 
 - [`build/vite.md`](build/vite.md) — Vite/PWA chunking rules that affect runtime delivery.
+- [`build/test-toolchain.md`](build/test-toolchain.md) — Test-runner compatibility, retained Storybook examples, and build checks.
 
 ### Scripts and operating systems
 
