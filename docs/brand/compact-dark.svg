@@ -4,7 +4,7 @@
 .s{animation:s 340ms cubic-bezier(.4,0,.2,1)}
 .h{animation:h 400ms cubic-bezier(.2,.7,.2,1);transform-box:fill-box;transform-origin:center}
 @keyframes p{45%{stroke:#D97757;fill:#2b1d18}}
-@keyframes c{45%{fill:#D97757}}
+@keyframes c{45%{fill:#EC9C82}}
 @keyframes s{from{stroke-dashoffset:.55}to{stroke-dashoffset:-1.1}}
 @keyframes h{from{opacity:.8}to{opacity:0;transform:scale(1.12,1.6)}}
 @media (prefers-reduced-motion:reduce){.p,.c,.s,.h{animation:none}}
