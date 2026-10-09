@@ -190,11 +190,16 @@ jobs:
       CONVEX_URL: ""
       VITE_CONVEX_URL: ""
     steps:
-      # Read current main, then require exact authentic 8b in the source guard.
-      # Checking out an old SHA alone would conceal intervening main changes.
+      # Guard current main separately from the authentic immediate-before source.
       - uses: actions/checkout@v6
         with:
           ref: main
+          path: pipeline-pair/current-main
+          persist-credentials: false
+
+      - uses: actions/checkout@v6
+        with:
+          ref: d6316366bcc274d6386f28696ba88f271757cf6a
           path: pipeline-pair/baseline
           persist-credentials: false
 
@@ -219,22 +224,24 @@ jobs:
           const crypto = require("node:crypto");
           const { spawn, spawnSync } = require("node:child_process");
 
-          const BASE = "8b4846baa9adedd5107b8eae1acd46805a8f272d";
-          const BASE_TREE = "1c122bfd61e18448c2fb486ad44eab376ed90310";
+          const MAIN = "8b4846baa9adedd5107b8eae1acd46805a8f272d";
+          const MAIN_TREE = "1c122bfd61e18448c2fb486ad44eab376ed90310";
+          const BASE = "d6316366bcc274d6386f28696ba88f271757cf6a";
+          const BASE_TREE = "ce3da2f90fe79b83fe1c79f6fccc9bf19d57961d";
           const AFTER = {
             "workers/node/pipeline/searchPipeline.ts": "b43bb029b5b8c86651c3bda8b26a0ab64911b9a1",
             "workers/node/lib/multiSearch.ts": "e977390bade699d11c33c39e4169f1cbb91046be",
             "workers/node/lib/dcfModel.ts": "20e6296d9783b7507c8d95756975b3b17e9904d7",
             "workers/node/lib/secEdgar.ts": "7813aead64ad4da45960f71aa13c1438bf1c2b20",
-            "workers/node/routes/pipelineRoute.ts": "d00af1ecef55aa37e6810e58f2dc334799b03265",
+            "workers/node/routes/pipelineRoute.ts": "7c385b6d329fdf4aaee893088c76bc0542ca7b52",
             "workers/node/routes/streamingSearch.ts": "25d97df558b6b4b9e1b828e57606a2d081a06504",
             "apps/web/src/features/controlPlane/components/proofModel.ts": "e542be24871206875f7d4c8ec60b637f15284451",
             "workers/node/lib/pipelineHttp.ts": "15fb2a1b5d55a0694d1184a709d0c78ae208aa94",
-            "workers/node/pipelineRoute.test.ts": "021bdf2bd033e783897973d4086141f6e804c622",
+            "workers/node/pipelineRoute.test.ts": "d9defdea77cc78e225a1f4c92d1ec0d1744c8575",
             "workers/node/pipeline/searchPipeline.test.ts": "2ec64d05215788c71880c77efee484c6bbb7dafe",
             "workers/node/streamingSearchRoute.test.ts": "612cff706c74e91483eee5564654553f58714a51",
             "apps/web/src/hooks/useStreamingSearch.test.ts": "7c74256d25d1204ac69bf1dfaa50f9bc04176056",
-            "CHANGELOG/integrations/pipeline-runtime.md": "0409ab1a2e384a446b3d78bf37e24178e4bd70c3"
+            "CHANGELOG/integrations/pipeline-runtime.md": "7d089c2f9c26cd2d966cc4d2b36b7034f68dda57"
           };
           const SUITES = [
             "workers/node/pipelineRoute.test.ts",
@@ -244,7 +251,7 @@ jobs:
             "apps/web/src/features/controlPlane/components/proofModel.test.ts",
             "workers/node/searchPipelineStateToResultPacket.test.ts"
           ];
-          const ROUTE_NAMES = [
+          const ORIGINAL_ROUTE_NAMES = [
             "Researcher and coding-agent real-route failure contract configuration none rejects JSON and SSE before provider work",
             "Researcher and coding-agent real-route failure contract configuration missinggemini rejects JSON and SSE before provider work",
             "Researcher and coding-agent real-route failure contract searchfail400 cannot create a successful research packet",
@@ -296,8 +303,152 @@ jobs:
             "Researcher and coding-agent real-route failure contract tavily researcher admits30 rows, rejects31 without success artifacts, then recovers",
             "Researcher and coding-agent real-route failure contract linkup researcher admits30 rows, rejects31 without success artifacts, then recovers"
           ];
+          const ADDED_ROUTE_NAMES =[
+            "Pipeline typed-input boundary malformed query number is rejected before research work",
+            "Pipeline typed-input boundary malformed query boolean is rejected before research work",
+            "Pipeline typed-input boundary malformed query array is rejected before research work",
+            "Pipeline typed-input boundary malformed query object is rejected before research work",
+            "Pipeline typed-input boundary malformed lens number is rejected before research work",
+            "Pipeline typed-input boundary malformed lens boolean is rejected before research work",
+            "Pipeline typed-input boundary malformed lens array is rejected before research work",
+            "Pipeline typed-input boundary malformed lens object is rejected before research work",
+            "Pipeline typed-input boundary own-toString-null query preserves the original rejection before the desired client error",
+            "Pipeline typed-input boundary own-toString-null lens preserves the original rejection before the desired client error",
+            "Pipeline typed-input boundary omitted query retains the required-query client error",
+            "Pipeline typed-input boundary null query retains the required-query client error",
+            "Pipeline typed-input boundary empty query retains the required-query client error",
+            "Pipeline typed-input boundary whitespace query retains the required-query client error",
+            "Pipeline typed-input boundary omitted lens preserves admitted Unicode query and existing string semantics",
+            "Pipeline typed-input boundary null lens preserves admitted Unicode query and existing string semantics",
+            "Pipeline typed-input boundary empty lens preserves admitted Unicode query and existing string semantics",
+            "Pipeline typed-input boundary custom lens preserves admitted Unicode query and existing string semantics",
+            "Pipeline typed-input boundary ordinary pre-hook fault has honest response ownership and removes listeners",
+            "Pipeline typed-input boundary aborted pre-hook fault has honest response ownership and removes listeners",
+            "Pipeline typed-input boundary destroyed pre-hook fault has honest response ownership and removes listeners",
+            "Pipeline typed-input boundary headers-sent pre-hook fault has honest response ownership and removes listeners",
+            "Pipeline typed-input boundary short-query denial keeps the existing hook reason and drains lifecycle work",
+            "Pipeline typed-input boundary 12 mixed malformed and valid requests isolate provider effects then recover",
+            "Pipeline typed-input boundary 60-second paced malformed and valid input stays bounded and recovers"
+          ];
+          const ROUTE_NAMES = [...ORIGINAL_ROUTE_NAMES, ...ADDED_ROUTE_NAMES];
+          const ORIGINAL_OTHER_IDENTITIES =[
+            {
+              "file": "workers/node/searchPipelineStateToResultPacket.test.ts",
+              "fullName": "stateToResultPacket emits canonical answer blocks with section-level source refs"
+            },
+            {
+              "file": "workers/node/searchPipelineStateToResultPacket.test.ts",
+              "fullName": "stateToResultPacket enriches variables, changes, risks, and interventions with sourceRefIds"
+            },
+            {
+              "file": "workers/node/streamingSearchRoute.test.ts",
+              "fullName": "createStreamingSearchRouter emits routing metadata on the plan event and forwards contextHint into the pipeline"
+            },
+            {
+              "file": "workers/node/streamingSearchRoute.test.ts",
+              "fullName": "createStreamingSearchRouter accepts large packets over POST so pasted diligence notes do not rely on URL length"
+            },
+            {
+              "file": "workers/node/pipeline/searchPipeline.test.ts",
+              "fullName": "filterSearchSourcesForEntity keeps only clearly grounded sources for multi-word company names"
+            },
+            {
+              "file": "workers/node/pipeline/searchPipeline.test.ts",
+              "fullName": "filterSearchSourcesForEntity retains generic-title sources when the snippet explicitly grounds the entity"
+            },
+            {
+              "file": "workers/node/pipeline/searchPipeline.test.ts",
+              "fullName": "filterSearchSourcesForEntity drops low-signal official legal pages and keeps external corroboration when available"
+            },
+            {
+              "file": "workers/node/pipeline/searchPipeline.test.ts",
+              "fullName": "filterSearchSourcesForEntity adds a profile-oriented query variant for company searches"
+            },
+            {
+              "file": "workers/node/pipeline/searchPipeline.test.ts",
+              "fullName": "filterSearchSourcesForEntity fans out pasted recruiter packets into domain-aware search variants"
+            },
+            {
+              "file": "workers/node/pipeline/searchPipeline.test.ts",
+              "fullName": "filterSearchSourcesForEntity anchors classification to the primary entity from context hints"
+            },
+            {
+              "file": "workers/node/pipeline/searchPipeline.test.ts",
+              "fullName": "filterSearchSourcesForEntity skips question openers when extracting a fallback entity from the query"
+            },
+            {
+              "file": "workers/node/pipeline/searchPipeline.test.ts",
+              "fullName": "researcher recovery at provider and ticker-cache boundaries keeps usable Serper evidence when Brave returns a nonstring source URL"
+            },
+            {
+              "file": "workers/node/pipeline/searchPipeline.test.ts",
+              "fullName": "researcher recovery at provider and ticker-cache boundaries reports an upstream502 failure when every configured provider returns malformed source fields"
+            },
+            {
+              "file": "workers/node/pipeline/searchPipeline.test.ts",
+              "fullName": "researcher recovery at provider and ticker-cache boundaries keeps another paid variant and free evidence when a selected Linkuptitle alias is malformed"
+            },
+            {
+              "file": "workers/node/pipeline/searchPipeline.test.ts",
+              "fullName": "researcher recovery at provider and ticker-cache boundaries keeps another paid variant and free evidence when a selected Linkupcontent alias is malformed"
+            },
+            {
+              "file": "workers/node/pipeline/searchPipeline.test.ts",
+              "fullName": "researcher recovery at provider and ticker-cache boundaries rejects25002 completed lookup keys without poisoning a later valid SEC lookup"
+            },
+            {
+              "file": "apps/web/src/hooks/useStreamingSearch.test.ts",
+              "fullName": "useStreamingSearch recovers from a terminal stream reset by fetching the final packet over JSON"
+            },
+            {
+              "file": "apps/web/src/hooks/useStreamingSearch.test.ts",
+              "fullName": "useStreamingSearch ignores stale completions from an older aborted run"
+            },
+            {
+              "file": "apps/web/src/hooks/useStreamingSearch.test.ts",
+              "fullName": "useStreamingSearch shows an explicit terminal research failure without completing or retrying over JSON"
+            },
+            {
+              "file": "apps/web/src/features/controlPlane/components/proofModel.test.ts",
+              "fullName": "proofModel enriches a thin result packet with proof-ready structures"
+            },
+            {
+              "file": "apps/web/src/features/controlPlane/components/proofModel.test.ts",
+              "fullName": "proofModel prefers the readiness/company identity over generic workspace labels for own-company packets"
+            },
+            {
+              "file": "apps/web/src/features/controlPlane/components/proofModel.test.ts",
+              "fullName": "proofModel uses the selected lens when building live progress and proof graph state"
+            },
+            {
+              "file": "apps/web/src/features/controlPlane/components/proofModel.test.ts",
+              "fullName": "proofModel does not fabricate founder scaffolding for external banker packets"
+            },
+            {
+              "file": "apps/web/src/features/controlPlane/components/proofModel.test.ts",
+              "fullName": "proofModel coerces Convex-native search packets that use signals and nextActions"
+            },
+            {
+              "file": "apps/web/src/features/controlPlane/components/proofModel.test.ts",
+              "fullName": "proofModel normalizes deep-diligence title/body signals and risks without rendering undefined"
+            }
+          ];
+          const ORIGINAL_IDENTITIES = [
+            ...ORIGINAL_ROUTE_NAMES.map((fullName) => ({ file: SUITES[0], fullName })),
+            ...ORIGINAL_OTHER_IDENTITIES
+          ];
+          const desiredKeys = [...ORIGINAL_IDENTITIES, ...ADDED_ROUTE_NAMES.map((fullName) => ({ file: SUITES[0], fullName }))].map((item) => item.file + "\0" + item.fullName).sort();
+          const originalKeys = new Set(ORIGINAL_IDENTITIES.map((item) => item.file + "\0" + item.fullName));
+          const MODIFIED_OWNERS = ["workers/node/routes/pipelineRoute.ts", "workers/node/pipelineRoute.test.ts", ".github/workflows/ci.yml", "CHANGELOG/integrations/pipeline-runtime.md"];
+          const BEFORE = {
+            ...AFTER,
+            "workers/node/routes/pipelineRoute.ts": "d00af1ecef55aa37e6810e58f2dc334799b03265",
+            "workers/node/pipelineRoute.test.ts": "021bdf2bd033e783897973d4086141f6e804c622",
+            "CHANGELOG/integrations/pipeline-runtime.md": "0409ab1a2e384a446b3d78bf37e24178e4bd70c3",
+            ".github/workflows/ci.yml": "dcc67feda53fe0781ef67ed6500cec0083c14e9d"
+          };
           const CI_OWNER = ".github/workflows/ci.yml";
-          const OVERLAYS = ["workers/node/pipelineRoute.test.ts", "workers/node/pipeline/searchPipeline.test.ts", "workers/node/streamingSearchRoute.test.ts", "apps/web/src/hooks/useStreamingSearch.test.ts"];
+          const OVERLAYS = ["workers/node/pipelineRoute.test.ts"];
           const GRAPH_INPUTS = {
             "package.json": "26c1fc2e9707d3bf0d2c0b9826f6ef029e400b55",
             "package-lock.json": "a7c3facbdad31d318c34d9ca3cc27a138e2f266c",
@@ -313,6 +464,7 @@ jobs:
           const expectedHead = process.env.PAIR_EXPECTED_HEAD;
           const check = (value, message) => { if (!value) throw new Error(message); };
           check(process.platform === "linux" && workspace && runnerTemp && /^[a-f0-9]{40}$/.test(expectedHead || ""), "Missing Linux/source metadata");
+          const currentMain = path.resolve(workspace, "pipeline-pair/current-main");
           const baseline = path.resolve(workspace, "pipeline-pair/baseline");
           const candidate = path.resolve(workspace, "pipeline-pair/candidate");
           const output = path.resolve(runnerTemp, "pipeline-honest-pair");
@@ -379,7 +531,7 @@ jobs:
           }
           function status(role, isBaseline) {
             const rows = git(role, ["status", "--porcelain=v1", "-z", "--untracked-files=normal"]).toString("utf8").split("\0").filter(Boolean);
-            const expected = isBaseline ? new Map(OVERLAYS.map((file) => [file, file === OVERLAYS[0] ? "??" : " M"])) : new Map();
+            const expected = isBaseline ? new Map(OVERLAYS.map((file) => [file, " M"])) : new Map();
             check(rows.length === expected.size, "Unexpected source status count");
             for (const row of rows) { const file = row.slice(3); check(expected.get(file) === row.slice(0, 2), "Unexpected source status: " + file); expected.delete(file); }
             check(expected.size === 0, "Missing expected desired-test overlay");
@@ -560,19 +712,23 @@ jobs:
             }
             check(remaining.size === 0 && report.numTotalTests === identities.length && report.numPassedTests === passed && report.numFailedTests === failed && report.numPendingTests === 0 && report.numTodoTests === 0, "Framework counters/skip disagreement");
             const route = identities.filter((item) => item.file === SUITES[0]).map((item) => item.fullName).sort();
-            check(JSON.stringify(route) === JSON.stringify([...ROUTE_NAMES].sort()), "Exact desired50 route multiset");
+            check(JSON.stringify(route) === JSON.stringify([...ROUTE_NAMES].sort()), "Exact desired75 route multiset");
             const raw = ["stdout.log", "stderr.log"].map((name) => fs.readFileSync(path.join(run.phase, name), "utf8").replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "")).join("\n");
             check(!/Vitest caught .*unhandled|Unhandled Errors|Unhandled Rejection|Uncaught Exception/i.test(raw), "Unhandled framework error");
+            check(JSON.stringify(identities.map((item) => item.file + "\0" + item.fullName).sort()) === JSON.stringify(desiredKeys), "Exact100 full file/name multiset");
+            const original = identities.filter((item) => originalKeys.has(item.file + "\0" + item.fullName));
+            check(ORIGINAL_IDENTITIES.length === 75 && original.length === 75 && original.every((item) => item.status === "passed"), "Original75 criteria regressed");
             check(expectedExit === 1 ? failed > 0 && report.success === false : failed === 0 && report.success === true, "Expected negative/candidate criterion");
             return { passed, failed, identities, rawFramework: run.record.files["vitest-actual-results.json"] };
           }
           (async () => {
             try {
-              check(git(baseline, ["rev-parse", "HEAD"]).toString().trim() === BASE && git(baseline, ["rev-parse", "HEAD^{tree}"]).toString().trim() === BASE_TREE, "Current main moved; fixed authentic baseline unavailable");
+              check(git(currentMain, ["rev-parse", "HEAD"]).toString().trim() === MAIN && git(currentMain, ["rev-parse", "HEAD^{tree}"]).toString().trim() === MAIN_TREE, "Current main moved; root review required");
+              check(git(baseline, ["rev-parse", "HEAD"]).toString().trim() === BASE && git(baseline, ["rev-parse", "HEAD^{tree}"]).toString().trim() === BASE_TREE, "Fixed authentic immediate-before mismatch");
               check(git(candidate, ["rev-parse", "HEAD"]).toString().trim() === expectedHead, "Candidate head mismatch");
               const beforeTree = tree(baseline), afterTree = tree(candidate);
-              check(beforeTree.size === 6853 && afterTree.size === 6855, "Complete leaf counts");
-              const admitted = new Set([...Object.keys(AFTER), CI_OWNER]);
+              check(beforeTree.size === 6855 && afterTree.size === 6855, "Complete leaf counts");
+              const admitted = new Set(MODIFIED_OWNERS);
               let changed = 0, same = 0, added = 0;
               for (const [file, value] of beforeTree) {
                 const next = afterTree.get(file);
@@ -581,14 +737,15 @@ jobs:
                 else { changed++; check(admitted.has(file), "Outside owner changed"); }
               }
               for (const [file, value] of afterTree) if (!beforeTree.has(file)) { added++; check(admitted.has(file) && value.mode === "100644" && value.type === "blob", "Outside/addition type"); }
-              check(changed === 12 && added === 2 && same === 6841, "Exact fourteen projection");
+              check(changed === 4 && added === 0 && same === 6851, "Exact four-owner projection");
+              for (const [file, sha] of Object.entries(BEFORE)) check(beforeTree.get(file).sha === sha && blobFile(path.join(baseline, file)) === sha, "Frozen immediate-before source mismatch: " + file);
               for (const [file, sha] of Object.entries(AFTER)) check(afterTree.get(file).sha === sha && blobFile(path.join(candidate, file)) === sha, "Frozen non-CI source mismatch: " + file);
               for (const [file, sha] of Object.entries(GRAPH_INPUTS)) check(beforeTree.get(file).sha === sha && afterTree.get(file).sha === sha && blobFile(path.join(baseline, file)) === sha && blobFile(path.join(candidate, file)) === sha, "Graph/config source mismatch");
               for (const file of [".npmrc", ".nvmrc"]) check(beforeTree.get(file) && afterTree.get(file) && beforeTree.get(file).sha === afterTree.get(file).sha && blobFile(path.join(baseline, file)) === beforeTree.get(file).sha && blobFile(path.join(candidate, file)) === afterTree.get(file).sha, "Peer/runtime policy changed");
               for (const role of [baseline, candidate]) for (const file of [".env", ".env.local", ".env.test", ".env.test.local", ".env.production"]) check(!fs.existsSync(path.join(role, file)), "Auto-loaded env file present; values not read");
               status(candidate, false);
               check(git(baseline, ["status", "--porcelain=v1", "-z", "--untracked-files=normal"]).length === 0, "Baseline checkout dirty before overlay");
-              summary.source = { baselineTree: BASE_TREE, candidateTree: git(candidate, ["rev-parse", "HEAD^{tree}"]).toString().trim(), actualCI: { blob: afterTree.get(CI_OWNER).sha, ...hashFile(path.join(candidate, CI_OWNER)) }, changed, added, same, circularSelfPin: false, externalRootComparison: "Required exact finalCI/tree/job/head comparison" };
+              summary.source = { proof: "PIPELINE-TYPED-INPUT-BOUNDARY-01", guardedMain: MAIN, guardedMainTree: MAIN_TREE, originalCriteria: 75, addedCriteria: 25, desiredCriteria: 100, baselineTree: BASE_TREE, candidateTree: git(candidate, ["rev-parse", "HEAD^{tree}"]).toString().trim(), actualCI: { blob: afterTree.get(CI_OWNER).sha, ...hashFile(path.join(candidate, CI_OWNER)) }, changed, added, same, circularSelfPin: false, externalRootComparison: "Required exact finalCI/tree/job/head comparison" };
               summary.versions = { node: process.version, nodeExecutable: process.execPath, nodeHash: hashFile(process.execPath, 256 * 1024 * 1024), npm: local("npm", ["--version"], candidate).toString().trim(), declaredPackageManager: JSON.parse(fs.readFileSync(path.join(candidate, "package.json"), "utf8")).packageManager, policy: "Existing .nvmrc/bundled npm, same actual Linux graph; not prior Windows pinned runtime proof" };
               summary.beforeInstallMemory = memorySnapshot();
               const originalCandidate = signature(candidate, afterTree);

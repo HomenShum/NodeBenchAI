@@ -420,3 +420,189 @@ describe("Researcher and coding-agent real-route failure contract", () => {
     expect(writes.trajectory).toHaveBeenCalledTimes(1); expect(active).toBe(0);
   });
 });
+
+const boundaryHooks = vi.hoisted(() => ({ pre: vi.fn() }));
+vi.mock("./pipeline/hooks.js", async (actual) => {
+  const mod = await actual<typeof import("./pipeline/hooks.js")>();
+  return { ...mod, runPreSearchHooks: (query: string, lens: string) => { boundaryHooks.pre(query, lens); return mod.runPreSearchHooks(query, lens); } };
+});
+beforeEach(() => { boundaryHooks.pre.mockReset(); });
+
+async function requestBody(body: unknown) {
+  const response = await nativeFetch(`${base}/api/pipeline/search`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(4000),
+  });
+  const text = await response.text();
+  expect(Buffer.byteLength(text)).toBeLessThan(1_048_576);
+  return { response, text, data: JSON.parse(text) };
+}
+
+// Observe the original registered promise; only the two selected defects may be captured.
+async function directBoundary(body: unknown, coercionField?: "query" | "lens", hookMode?: "ordinary" | "aborted" | "destroyed" | "headers-sent") {
+  const { EventEmitter } = await import("node:events");
+  const { createPipelineRouter } = await import("./routes/pipelineRoute.js");
+  const router = observeRouter(createPipelineRouter());
+  const handlers = router.stack.filter((layer) => layer.route?.path === "/search").flatMap((layer) => layer.route.stack);
+  if (handlers.length !== 1 || typeof handlers[0].handle !== "function") throw new Error("Registered Pipeline handler unavailable");
+  const req = Object.assign(new EventEmitter(), { body });
+  let responseStatus: number | null = null;
+  let responsePayload: unknown = null;
+  let responses = 0;
+  const res = Object.assign(new EventEmitter(), {
+    writableEnded: false, destroyed: false, headersSent: false,
+    status(code: number): unknown { responseStatus = code; return res; },
+    json(value: unknown): unknown {
+      if (++responses !== 1) throw new Error("Registered Pipeline handler replied twice");
+      responsePayload = value; res.headersSent = true; res.writableEnded = true; return res;
+    },
+  });
+  const sentinel = new Error("private_dummy_pre_hook_failure");
+  if (hookMode) boundaryHooks.pre.mockImplementationOnce(() => {
+    if (hookMode === "aborted") req.emit("aborted");
+    if (hookMode === "destroyed") { res.destroyed = true; res.emit("close"); }
+    if (hookMode === "headers-sent") res.headersSent = true;
+    throw sentinel;
+  });
+  let rejection: Error | null = null;
+  try { await handlers[0].handle(req, res, () => {}); }
+  catch (error) {
+    const expectedLine = coercionField === "query" ? 23 : 24;
+    const knownCoercion = !!coercionField && error instanceof TypeError && error.name === "TypeError"
+      && error.message === "Cannot convert object to primitive value" && typeof error.stack === "string"
+      && /at String \(<anonymous>\)/.test(error.stack)
+      && new RegExp("routes[/\\\\]pipelineRoute\\.ts:" + expectedLine + ":\\d+").test(error.stack);
+    if (!(knownCoercion || (!!hookMode && error === sentinel))) throw error;
+    if (!(error instanceof Error) || typeof error.stack !== "string" || Buffer.byteLength(error.stack) > 4096 || Buffer.byteLength(error.message) > 512) throw error;
+    rejection = error;
+  }
+  const observation = {
+    coercionField: coercionField ?? null, hookMode: hookMode ?? null,
+    responseStatus, responses, responsePresent: responsePayload !== null,
+    rejection: rejection ? { name: rejection.name, message: rejection.message, stack: rejection.stack } : null,
+    preHooks: boundaryHooks.pre.mock.calls.length, providerCalls: calls.length,
+    successEffects: { trajectory: writes.trajectory.mock.calls.length, report: writes.report.mock.calls.length, nudge: writes.nudge.mock.calls.length, context: writes.context.mock.calls.length, evaluate: writes.evaluate.mock.calls.length, promote: writes.promote.mock.calls.length, retention: retention.length },
+    listeners: { aborted: req.listenerCount("aborted"), close: res.listenerCount("close") },
+  };
+  const encoded = JSON.stringify(observation);
+  if (Buffer.byteLength(encoded) > 8192) throw new Error("Pipeline input observation exceeds its bound");
+  process.stdout.write("PIPELINE_INPUT_BOUNDARY_OBSERVATION " + encoded + "\n");
+  return { req, res, responseStatus, responsePayload, responses, rejection };
+}
+
+describe("Pipeline typed-input boundary", () => {
+  it.each([
+    ["query", "number", 42], ["query", "boolean", false], ["query", "array", ["Acme"]], ["query", "object", { company: "Acme" }],
+    ["lens", "number", 42], ["lens", "boolean", false], ["lens", "array", ["founder"]], ["lens", "object", { role: "founder" }],
+  ] as const)("malformed %s %s is rejected before research work", async (field, _label, value) => {
+    await configure();
+    const result = await requestBody({ query: "Acme typedinput", lens: "founder", [field]: value });
+    await drainRoutes();
+    process.stdout.write("PIPELINE_TYPED_INPUT_HTTP_OBSERVATION " + JSON.stringify({ field, kind: _label, status: result.response.status, preHooks: boundaryHooks.pre.mock.calls.length, providerCalls: calls.length, trajectory: writes.trajectory.mock.calls.length, retention: retention.length, active, pendingRoutes: routeWork.size }) + "\n");
+    expect(result.response.status).toBe(400); expect(result.data).toEqual({ error: true, message: "Query and lens must be strings" });
+    expect(boundaryHooks.pre).not.toHaveBeenCalled(); expect(calls).toHaveLength(0); noSuccessWrites();
+  });
+
+  it.each(["query", "lens"] as const)("own-toString-null %s preserves the original rejection before the desired client error", async (field) => {
+    await configure();
+    const outcome = await directBoundary({ query: "Acme typedinput", lens: "founder", [field]: { toString: null } }, field);
+    expect(outcome.rejection).toBeNull(); expect(outcome.responseStatus).toBe(400);
+    expect(outcome.responsePayload).toEqual({ error: true, message: "Query and lens must be strings" });
+    expect(outcome.req.listenerCount("aborted")).toBe(0); expect(outcome.res.listenerCount("close")).toBe(0);
+    expect(boundaryHooks.pre).not.toHaveBeenCalled(); expect(calls).toHaveLength(0); noSuccessWrites();
+  });
+
+  it.each(["omitted", "null", "empty", "whitespace"] as const)("%s query retains the required-query client error", async (mode) => {
+    await configure();
+    const body = mode === "omitted" ? { lens: "founder" } : { query: mode === "null" ? null : mode === "empty" ? "" : " \t\n ", lens: "founder" };
+    const result = await requestBody(body);
+    expect(result.response.status).toBe(400); expect(result.data).toEqual({ error: true, message: "Query is required" });
+    expect(boundaryHooks.pre).not.toHaveBeenCalled(); expect(calls).toHaveLength(0); noSuccessWrites();
+  });
+
+  it.each(["omitted", "null", "empty", "custom"] as const)("%s lens preserves admitted Unicode query and existing string semantics", async (mode) => {
+    await configure();
+    const lens = mode === "empty" ? "" : mode === "custom" ? "reviewer" : "founder";
+    const body = mode === "omitted" ? { query: "  Acme café contract  " } : { query: "  Acme café contract  ", lens: mode === "null" ? null : lens };
+    const result = await requestBody(body);
+    expect(result.response.status).toBe(200); expect(result.data.success).toBe(true);
+    expect(boundaryHooks.pre).toHaveBeenCalledTimes(1); expect(boundaryHooks.pre).toHaveBeenCalledWith("Acme café contract", lens);
+    await drainRoutes();
+    expect(writes.trajectory).toHaveBeenCalledTimes(1);
+    expect(retention.find((item) => item.type === "delta.pipeline_run").data.query).toBe("Acme café contract");
+    expect(writes.evaluate).not.toHaveBeenCalled(); expect(writes.promote).not.toHaveBeenCalled();
+  });
+
+  it.each(["ordinary", "aborted", "destroyed", "headers-sent"] as const)("%s pre-hook fault has honest response ownership and removes listeners", async (mode) => {
+    await configure();
+    const outcome = await directBoundary({ query: "Acme hookfault", lens: "founder" }, undefined, mode);
+    expect(outcome.rejection).toBeNull();
+    if (mode === "ordinary") {
+      expect(outcome.responseStatus).toBe(500); expect(outcome.responses).toBe(1);
+      expect(outcome.responsePayload).toEqual({ error: true, message: "Research could not be completed", pipeline: "v2" });
+      expect(JSON.stringify(outcome.responsePayload)).not.toContain("private_dummy_pre_hook_failure");
+    } else { expect(outcome.responseStatus).toBeNull(); expect(outcome.responses).toBe(0); expect(outcome.responsePayload).toBeNull(); }
+    expect(outcome.req.listenerCount("aborted")).toBe(0); expect(outcome.res.listenerCount("close")).toBe(0);
+    expect(boundaryHooks.pre).toHaveBeenCalledTimes(1); expect(calls).toHaveLength(0); noSuccessWrites();
+  });
+
+  it("short-query denial keeps the existing hook reason and drains lifecycle work", async () => {
+    await configure(); const result = await requestBody({ query: "aa", lens: "founder" });
+    expect(result.response.status).toBe(422);
+    expect(result.data.message).toBe("Query too short — need at least 3 characters");
+    const outcome = await directBoundary({ query: "aa", lens: "founder" });
+    expect(outcome.rejection).toBeNull(); expect(outcome.responseStatus).toBe(422);
+    expect(outcome.req.listenerCount("aborted")).toBe(0); expect(outcome.res.listenerCount("close")).toBe(0);
+    await drainRoutes(); expect(boundaryHooks.pre).toHaveBeenCalledTimes(2); expect(calls).toHaveLength(0); noSuccessWrites();
+  });
+
+  it("12 mixed malformed and valid requests isolate provider effects then recover", async () => {
+    await configure();
+    const bodies = Array.from({ length: 12 }, (_, index) => index % 3 === 0 ? { query: 400 + index, lens: "founder" } : index % 3 === 1 ? { query: `Acme invalidlens${index}`, lens: 400 + index } : { query: `Acme inputburst${index}`, lens: "founder" });
+    const results = await Promise.all(bodies.map(requestBody));
+    await drainRoutes();
+    const validQueries = bodies.filter((_, index) => index % 3 === 2).map((body) => body.query);
+    process.stdout.write("PIPELINE_INPUT_BURST_OBSERVATION " + JSON.stringify({ statuses: results.map((result) => result.response.status), preHookQueries: boundaryHooks.pre.mock.calls.map(([query]) => query), trajectories: writes.trajectory.mock.calls.length, retentionQueries: retention.filter((item) => item.type === "delta.pipeline_run").map((item) => item.data.query), providerCalls: calls.length, active, peak, pendingRoutes: routeWork.size }) + "\n");
+    expect(results.map((result) => result.response.status)).toEqual(Array.from({ length: 12 }, (_, index) => index % 3 === 2 ? 200 : 400));
+    expect(boundaryHooks.pre.mock.calls.map(([query]) => query).sort()).toEqual([...validQueries].sort());
+    expect(writes.trajectory).toHaveBeenCalledTimes(4); expect(writes.context).not.toHaveBeenCalled();
+    expect(retention.filter((item) => item.type === "delta.pipeline_run").map((item) => item.data.query).sort()).toEqual([...validQueries].sort());
+    expect(writes.report).not.toHaveBeenCalled(); expect(writes.nudge).not.toHaveBeenCalled(); expect(writes.evaluate).not.toHaveBeenCalled(); expect(writes.promote).not.toHaveBeenCalled();
+    expect(active).toBe(0); expect(routeWork.size).toBe(0); expect(peak).toBeLessThanOrEqual(12);
+    expect((await requestBody({ query: "Acme inputburst recovery", lens: "founder" })).response.status).toBe(200);
+    await drainRoutes(); expect(writes.trajectory).toHaveBeenCalledTimes(5);
+    expect((await nativeFetch(`${base}/api/pipeline/health`, { signal: AbortSignal.timeout(4000) })).status).toBe(200);
+  });
+
+  it("60-second paced malformed and valid input stays bounded and recovers", async () => {
+    await configure();
+    const start = performance.now(); const startMemory = process.memoryUsage();
+    const statuses: number[] = []; const errors: string[] = []; const observations: Array<Record<string, number>> = [];
+    let count = 0;
+    while (performance.now() - start < 60_000 && count < 65) {
+      const invalid = count % 2 === 0;
+      const before = { hooks: boundaryHooks.pre.mock.calls.length, providerCalls: calls.length, trajectory: writes.trajectory.mock.calls.length, retention: retention.length };
+      const result = await requestBody({ query: invalid ? 400 + count : `Acme inputpaced${count}`, lens: "founder" });
+      await drainRoutes();
+      statuses.push(result.response.status);
+      const delta = { hooks: boundaryHooks.pre.mock.calls.length - before.hooks, providerCalls: calls.length - before.providerCalls, trajectory: writes.trajectory.mock.calls.length - before.trajectory, retention: retention.length - before.retention };
+      observations.push({ index: count, status: result.response.status, ...delta, pendingRoutes: routeWork.size, active });
+      if (result.response.status !== (invalid ? 400 : 200)) errors.push(`request${count}:status${result.response.status}`);
+      if (invalid && Object.values(delta).some((value) => value !== 0)) errors.push(`request${count}:invalid-effects`);
+      if (!invalid && (delta.hooks !== 1 || delta.trajectory !== 1 || !result.data.success)) errors.push(`request${count}:valid-effects`);
+      count++; await sleep(Math.max(0, Math.min(1000, 60_000 - (performance.now() - start))));
+    }
+    const recovery = await requestBody({ query: "Acme inputpaced recovery", lens: "founder" });
+    await drainRoutes();
+    const health = await nativeFetch(`${base}/api/pipeline/health`, { signal: AbortSignal.timeout(4000) });
+    const context = await import("./lib/searchContext.js");
+    const observation = { elapsedMs: performance.now() - start, count, statuses, errors, observations, healthStatus: health.status, startMemory, endMemory: process.memoryUsage(), active, peak, pendingRoutes: routeWork.size, cache: context.getContextCacheStats(), providerCalls: calls.length, preHooks: boundaryHooks.pre.mock.calls.length, trajectories: writes.trajectory.mock.calls.length };
+    const encoded = JSON.stringify(observation);
+    if (Buffer.byteLength(encoded) > 65536) throw new Error("Paced Pipeline input observation exceeds its bound");
+    process.stdout.write("PIPELINE_PACED_INPUT_OBSERVATION " + encoded + "\n");
+    expect(errors).toEqual([]); expect(count).toBeLessThanOrEqual(65); expect(performance.now() - start).toBeGreaterThanOrEqual(60_000);
+    expect(recovery.response.status).toBe(200); expect(health.status).toBe(200); expect(active).toBe(0); expect(routeWork.size).toBe(0); expect(peak).toBeLessThanOrEqual(1);
+    expect(context.getContextCacheStats().size).toBeLessThanOrEqual(50);
+    expect(writes.trajectory).toHaveBeenCalledTimes(statuses.filter((_, index) => index % 2 === 1).length + 1);
+    expect(writes.report).not.toHaveBeenCalled(); expect(writes.nudge).not.toHaveBeenCalled(); expect(writes.context).not.toHaveBeenCalled(); expect(writes.evaluate).not.toHaveBeenCalled(); expect(writes.promote).not.toHaveBeenCalled();
+  }, 75_000);
+});

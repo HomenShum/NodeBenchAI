@@ -272,3 +272,51 @@ adjudication. The separate deployed benchmark passed its 12 controlled endpoint
 cases, then failed on a blank owned-worker target with zero Golden rows. No worker
 deployment, retention, production, pixel, accessibility, SEO, security, merge-readiness
 or whole-portfolio certificate follows from this comparison.
+
+## 2026-10-09: PIPELINE-TYPED-INPUT-BOUNDARY-01 (source-only; causal comparison NOT_RUN)
+
+A researcher or coding agent sending malformed research JSON needs a client error
+before provider calls or successful research records. The preceding route converted
+numbers, booleans, arrays and objects to strings; an own non-callable `toString`
+could reject before its catch, and pre-search hooks also ran outside that catch
+(input-contract and error-boundary failure). Admit actual string query/lens input
+once at the route entrance and move the existing hook/deny block into the existing
+try, preserving one catch, one cleanup path and legitimate research behavior.
+
+This four-owner source preparation preserves missing/null/empty/whitespace query
+HTTP400, omitted/null lens `founder`, trimmed Unicode queries, arbitrary supplied
+string lenses, hook denial HTTP422, the existing sanitized internal HTTP500 and
+abort/destroyed/already-sent response guards. Malformed types receive HTTP400
+before hooks, providers, trajectory/context, retention or evaluation effects.
+The existing three-domain/eight-variant search bounds, scoring, provider selection,
+55-second run budget, transport limits and successful packet behavior are unchanged.
+
+The route fixture retains its whole preceding 28,506-byte file as a literal prefix,
+including all 50 original route criteria and assertions. It appends 25 input,
+preservation, hook-fault, mixed-burst and sixty-second paced criteria. The next
+existing CI paired controller explicitly compares authentic immediate-before
+`d6316366bcc274d6386f28696ba88f271757cf6a`, tree
+`ce3da2f90fe79b83fe1c79f6fccc9bf19d57961d`, with the next exact event head.
+A separate unchanged-current-main guard retains 8b and its tree. Both roles must
+pass all 75 original full identities; before must fail a new authored criterion,
+and new must pass all 100 desired identities, with zero skips/todos or invalid
+setup/load/unhandled failures. The existing normal installed graph, finite full
+captures, native child closure, source/config guards and failure classification
+remain required. Only the new route fixture overlays the immediate-before source.
+
+The two selected coercion specimens observe the original registered-handler
+promise and preserve its exact original TypeError/message/String-call source seam;
+injected hook faults admit only the same sentinel Error object. Unknown rejection
+provenance is rethrown. No rejected handler is relabeled fulfilled, no response is
+manufactured, and no unhandled/framework classifier is waived. The desired
+fulfillment/status assertion follows the original bounded observation.
+
+At this capture, implementation syntax/static execution, imports, runtime,
+installation, provider requests and the new natural paired CI are **NOT_RUN**.
+The earlier 8b-versus-d7 20 PASS/55 FAIL to 75 PASS result above stays dated and
+historical; it is not this incremental patch's causal proof. Root owns independent
+source review, any ordinary publication and actual evidence reconciliation before
+an observed-result update. Retained-history GitGuardian disposition, source adoption,
+the missing private worker target/authentication and real-provider factual quality
+remain separate gaps. No private deployment, paid-call/spend, production, retention
+privacy, security, visual/SEO or whole-portfolio success is certified by this source.

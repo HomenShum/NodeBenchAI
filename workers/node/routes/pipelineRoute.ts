@@ -20,21 +20,15 @@ export function createPipelineRouter(): Router {
 
   router.post("/search", async (req: Request, res: Response) => {
     const startMs = Date.now();
-    const query = String(req.body?.query ?? "").trim();
-    const lens = String(req.body?.lens ?? "founder");
+    const rawQuery = req.body?.query ?? "";
+    const lens = req.body?.lens ?? "founder";
+    if (typeof rawQuery !== "string" || typeof lens !== "string") {
+      return res.status(400).json({ error: true, message: "Query and lens must be strings" });
+    }
+    const query = rawQuery.trim();
 
     if (!query) {
       return res.status(400).json({ error: true, message: "Query is required" });
-    }
-
-    // Pre-search hooks (block/modify)
-    const preHooks = runPreSearchHooks(query, lens);
-    if (!preHooks.allowed) {
-      return res.status(422).json({
-        error: true,
-        message: preHooks.hookResults.find(h => h.decision === "deny")?.reason ?? "Query blocked by pre-search hook",
-        hooks: preHooks.hookResults,
-      });
     }
 
     const controller = new AbortController();
@@ -42,6 +36,16 @@ export function createPipelineRouter(): Router {
     const onClosed = () => { if (!res.writableEnded) controller.abort(); };
     req.once("aborted", onAborted); res.once("close", onClosed);
     try {
+      // Pre-search hooks (block/modify)
+      const preHooks = runPreSearchHooks(query, lens);
+      if (!preHooks.allowed) {
+        return res.status(422).json({
+          error: true,
+          message: preHooks.hookResults.find(h => h.decision === "deny")?.reason ?? "Query blocked by pre-search hook",
+          hooks: preHooks.hookResults,
+        });
+      }
+
       // Run the 4-node pipeline with envelope + trajectory recording
       const result = await runSearchPipelineWithEnvelope(preHooks.query, preHooks.lens, controller.signal);
       if (controller.signal.aborted || res.destroyed) return;
