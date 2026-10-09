@@ -229,3 +229,46 @@ Provider quality, private worker/authentication ownership, paid-call budgets and
 gates remain separate. The deployed benchmark's blank target/zero Golden failure is not
 resolved by these fixture assertions, and no deployment, production, visual, security or
 whole-portfolio success is certified.
+
+## 2026-10-08: PIPELINE-ACTUAL-COMPARISON-LOG-01 (observed d7 controlled comparison)
+
+A developer handing off the failure-status repair needs to know whether researchers
+and coding agents still receive successful packets after provider failures. The same
+75 desired checks now pass on the candidate, while the authentic baseline fails the
+55 criteria that the repair addresses (controlled functional comparison). Failed
+upstream evidence must never be promoted to a successful research packet.
+
+The [natural paired job](https://github.com/HomenShum/NodeBenchAI/actions/runs/37859726519/job/113592323364)
+completed at 2026-10-08T23:34:46.896Z. It compared baseline
+`8b4846baa9adedd5107b8eae1acd46805a8f272d` with tested source
+`d7bdeb14b73bac1bbd1a44e354cbffa88ca0e357`, tree
+`062b9fa48963143b69e2d490fb78c30fa76f07b4`.
+
+| Selected checks | Baseline PASS / FAIL | Candidate PASS / FAIL |
+| --- | ---: | ---: |
+| All six suites, same 75 file/fullName identities | 20 / 55 | 75 / 0 |
+| JSON/SSE real-route failure contract, 50 cases | 2 / 48 | 50 / 0 |
+| Search-provider and ticker-cache boundaries, 12 cases | 7 / 5 | 12 / 0 |
+| Streaming route, 2 cases | 0 / 2 | 2 / 0 |
+
+There was one invocation per role: native baseline exit 1, candidate exit 0;
+zero skips, todos, load/setup failures or unhandled framework markers. All 55
+baseline failures were authored AssertionErrors under the unchanged classifier;
+the original 20 passing identities also passed. Complete stdout, stderr, framework
+JSON and child closure were retained in artifact `11586510052` (44,073-byte ZIP,
+SHA256 `EF88C1CDAD0739FEDF1BEE78534EE7AF8AD58078BA14A5A36006FE167CE787A1`).
+
+One normal lifecycle-enabled npm ci succeeded on Node 22.23.3, actual npm 10.9.9
+(the manifest declares npm 11.5.2), and Vitest 4.1.11. Both roles used the same
+eight selected installed-graph signatures and default pool/worker policy, with
+stable selected source guards. Normal cache writes were allowed; whole installed
+directory immutability is not certified. Providers and persistence were mocked,
+so these results do not measure provider-backed quality or production latency.
+
+The earlier 863 failure and capture-time NOT_RUN checkpoint above remain intact.
+This entry records d7 evidence only; any later documentation head has its own
+pending natural checks. The retained GitGuardian failure still needs authenticated
+adjudication. The separate deployed benchmark passed its 12 controlled endpoint
+cases, then failed on a blank owned-worker target with zero Golden rows. No worker
+deployment, retention, production, pixel, accessibility, SEO, security, merge-readiness
+or whole-portfolio certificate follows from this comparison.
