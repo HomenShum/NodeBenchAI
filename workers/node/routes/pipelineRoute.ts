@@ -10,9 +10,7 @@
  */
 
 import { Router, type Request, type Response } from "express";
-import { runSearchPipelineWithEnvelope, stateToResultPacket } from "../pipeline/searchPipeline.js";
-import { evaluateTask } from "../../../packages/mcp-local/src/sync/hyperloopEval.js";
-import { runPromotionCycle } from "../../../packages/mcp-local/src/sync/hyperloopArchive.js";
+import { runSearchPipelineWithEnvelope, stateToResultPacket, getPipelineFailure, pipelineFailureHttpStatus } from "../pipeline/searchPipeline.js";
 import { runPreSearchHooks, runPostSearchHooks } from "../pipeline/hooks.js";
 
 // ── Attrition retention bridge (inline push in route handler) ──
@@ -22,53 +20,47 @@ export function createPipelineRouter(): Router {
 
   router.post("/search", async (req: Request, res: Response) => {
     const startMs = Date.now();
-    const query = String(req.body?.query ?? "").trim();
-    const lens = String(req.body?.lens ?? "founder");
+    const rawQuery = req.body?.query ?? "";
+    const lens = req.body?.lens ?? "founder";
+    if (typeof rawQuery !== "string" || typeof lens !== "string") {
+      return res.status(400).json({ error: true, message: "Query and lens must be strings" });
+    }
+    const query = rawQuery.trim();
 
     if (!query) {
       return res.status(400).json({ error: true, message: "Query is required" });
     }
 
-    // Pre-search hooks (block/modify)
-    const preHooks = runPreSearchHooks(query, lens);
-    if (!preHooks.allowed) {
-      return res.status(422).json({
-        error: true,
-        message: preHooks.hookResults.find(h => h.decision === "deny")?.reason ?? "Query blocked by pre-search hook",
-        hooks: preHooks.hookResults,
-      });
-    }
-
+    const controller = new AbortController();
+    const onAborted = () => controller.abort();
+    const onClosed = () => { if (!res.writableEnded) controller.abort(); };
+    req.once("aborted", onAborted); res.once("close", onClosed);
     try {
+      // Pre-search hooks (block/modify)
+      const preHooks = runPreSearchHooks(query, lens);
+      if (!preHooks.allowed) {
+        return res.status(422).json({
+          error: true,
+          message: preHooks.hookResults.find(h => h.decision === "deny")?.reason ?? "Query blocked by pre-search hook",
+          hooks: preHooks.hookResults,
+        });
+      }
+
       // Run the 4-node pipeline with envelope + trajectory recording
-      const result = await runSearchPipelineWithEnvelope(preHooks.query, preHooks.lens);
+      const result = await runSearchPipelineWithEnvelope(preHooks.query, preHooks.lens, controller.signal);
+      if (controller.signal.aborted || res.destroyed) return;
+      if (!result.ok) {
+        const failure = getPipelineFailure(result.state)!;
+        const status = pipelineFailureHttpStatus(failure.code);
+        if (status === null) return;
+        return res.status(status).json({ error: true, message: failure.safeMessage, failure, pipeline: "v2" });
+      }
       const { state, envelope, trajectory, replayCandidate, wasReplay } = result;
 
       // Convert to ResultPacket format
       const packet = stateToResultPacket(state);
 
-      // HyperLoop: evaluate and archive (best-effort)
-      try {
-        evaluateTask({
-          episodeId: `pipeline_${Date.now()}`,
-          query,
-          lens,
-          entity: state.entityName || null,
-          classification: state.classification,
-          totalSignals: state.classifiedSignals.length,
-          verifiedSignals: state.evidence.verifiedCount,
-          totalClaims: state.evidence.totalSpans,
-          groundedClaims: state.evidence.verifiedCount + state.evidence.partialCount,
-          contradictionsCaught: state.evidence.contradictedCount,
-          userEditDistance: 1,
-          wasExported: false,
-          wasDelegated: false,
-          latencyMs: state.totalDurationMs,
-          costUsd: 0,
-          toolCallCount: state.trace.length,
-        });
-        runPromotionCycle();
-      } catch { /* HyperLoop is best-effort */ }
+      // The shared evaluator requires numeric cost; unknown is not zero.
 
       // Post-search hooks (log, flag, auto-actions)
       const postHooks = runPostSearchHooks(state);
@@ -79,6 +71,7 @@ export function createPipelineRouter(): Router {
 
       const responsePayload = {
         success: true,
+        evaluation: { status: "skipped", reason: "cost_not_measured" },
         hooks: { pre: preHooks.hookResults, post: postHooks.hookResults, actions: postHooks.allActions },
         pipeline: "v2-attrition-push",
         durationMs: pipelineDuration,
@@ -109,7 +102,7 @@ export function createPipelineRouter(): Router {
           body: JSON.stringify({
             type: "delta.pipeline_run",
             subject: `Pipeline: ${query.substring(0, 80)}`,
-            summary: `Confidence: ${packet.confidence ?? "N/A"}, Sources: ${packet.sourceCount ?? 0}, Duration: ${pipelineDuration}ms${state.tokenUsage ? `, Tokens: ${state.tokenUsage.totalTokens}, Cost: $${(((state.tokenUsage.inputTokens / 1_000_000) * 0.075) + ((state.tokenUsage.outputTokens / 1_000_000) * 0.30)).toFixed(6)}` : ""}`,
+            summary: `Confidence: ${packet.confidence ?? "N/A"}, Sources: ${packet.sourceCount ?? 0}, Duration: ${pipelineDuration}ms, Total cost: not measured${state.tokenUsage ? `, Tokens: ${state.tokenUsage.totalTokens}` : ""}`,
             data: {
               query,
               durationMs: pipelineDuration,
@@ -133,15 +126,8 @@ export function createPipelineRouter(): Router {
               tools: ["linkup", "gemini"],
               // REAL token usage from Gemini API
               tokenUsage: state.tokenUsage ?? null,
-              realCost: state.tokenUsage ? {
-                model: state.tokenUsage.model,
-                inputTokens: state.tokenUsage.inputTokens,
-                outputTokens: state.tokenUsage.outputTokens,
-                // Gemini 3.1 Flash Lite: $0.075/1M input, $0.30/1M output
-                inputCostUsd: (state.tokenUsage.inputTokens / 1_000_000) * 0.075,
-                outputCostUsd: (state.tokenUsage.outputTokens / 1_000_000) * 0.30,
-                totalCostUsd: ((state.tokenUsage.inputTokens / 1_000_000) * 0.075) + ((state.tokenUsage.outputTokens / 1_000_000) * 0.30),
-              } : null,
+              realCost: null,
+              costMeasurementStatus: "not_measured",
             },
           }),
           signal: AbortSignal.timeout(5000),
@@ -168,14 +154,16 @@ export function createPipelineRouter(): Router {
       }
 
       return res.json(responsePayload);
-    } catch (err: any) {
-      if (!res.headersSent) {
+    } catch {
+      if (!controller.signal.aborted && !res.destroyed && !res.headersSent) {
         return res.status(500).json({
           error: true,
-          message: err?.message ?? "Pipeline failed",
+          message: "Research could not be completed",
           pipeline: "v2",
         });
       }
+    } finally {
+      req.removeListener("aborted", onAborted); res.removeListener("close", onClosed);
     }
   });
 
@@ -189,7 +177,7 @@ export function createPipelineRouter(): Router {
         gemini: !!process.env.GEMINI_API_KEY,
         taxonomy: true,
         evidence: true,
-        hyperloop: true,
+        hyperloop: { available: false, reason: "cost_not_measured" },
       },
     });
   });
