@@ -79,15 +79,20 @@ export interface CandidateScore {
   guardFailures: string[];
 }
 
-export type CandidateVerdict = "promoted" | "discarded";
+/** `promoted` is retained only for reading historical, unverified logs. */
+export type CandidateVerdict = "proposal-only" | "promoted" | "discarded";
 
 export interface CandidateRun {
   candidateId: string;
   baselineId: string;
   benchmarkCaseIds: string[];
   changedFiles: string[];
-  compileSuccess: boolean;
-  testSuccess: boolean;
+  /** null means the check was skipped, not passed. */
+  compileSuccess: boolean | null;
+  testSuccess: boolean | null;
+  evidenceStatus: "unverified";
+  releaseEligible: false;
+  /** Arithmetic diagnostics over supplied metrics, not measured improvement. */
   score: CandidateScore;
   verdict: CandidateVerdict;
   rejectionReason?: string;
@@ -106,6 +111,8 @@ export interface BaselineSnapshot {
   commitHash: string;
   throughputMetrics: ThroughputMetrics;
   qualityMetrics: QualityMetrics;
+  /** Absent in historical snapshots; supplied metrics are always unverified. */
+  evidenceStatus?: "unverified";
   /** ISO timestamp */
   capturedAt: string;
 }

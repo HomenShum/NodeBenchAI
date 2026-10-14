@@ -1,5 +1,15 @@
 # DeepTrace Autoresearch Verification Proof Pack
 
+## 2026-10-14 qualification — historical assertions are not measured improvement
+
+An engineer using the March report to choose an agent change could mistake generated metrics for observed improvement. The original report below is preserved as history, but its promotion, measurement, prompt-execution and uplift claims are not verified evidence. The paired runner constructs fixture outputs and hashes prompts; it does not execute those prompts. Existing proposer metrics, including canary proxies, do not independently certify candidate quality or throughput.
+
+The current evaluator therefore marks proposals unverified and ineligible, reports skipped compile/test checks as `null`, and keeps each session's original baseline unchanged. Replay labels historical promotions as recorded, unverified assertions without rewriting their raw logs. The paired command now requires `--simulate` and labels every exported artifact as simulation with no release eligibility. The historical commands below describe the old run; use the current README for invocation.
+
+Focused local regression proof: the new 11 scenario tests failed against the old implementation, then passed alongside 20 existing scoring tests after the repair. A private Node-environment Vitest 4.1.11 configuration and existing external runtime were used because this checkout has no installed dependencies. Scoped TypeScript 5.9.3 checking also passed. The tests execute actual proposer/evaluator/session logic and the native paired CLI, while isolating worktree and code-check subprocess I/O and redirecting logs to private storage. These checks do not establish a full application pass, a real optimizer lifecycle, provider execution, live deployment or measured improvement. Independent measurement remains unfinished.
+
+## Historical report (2026-03-18; qualified above)
+
 Date: 2026-03-18
 
 ## Outcome

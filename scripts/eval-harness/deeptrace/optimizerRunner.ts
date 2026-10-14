@@ -5,13 +5,14 @@
  * persistence layers for an offline DeepTrace optimization loop.
  *
  * This is an EVALUATION FRAMEWORK, not a fully autonomous optimizer.
- * Candidate mutation and benchmark measurement are delegated to an external
- * `proposeFn` callback. The framework handles:
+ * Candidate mutation and metric proposals are delegated to an external
+ * `proposeFn` callback. No current proposer supplies independent measurement.
+ * The framework handles:
  *   - Worktree isolation (create / cleanup)
  *   - Allowlist enforcement (only DeepTrace-slice files may change)
  *   - Compile and test gating
  *   - Throughput scoring and quality guard evaluation
- *   - Promotion / discard verdict
+ *   - Unverified proposal / discard verdict (no promotion authority)
  *   - Durable run-log persistence and replay
  *
  * CLI entry points (via package.json):
@@ -26,11 +27,10 @@ import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 
-import { computeThroughputScore, scoreCandidate, shouldPromote, validateAllowlist } from "./optimizerScoring";
+import { scoreCandidate, validateAllowlist } from "./optimizerScoring";
 import {
   type BaselineSnapshot,
   type CandidateRun,
-  type CandidateVerdict,
   type CostEntry,
   DEFAULT_OPTIMIZER_CONFIG,
   type OptimizerConfig,
@@ -69,8 +69,9 @@ export function captureBaseline(
   return {
     baselineId: `baseline-${commitHash.slice(0, 8)}-${Date.now()}`,
     commitHash,
-    throughputMetrics,
-    qualityMetrics,
+    throughputMetrics: readThroughputMetrics(throughputMetrics, "baseline.throughputMetrics"),
+    qualityMetrics: readQualityMetrics(qualityMetrics, "baseline.qualityMetrics"),
+    evidenceStatus: "unverified",
     capturedAt: new Date().toISOString(),
   };
 }
@@ -261,7 +262,10 @@ export function loadRunLog(sessionId: string): OptimizerRunLog | null {
 }
 
 export function loadBaselineSnapshot(filePath: string): BaselineSnapshot {
-  const raw = readJsonFile(filePath);
+  return readBaselineSnapshot(readJsonFile(filePath));
+}
+
+function readBaselineSnapshot(raw: unknown): BaselineSnapshot {
   if (!isRecord(raw)) {
     throw new Error("Baseline snapshot must be a JSON object.");
   }
@@ -270,6 +274,7 @@ export function loadBaselineSnapshot(filePath: string): BaselineSnapshot {
     commitHash: readStringField(raw, "commitHash", "baseline"),
     throughputMetrics: readThroughputMetrics(raw.throughputMetrics, "baseline.throughputMetrics"),
     qualityMetrics: readQualityMetrics(raw.qualityMetrics, "baseline.qualityMetrics"),
+    evidenceStatus: "unverified",
     capturedAt: readStringField(raw, "capturedAt", "baseline"),
   };
 }
@@ -312,9 +317,10 @@ export type OptimizerProposeFn = (
  *
  * The caller is responsible for:
  *   1. Applying a candidate change in the worktree (between createWorktree and this call)
- *   2. Providing measured throughput/quality metrics for the candidate
+ *   2. Providing proposed throughput/quality metrics for the candidate
  *
- * This function handles: allowlist check → compile → test → score → verdict.
+ * This function handles validation → allowlist → compile → test → diagnostics.
+ * Supplied metrics cannot certify themselves, regardless of caller provenance.
  */
 export function evaluateCandidate(
   candidateId: string,
@@ -327,6 +333,9 @@ export function evaluateCandidate(
   preExistingDirtyFiles?: ReadonlySet<string>,
 ): CandidateRun {
   const startMs = Date.now();
+  baselineSnapshot = readBaselineSnapshot(baselineSnapshot);
+  candidateThroughput = readThroughputMetrics(candidateThroughput, "candidate.throughput");
+  candidateQuality = readQualityMetrics(candidateQuality, "candidate.quality");
   const allChangedFiles = getChangedFiles(worktreePath);
   // Subtract files that were already dirty before the proposer ran (e.g. due
   // to CRLF normalisation on Windows worktree checkout).  Only count files the
@@ -348,9 +357,9 @@ export function evaluateCandidate(
 
   // 2. Compile & test checks — only needed when the proposer actually mutated
   //    files. A metrics-only proposer (changedFiles.length === 0) produces no
-  //    code changes, so compile/test gates are vacuously true.
-  let compileSuccess = true;
-  let testSuccess = true;
+  //    code changes, so these checks are skipped rather than reported as passes.
+  let compileSuccess: boolean | null = null;
+  let testSuccess: boolean | null = null;
 
   if (changedFiles.length > 0) {
     // 2a. Compile check
@@ -361,7 +370,7 @@ export function evaluateCandidate(
         qualityMetrics: candidateQuality,
         guardsPass: false,
         guardFailures: ["Compile failed"],
-      }, "TypeScript compilation failed");
+      }, "TypeScript compilation failed", false, null);
     }
 
     // 2b. Test check
@@ -376,22 +385,21 @@ export function evaluateCandidate(
     }
   }
 
-  // 4. Score the candidate
+  // Scoring is diagnostic. No current proposal source is independent evidence.
   const score = scoreCandidate(candidateThroughput, candidateQuality, baselineSnapshot);
-  const baselineThroughput = computeThroughputScore(baselineSnapshot.throughputMetrics);
-  const promoted = shouldPromote(score, baselineThroughput);
-  const verdict: CandidateVerdict = promoted ? "promoted" : "discarded";
 
   return {
     candidateId,
     baselineId: baselineSnapshot.baselineId,
     benchmarkCaseIds,
     changedFiles,
-    compileSuccess: true,
-    testSuccess: true,
+    compileSuccess,
+    testSuccess,
+    evidenceStatus: "unverified",
+    releaseEligible: false,
     score,
-    verdict,
-    rejectionReason: promoted ? undefined : buildRejectionReason(score, baselineThroughput),
+    verdict: "proposal-only",
+    rejectionReason: "Proposer metrics are unverified; independent measurement is required for promotion.",
     timestamp: new Date().toISOString(),
     iterationMs: Date.now() - startMs,
   };
@@ -405,23 +413,23 @@ export function evaluateCandidate(
  * Run the complete optimizer loop.
  *
  * `proposeFn` is an async callback that:
- *   1. Receives the worktree path and current baseline
+ *   1. Receives the worktree path and an isolated copy of the accepted baseline
  *   2. Applies a candidate mutation to the worktree
- *   3. Runs the canary benchmark in the worktree
- *   4. Returns measured throughput + quality metrics
+ *   3. Returns proposed throughput + quality metrics
  *
- * This decouples the optimizer framework from the actual mutation/benchmark strategy.
+ * Proposals remain unverified; this loop does not advance the accepted baseline.
  */
 export async function runOptimizerSession(
   baseline: BaselineSnapshot,
   config: OptimizerConfig = DEFAULT_OPTIMIZER_CONFIG,
   proposeFn: OptimizerProposeFn,
 ): Promise<OptimizerRunLog> {
+  // Snapshot before the first await; callbacks must never retain an alias to it.
+  baseline = structuredClone(readBaselineSnapshot(baseline));
   const sessionId = `opt-${crypto.randomUUID().slice(0, 8)}`;
   const startedAt = new Date().toISOString();
   const candidates: CandidateRun[] = [];
   const allCostEntries: CostEntry[] = [];
-  let promotedCandidateId: string | null = null;
   const sessionDeadline = Date.now() + config.maxSessionSeconds * 1000;
 
   for (let i = 0; i < config.maxIterations; i++) {
@@ -436,7 +444,7 @@ export async function runOptimizerSession(
     const preExistingDirtyFiles = new Set(getChangedFiles(worktreePath));
 
     try {
-      const proposal = await proposeFn(worktreePath, baseline, i);
+      const proposal = await proposeFn(worktreePath, structuredClone(baseline), i);
       if (!proposal) {
         // proposeFn signals no more candidates to try
         break;
@@ -464,17 +472,6 @@ export async function runOptimizerSession(
 
       candidates.push(run);
 
-      if (run.verdict === "promoted") {
-        promotedCandidateId = run.candidateId;
-        // Update baseline for subsequent iterations
-        baseline = {
-          ...baseline,
-          baselineId: run.candidateId,
-          throughputMetrics: proposal.throughput,
-          qualityMetrics: proposal.quality,
-          capturedAt: new Date().toISOString(),
-        };
-      }
     } finally {
       removeWorktree(worktreePath);
     }
@@ -485,7 +482,7 @@ export async function runOptimizerSession(
     config,
     baseline,
     candidates,
-    promotedCandidateId,
+    promotedCandidateId: null,
     costEntries: allCostEntries,
     costSummary: summarizeCosts(allCostEntries),
     startedAt,
@@ -531,19 +528,23 @@ export function replayRunLog(sessionId: string): {
     `Started: ${log.startedAt}`,
     `Completed: ${log.completedAt}`,
     `Total candidates: ${log.candidates.length}`,
-    `Promoted: ${promoted.length}`,
+    "Evidence: supplied baseline and proposal metrics are unverified; release eligible: false",
+    "Verified promotions: 0",
+    `Recorded promotions (legacy, unverified): ${promoted.length}`,
+    `Proposal-only: ${log.candidates.filter((c) => c.verdict === "proposal-only").length}`,
     `Discarded: ${discarded.length}`,
-    `Final promoted: ${log.promotedCandidateId ?? "none"}`,
+    `Recorded final promoted ID (unverified): ${log.promotedCandidateId ?? "none"}`,
     "",
     ...log.candidates.map((c, i) => {
-      const status = c.verdict === "promoted" ? "✓ PROMOTED" : "✗ DISCARDED";
+      const status = c.verdict === "promoted" ? "RECORDED PROMOTION (legacy, unverified)"
+        : c.verdict === "proposal-only" ? "PROPOSAL ONLY (unverified)" : "DISCARDED (unverified metrics)";
       const costTag = c.costEntries?.length
         ? ` [$${c.costEntries.reduce((s, e) => s + e.costUsd, 0).toFixed(4)}]`
         : "";
       const rationale = c.proposerRationale
         ? `\n      rationale: ${c.proposerRationale.slice(0, 120)}${c.proposerRationale.length > 120 ? "..." : ""}`
         : "";
-      return `  [${i}] ${c.candidateId} — ${status} (throughput=${c.score.throughputScore.toFixed(3)}, guards=${c.score.guardsPass ? "PASS" : "FAIL"})${costTag}${c.rejectionReason ? ` — ${c.rejectionReason}` : ""}${rationale}`;
+      return `  [${i}] ${c.candidateId} — ${status} (diagnostic throughput=${c.score.throughputScore.toFixed(3)}, diagnostic guards=${c.score.guardsPass ? "PASS" : "FAIL"})${costTag}${c.rejectionReason ? ` — ${c.rejectionReason}` : ""}${rationale}`;
     }),
     ...costInfo,
   ].join("\n");
@@ -563,8 +564,8 @@ function buildDiscardedRun(
   startMs: number,
   score: CandidateRun["score"],
   rejectionReason: string,
-  compileSuccess = false,
-  testSuccess = false,
+  compileSuccess: boolean | null = null,
+  testSuccess: boolean | null = null,
 ): CandidateRun {
   return {
     candidateId,
@@ -573,24 +574,14 @@ function buildDiscardedRun(
     changedFiles,
     compileSuccess,
     testSuccess,
+    evidenceStatus: "unverified",
+    releaseEligible: false,
     score,
     verdict: "discarded",
     rejectionReason,
     timestamp: new Date().toISOString(),
     iterationMs: Date.now() - startMs,
   };
-}
-
-function buildRejectionReason(score: CandidateRun["score"], baselineThroughput: number): string {
-  const parts: string[] = [];
-  if (!score.guardsPass) {
-    parts.push(`guard failures: ${score.guardFailures.join("; ")}`);
-  }
-  const improvement = (score.throughputScore - baselineThroughput) / Math.max(baselineThroughput, 0.001);
-  if (improvement < 0.05) {
-    parts.push(`throughput improvement ${(improvement * 100).toFixed(1)}% < 5% minimum`);
-  }
-  return parts.join(" | ") || "Unknown";
 }
 
 // ---------------------------------------------------------------------------
@@ -622,10 +613,13 @@ function readJsonFile(filePath: string): unknown {
   return JSON.parse(fs.readFileSync(filePath, "utf-8"));
 }
 
-function readNumberField(record: Record<string, unknown>, key: string, label: string): number {
+function readNumberField(record: Record<string, unknown>, key: string, label: string, min = 0, max = Infinity): number {
   const value = record[key];
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw new Error(`Expected ${label}.${key} to be a finite number.`);
+  }
+  if (value < min || value > max) {
+    throw new Error(`Expected ${label}.${key} to be between ${min} and ${max}.`);
   }
   return value;
 }
@@ -643,7 +637,7 @@ function readThroughputMetrics(value: unknown, label: string): ThroughputMetrics
     throw new Error(`Expected ${label} to be an object.`);
   }
   return {
-    taskCompletionRate: readNumberField(value, "taskCompletionRate", label),
+    taskCompletionRate: readNumberField(value, "taskCompletionRate", label, 0, 1),
     timeToFirstDraftMs: readNumberField(value, "timeToFirstDraftMs", label),
     humanEditDistance: readNumberField(value, "humanEditDistance", label),
     wallClockMs: readNumberField(value, "wallClockMs", label),
@@ -656,12 +650,12 @@ function readQualityMetrics(value: unknown, label: string): QualityMetrics {
     throw new Error(`Expected ${label} to be an object.`);
   }
   return {
-    factualPrecision: readNumberField(value, "factualPrecision", label),
-    relationshipPrecision: readNumberField(value, "relationshipPrecision", label),
-    evidenceLinkage: readNumberField(value, "evidenceLinkage", label),
-    receiptCompleteness: readNumberField(value, "receiptCompleteness", label),
-    falseConfidenceRate: readNumberField(value, "falseConfidenceRate", label),
-    canaryRelativeUplift: readNumberField(value, "canaryRelativeUplift", label),
+    factualPrecision: readNumberField(value, "factualPrecision", label, 0, 1),
+    relationshipPrecision: readNumberField(value, "relationshipPrecision", label, 0, 1),
+    evidenceLinkage: readNumberField(value, "evidenceLinkage", label, 0, 1),
+    receiptCompleteness: readNumberField(value, "receiptCompleteness", label, 0, 1),
+    falseConfidenceRate: readNumberField(value, "falseConfidenceRate", label, 0, 1),
+    canaryRelativeUplift: readNumberField(value, "canaryRelativeUplift", label, -Infinity),
   };
 }
 
@@ -769,7 +763,7 @@ async function main() {
         outPath ? resolveCliPath(outPath) : undefined,
       );
 
-      console.log(`Captured baseline ${snapshot.baselineId}`);
+      console.log(`Captured supplied baseline ${snapshot.baselineId} (unverified metrics)`);
       console.log(`Commit: ${snapshot.commitHash}`);
       console.log(`Saved baseline snapshot: ${outputPath}`);
       console.log(JSON.stringify(snapshot, null, 2));
@@ -796,7 +790,7 @@ async function main() {
 
       console.log(`Optimizer session complete: ${log.sessionId}`);
       console.log(`Persisted run log: ${path.join(RUN_LOG_DIR, `${log.sessionId}.json`)}`);
-      console.log(`Promoted candidate: ${log.promotedCandidateId ?? "none"}`);
+      console.log("Accepted baseline unchanged; proposer metrics are unverified.");
       if (replay) {
         console.log("");
         console.log(replay.summary);
