@@ -160,6 +160,138 @@ def _export() -> dict[str, Any]:
     }
 
 
+def _native_graph_export() -> dict[str, Any]:
+    """Production-shaped owner export used by the offline adoption scenario."""
+
+    run_id = "trace_native_graph_owner_export"
+    identity_body = {
+        "schemaVersion": "nodekit.native-agent-session-identity/v1",
+        "identityRef": "native-identity:agent-1:workspace-1:session-1:1",
+        "agentId": "agent-1",
+        "workspaceId": "workspace-1",
+        "nativeSessionId": "session-1",
+        "nativeSessionGeneration": 1,
+        "peerId": "peer-1",
+    }
+    identity = {
+        **identity_body,
+        "snapshotHash": canonical_hash(identity_body),
+    }
+    graph_id = f"execution-graph:sha256:{'1' * 64}"
+    common = {
+        "graphId": graph_id,
+        "graphHash": "2" * 64,
+        "caseId": "case-owner-export",
+        "stageId": "build",
+        "caseContentHash": "3" * 64,
+        "nodeId": "node-build-ui",
+        "nodeRunId": "node-run-build-ui-1",
+    }
+    started = _event(
+        run_id=run_id,
+        sequence=0,
+        event_type="run.started",
+        recorded_at=1_725_100_000_000,
+        payload={
+            "workflowName": "Owner-scoped graph replay",
+            "sessionType": "agent",
+            "sessionStartedAt": 1_725_099_999_000,
+            "identityRef": identity["identityRef"],
+            "workspaceId": identity["workspaceId"],
+            "agentId": identity["agentId"],
+            "nativeSessionId": identity["nativeSessionId"],
+            "nativeSessionGeneration": identity[
+                "nativeSessionGeneration"
+            ],
+            "peerId": identity["peerId"],
+            "identitySnapshotHash": identity["snapshotHash"],
+        },
+        previous_hash=GENESIS_HASH,
+    )
+    node_started = _event(
+        run_id=run_id,
+        sequence=1,
+        event_type="node.started",
+        recorded_at=1_725_100_000_010,
+        payload={
+            **common,
+            "nodeKind": "task",
+            "frontierHash": "4" * 64,
+        },
+        previous_hash=started["contentHash"],
+    )
+    artifact = _event(
+        run_id=run_id,
+        sequence=2,
+        event_type="artifact.produced",
+        recorded_at=1_725_100_000_020,
+        payload={
+            **common,
+            "artifactId": "artifact-owner-export",
+            "artifactSchemaVersion": "nodekit.build-artifact/v1",
+            "artifactContentHash": "5" * 64,
+            "authorityKind": "deterministic",
+        },
+        previous_hash=node_started["contentHash"],
+    )
+    node_completed = _event(
+        run_id=run_id,
+        sequence=3,
+        event_type="node.completed",
+        recorded_at=1_725_100_000_030,
+        payload={**common, "status": "completed"},
+        previous_hash=artifact["contentHash"],
+    )
+    completed = _event(
+        run_id=run_id,
+        sequence=4,
+        event_type="run.completed",
+        recorded_at=1_725_100_000_040,
+        payload={"status": "completed"},
+        previous_hash=node_completed["contentHash"],
+    )
+    events = [started, node_started, artifact, node_completed, completed]
+    base = {
+        "schemaVersion": EXPORT_SCHEMA_VERSION,
+        "runId": run_id,
+        "session": {
+            "id": "session-native-graph-owner-export",
+            "typeAtRunStart": "agent",
+            "startedAt": 1_725_099_999_000,
+            "nativeIdentity": identity,
+        },
+        "trace": {
+            "id": "trace-row-native-graph-owner-export",
+            "runId": run_id,
+            "workflowName": "Owner-scoped graph replay",
+            "status": "completed",
+            "startedAt": 1_725_100_000_000,
+            "endedAt": 1_725_100_000_040,
+        },
+        "events": events,
+        "completeness": {
+            "eventChainComplete": True,
+            "spanLifecycleComplete": True,
+            "contractVersion": EVENT_SCHEMA_VERSION,
+            "eventCount": len(events),
+            "firstSequence": 0,
+            "lastSequence": len(events) - 1,
+            "terminalEventType": "run.completed",
+        },
+        "hashes": {
+            "algorithm": "sha256",
+            "chainHead": completed["contentHash"],
+        },
+    }
+    return {
+        **base,
+        "hashes": {
+            **base["hashes"],
+            "exportHash": canonical_hash(base),
+        },
+    }
+
+
 def _rehash_export(document: dict[str, Any]) -> None:
     previous_hash = GENESIS_HASH
     for event in document["events"]:
@@ -195,6 +327,30 @@ def test_nodekit_export_and_report_schemas_are_valid(
     Draft202012Validator.check_schema(nodekit_export_schema)
     Draft202012Validator.check_schema(nodekit_replay_output_schema)
     Draft202012Validator(nodekit_export_schema).validate(_export())
+
+
+def test_owner_scoped_native_graph_export_validates_end_to_end(
+    nodekit_export_schema: dict[str, Any],
+) -> None:
+    """An owner resumes a native session and replays its bounded graph node."""
+
+    document = _native_graph_export()
+
+    Draft202012Validator(nodekit_export_schema).validate(document)
+    assert validate_nodekit_export(document) == document
+
+
+def test_owner_scoped_native_graph_export_rejects_identity_drift() -> None:
+    """A stale workspace identity cannot borrow a valid event and export hash."""
+
+    document = _native_graph_export()
+    document["session"]["nativeIdentity"]["workspaceId"] = "workspace-other"
+    _rehash_export(document)
+
+    with pytest.raises(NodeKitReplayContractError) as exc_info:
+        validate_nodekit_export(document)
+
+    assert exc_info.value.code == "native_identity_snapshot_mismatch"
 
 
 def test_nodekit_export_schema_rejects_terminal_status_contradiction(
