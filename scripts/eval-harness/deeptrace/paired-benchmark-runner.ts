@@ -148,6 +148,12 @@ const BASELINE_PROMPT_PATH = path.join(CURRENT_DIR, "claude-baseline.prompt.md")
 const DEEPTRACE_PROMPT_PATH = path.join(CURRENT_DIR, "claude-nodebench.prompt.md");
 const SPEC_PATH = path.join(CURRENT_DIR, "canary-benchmark-spec.json");
 const SCORECARD_PATH = path.join(CURRENT_DIR, "scorecard-schema.json");
+const SIMULATION_EVIDENCE = {
+  evidenceStatus: "simulation",
+  releaseEligible: false,
+  evidenceNote: "Synthetic fixture diagnostics; prompts are hashed, not executed. No measured model quality, latency or uplift.",
+} as const;
+const SIMULATION_NOTICE = "> SIMULATION — synthetic fixture diagnostics. Release eligible: false. Prompts are hashed, not executed; no measured model quality, latency or uplift.\n\n";
 
 const CASES: BenchmarkCase[] = [
   {
@@ -355,14 +361,14 @@ function average(values: number[]): number {
   return values.length === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-function writeJson(filePath: string, value: unknown): void {
+function writeJson(filePath: string, value: object): void {
   ensureDir(path.dirname(filePath));
-  fs.writeFileSync(filePath, JSON.stringify(value, null, 2));
+  fs.writeFileSync(filePath, JSON.stringify({ ...value, ...SIMULATION_EVIDENCE }, null, 2));
 }
 
 function writeMarkdown(filePath: string, content: string): void {
   ensureDir(path.dirname(filePath));
-  fs.writeFileSync(filePath, content);
+  fs.writeFileSync(filePath, SIMULATION_NOTICE + content);
 }
 
 function buildRunArtifacts(
@@ -419,6 +425,9 @@ function getArg(flag: string): string | undefined {
 }
 
 async function main(): Promise<void> {
+  if (!process.argv.includes("--simulate")) {
+    throw new Error("This runner only generates synthetic diagnostics. Pass --simulate explicitly; measured evaluation is not implemented. No artifacts were written.");
+  }
   const outDir = getArg("--outDir") ? path.resolve(REPO_ROOT, getArg("--outDir")!) : RESULTS_DIR;
   const spec = readJsonFile<BenchmarkSpec>(SPEC_PATH);
   const scorecard = readJsonFile<ScorecardSchema>(SCORECARD_PATH);
@@ -523,7 +532,7 @@ async function main(): Promise<void> {
     metadataKeys: spec.metadataKeys,
     comparisonOutputs: scorecard.comparisonOutputs,
     cases: caseResults,
-    summary: {
+    simulationDiagnostics: {
       baselineScore: average(baselineScores),
       deeptraceScore: average(deeptraceScores),
       relativeUplift: (average(deeptraceScores) - average(baselineScores)) / Math.max(average(baselineScores), 0.0001),
@@ -543,40 +552,42 @@ async function main(): Promise<void> {
     },
   };
 
-  const releaseGuards = {
-    relativeUpliftPass: summary.summary.relativeUplift >= spec.releaseGuards.minimumRelativeUplift,
-    evidenceLinkagePass: summary.summary.averages.deeptrace.evidenceLinkage >= spec.releaseGuards.minimumEvidenceLinkage,
-    receiptCompletenessPass: summary.summary.averages.deeptrace.receiptCompleteness >= spec.releaseGuards.minimumReceiptCompleteness,
-    falseConfidencePass: summary.summary.averages.deeptrace.falseConfidenceRate <= spec.releaseGuards.maximumFalseConfidenceRate,
+  const thresholdChecks = {
+    relativeUpliftPass: summary.simulationDiagnostics.relativeUplift >= spec.releaseGuards.minimumRelativeUplift,
+    evidenceLinkagePass: summary.simulationDiagnostics.averages.deeptrace.evidenceLinkage >= spec.releaseGuards.minimumEvidenceLinkage,
+    receiptCompletenessPass: summary.simulationDiagnostics.averages.deeptrace.receiptCompleteness >= spec.releaseGuards.minimumReceiptCompleteness,
+    falseConfidencePass: summary.simulationDiagnostics.averages.deeptrace.falseConfidenceRate <= spec.releaseGuards.maximumFalseConfidenceRate,
   };
 
-  const finalSummary = { ...summary, releaseGuards };
+  const finalSummary = { ...summary, simulationDiagnostics: { ...summary.simulationDiagnostics, thresholdChecks } };
   const summaryPath = path.join(suiteDir, "paired-summary.json");
   const reportPath = path.join(suiteDir, "paired-summary.md");
   writeJson(summaryPath, finalSummary);
   writeMarkdown(
     reportPath,
     [
-      `# DeepTrace paired benchmark ${suiteId}`,
+      `# DeepTrace paired simulation ${suiteId}`,
       "",
-      `- Baseline score: ${finalSummary.summary.baselineScore.toFixed(4)}`,
-      `- DeepTrace score: ${finalSummary.summary.deeptraceScore.toFixed(4)}`,
-      `- Relative uplift: ${(finalSummary.summary.relativeUplift * 100).toFixed(2)}%`,
-      `- DeepTrace evidence linkage: ${finalSummary.summary.averages.deeptrace.evidenceLinkage.toFixed(2)}`,
-      `- DeepTrace receipt completeness: ${finalSummary.summary.averages.deeptrace.receiptCompleteness.toFixed(2)}`,
-      `- DeepTrace false-confidence rate: ${finalSummary.summary.averages.deeptrace.falseConfidenceRate.toFixed(2)}`,
-      `- Release guards: ${JSON.stringify(releaseGuards)}`,
+      `- Simulated baseline score: ${finalSummary.simulationDiagnostics.baselineScore.toFixed(4)}`,
+      `- Simulated DeepTrace score: ${finalSummary.simulationDiagnostics.deeptraceScore.toFixed(4)}`,
+      `- Simulated relative uplift: ${(finalSummary.simulationDiagnostics.relativeUplift * 100).toFixed(2)}%`,
+      `- Simulated DeepTrace evidence linkage: ${finalSummary.simulationDiagnostics.averages.deeptrace.evidenceLinkage.toFixed(2)}`,
+      `- Simulated DeepTrace receipt completeness: ${finalSummary.simulationDiagnostics.averages.deeptrace.receiptCompleteness.toFixed(2)}`,
+      `- Simulated DeepTrace false-confidence rate: ${finalSummary.simulationDiagnostics.averages.deeptrace.falseConfidenceRate.toFixed(2)}`,
+      `- Simulation diagnostic thresholds (not release guards): ${JSON.stringify(thresholdChecks)}`,
     ].join("\n"),
   );
 
-  console.log(`Paired benchmark suite: ${suiteId}`);
+  console.log("SIMULATION — synthetic fixture diagnostics; prompts are hashed, not executed.");
+  console.log("Release eligible: false. Measured evaluation is not implemented.");
+  console.log(`Paired simulation suite: ${suiteId}`);
   console.log(`Cases: ${caseResults.length}`);
-  console.log(`Baseline score: ${finalSummary.summary.baselineScore.toFixed(4)}`);
-  console.log(`DeepTrace score: ${finalSummary.summary.deeptraceScore.toFixed(4)}`);
-  console.log(`Relative uplift: ${(finalSummary.summary.relativeUplift * 100).toFixed(2)}%`);
+  console.log(`Simulated baseline score: ${finalSummary.simulationDiagnostics.baselineScore.toFixed(4)}`);
+  console.log(`Simulated DeepTrace score: ${finalSummary.simulationDiagnostics.deeptraceScore.toFixed(4)}`);
+  console.log(`Simulated relative uplift: ${(finalSummary.simulationDiagnostics.relativeUplift * 100).toFixed(2)}%`);
   console.log(`Summary JSON: ${repoRelative(summaryPath)}`);
   console.log(`Summary report: ${repoRelative(reportPath)}`);
-  console.log(`Release guards: ${JSON.stringify(releaseGuards)}`);
+  console.log(`Simulation diagnostic thresholds (not release guards): ${JSON.stringify(thresholdChecks)}`);
 }
 
 main().catch((error) => {
