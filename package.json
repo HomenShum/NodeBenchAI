@@ -334,7 +334,7 @@
     "graphology": "0.26.0",
     "graphology-layout-forceatlas2": "0.10.1",
     "helmet": "^8.1.0",
-    "katex": "^0.16.28",
+    "katex": "^0.18.2",
     "lexical": "^0.43.0",
     "linkup-sdk": "^2.4.1",
     "lucide-react": "^0.515.0",
