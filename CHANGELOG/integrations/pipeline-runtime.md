@@ -3,6 +3,68 @@
 Append-only lane for pipeline launch, activity, streaming, evaluation, schedule,
 and secret-gated MCP bridge ownership contracts. Newest entries first.
 
+## 2026-10-08 — Keep failed research out of successful Pipeline artifacts
+
+A researcher or coding agent needs a failed provider request to remain a failed
+research attempt. This fourteen-owner source candidate starts from canonical
+`8b4846baa9adedd5107b8eae1acd46805a8f272d`. A shared terminal outcome stops failed
+search or analysis before successful packet, context, trajectory, report, nudge,
+evaluation or retention effects. JSON uses the owned non-success status; an
+accepted SSE stream emits one terminal error without completion. Caller
+cancellation propagates through the fifty-five-second run budget and optional
+SEC enrichment, with owned timers and listeners disposed.
+
+The fixed-host HTTPS reader rejects redirects, invalid UTF-8/JSON and oversized
+bodies. Both provider-array owners reject more than thirty rows before mapping
+or image expansion. Existing paid eligibility, provider priority, usable partial
+evidence, successful source/image ordering and valuation formulas remain.
+Finite provided source confidence, including zero, survives projection; missing
+values stay omitted. The existing readiness fallback is labeled a heuristic and
+can reach zero. Unknown dollar cost stays null/not_measured, with actual token
+usage retained; this route explicitly skips the numeric-cost evaluator rather
+than pretending that unmeasured means free.
+
+**PR / canonical main commit**: `PENDING MAIN SHA / FINAL QA`.
+
+**Evidence state**:
+- Current-source basis: the closed plan frozen at 21:32 UTC on October 8, 2026
+  binds the earlier native source capture; preparation is an external fourteen-file
+  packet, not a shared checkout, publication or canonical adoption. Ten existing
+  owners exactly match the retained historical before bytes. Current CI and this
+  lane preserve their newer complete contents, including merged #655's separate
+  frontend/Pipeline target history and Storybook checks. The helper and real-route
+  scenario file are new at this source basis.
+- Desired comparison: preserve all original forty-six scenario identities and
+  assertions, and add four provider admission personas: Brave, Serper, Tavily and
+  primary Linkup. Each accepts thirty complete valid rows, rejects thirty-one
+  without success artifacts, then recovers with thirty and checks ordered content.
+  Planned fifty identities are not an observed runner count. Six genuine suite
+  paths are added to Runtime smoke while all twenty-eight current suites remain;
+  no combined test count is predicted.
+- Historical proof remains historical: the retained same forty-six scenarios
+  changed from 2 PASS/44 FAIL to 46 PASS on Windows Node 22.22.2/Vitest 3.2.7 with
+  ignored install scripts and mocked external/durable boundaries. Those results
+  do not certify current Vitest 4, native SQLite, this amended source or providers.
+- Current checks: source-only review and byte bindings are being prepared.
+  Imports, installed compatibility, parser/type/build checks, matched baseline/new
+  execution, new-head automatic CI and canonical main QA are **NOT_RUN** here.
+  The named comparison is `PIPELINE-HONEST-FAILURE-CURRENT-01`; both sides need the
+  same declared runtime/config/graph and mocked boundaries before execution.
+- Limits: the merged endpoint configuration remains intact, and blank worker
+  configuration stays BLOCKED with zero Golden queries. Service/project/private
+  invoker identity, working keys, provider grounding, full worker strict compile,
+  native installed behavior, trusted retention/auth, dependency findings,
+  production/live content and visual/SEO grades remain separate unresolved work.
+  No local runtime, provider/cloud request, shared Convex deployment or held
+  dependency sequence is performed by this source preparation.
+
+**Reproduction after reviewed prerequisites**: the same desired real-route
+harness on authentic canonical source and the candidate, then the six retained
+target suites and unchanged regressions under the approved finite comparison
+contract. Record actual exits, discovery counts, failures, skips, bounded raw
+streams, source/graph preservation and recovery rather than reusing dated results.
+**Author**: Homen Shum + Codex.
+
 ## 2026-10-08 — Separate frontend crawl and Pipeline benchmark targets
 
 An evaluator needs the research worker's JSON API rather than the public
@@ -127,3 +189,134 @@ Research bundles and Workspace documents now distinguish `sourcesConsulted` from
 
 **Author**: Homen Shum + Codex.
 **Touches**: [`../pages/exact-cockpit.md`](../pages/exact-cockpit.md), [`../pages/agents.md`](../pages/agents.md), and [`../components/fast-agent-panel.md`](../components/fast-agent-panel.md).
+
+## 2026-10-08: PIPELINE-CALLABLE-CONTRACT-01 (source-only; next paired proof NOT_RUN)
+
+A researcher comparing malformed-provider failure and usable partial evidence needs the
+failure-reader API to exist before evaluating its result. Authentic old code has no
+getPipelineFailure export, so the desired fixture previously threw a TypeError before
+reaching its criterion assertion. The verifier correctly refused that unclassified error.
+
+The first natural paired job on source 8635991308dd7f93603974f82f1734eed2b989f1,
+tree 1ea448a976373d4064e50122b74b090dc66721e2, remains FAIL:
+run 37855916502 / job 113579926168, artifact 11584201919 (21,438 bytes,
+SHA256 494CED046911C713155BC8315C3897CFA6E547866C6726D3FA405F663F319007).
+Normal lifecycle-enabled npm ci succeeded. The authentic 8b controlled baseline then
+exited 1 with complete stdout, stderr, framework capture and child closure: six selected
+files, 75 tests, 20 PASS / 55 FAIL / 0 SKIP / 0 TODO. Its fifty route cases were 2 PASS / 48 FAIL.
+All 55 failure rows were retained: 52 criterion AssertionErrors and 3 TypeErrors
+(getPipelineFailure is not a function) at two desired search-test getter sites.
+The unchanged classifier admitted the 52 criterion errors and correctly stopped on the
+three unclassified TypeErrors; no file-load message or unhandled framework marker was
+reported. The candidate was never invoked: candidate invocations 0, results NOT_RUN.
+
+This forward three-owner amendment adds two explicit
+expect(typeof getPipelineFailure).toBe("function") assertions immediately before those
+observed getter calls. One site covers the malformed-provider scenario; the other covers
+both title/content variants. Imports, scenario names, mocks, goals, all previous assertions
+and the whole original 50-route fixture remain unchanged. Production/provider/helper source
+does not change. CI changes only the two actual AFTER blob bindings for this test and
+this append-only history; its classifier, FIFO, environment, one normal installed graph,
+default workers, budgets, captures and guards remain identical. The whole prior 19,584-byte
+history and existing 6,602-byte feature CI prefix remain preserved.
+
+At this source-only checkpoint the amended baseline and candidate paired proof, imports,
+project tests, installed-tree validation and new natural CI are NOT_RUN. Source/static
+approval cannot turn the earlier FAIL into PASS. Root owns review, ordinary publication
+and a new naturally triggered exact-head proof; baseline admission still requires genuine
+within-test criterion failures and complete guards before the candidate may execute.
+Provider quality, private worker/authentication ownership, paid-call budgets and scanner
+gates remain separate. The deployed benchmark's blank target/zero Golden failure is not
+resolved by these fixture assertions, and no deployment, production, visual, security or
+whole-portfolio success is certified.
+
+## 2026-10-08: PIPELINE-ACTUAL-COMPARISON-LOG-01 (observed d7 controlled comparison)
+
+A developer handing off the failure-status repair needs to know whether researchers
+and coding agents still receive successful packets after provider failures. The same
+75 desired checks now pass on the candidate, while the authentic baseline fails the
+55 criteria that the repair addresses (controlled functional comparison). Failed
+upstream evidence must never be promoted to a successful research packet.
+
+The [natural paired job](https://github.com/HomenShum/NodeBenchAI/actions/runs/37859726519/job/113592323364)
+completed at 2026-10-08T23:34:46.896Z. It compared baseline
+`8b4846baa9adedd5107b8eae1acd46805a8f272d` with tested source
+`d7bdeb14b73bac1bbd1a44e354cbffa88ca0e357`, tree
+`062b9fa48963143b69e2d490fb78c30fa76f07b4`.
+
+| Selected checks | Baseline PASS / FAIL | Candidate PASS / FAIL |
+| --- | ---: | ---: |
+| All six suites, same 75 file/fullName identities | 20 / 55 | 75 / 0 |
+| JSON/SSE real-route failure contract, 50 cases | 2 / 48 | 50 / 0 |
+| Search-provider and ticker-cache boundaries, 12 cases | 7 / 5 | 12 / 0 |
+| Streaming route, 2 cases | 0 / 2 | 2 / 0 |
+
+There was one invocation per role: native baseline exit 1, candidate exit 0;
+zero skips, todos, load/setup failures or unhandled framework markers. All 55
+baseline failures were authored AssertionErrors under the unchanged classifier;
+the original 20 passing identities also passed. Complete stdout, stderr, framework
+JSON and child closure were retained in artifact `11586510052` (44,073-byte ZIP,
+SHA256 `EF88C1CDAD0739FEDF1BEE78534EE7AF8AD58078BA14A5A36006FE167CE787A1`).
+
+One normal lifecycle-enabled npm ci succeeded on Node 22.23.3, actual npm 10.9.9
+(the manifest declares npm 11.5.2), and Vitest 4.1.11. Both roles used the same
+eight selected installed-graph signatures and default pool/worker policy, with
+stable selected source guards. Normal cache writes were allowed; whole installed
+directory immutability is not certified. Providers and persistence were mocked,
+so these results do not measure provider-backed quality or production latency.
+
+The earlier 863 failure and capture-time NOT_RUN checkpoint above remain intact.
+This entry records d7 evidence only; any later documentation head has its own
+pending natural checks. The retained GitGuardian failure still needs authenticated
+adjudication. The separate deployed benchmark passed its 12 controlled endpoint
+cases, then failed on a blank owned-worker target with zero Golden rows. No worker
+deployment, retention, production, pixel, accessibility, SEO, security, merge-readiness
+or whole-portfolio certificate follows from this comparison.
+
+## 2026-10-09: PIPELINE-TYPED-INPUT-BOUNDARY-01 (source-only; causal comparison NOT_RUN)
+
+A researcher or coding agent sending malformed research JSON needs a client error
+before provider calls or successful research records. The preceding route converted
+numbers, booleans, arrays and objects to strings; an own non-callable `toString`
+could reject before its catch, and pre-search hooks also ran outside that catch
+(input-contract and error-boundary failure). Admit actual string query/lens input
+once at the route entrance and move the existing hook/deny block into the existing
+try, preserving one catch, one cleanup path and legitimate research behavior.
+
+This four-owner source preparation preserves missing/null/empty/whitespace query
+HTTP400, omitted/null lens `founder`, trimmed Unicode queries, arbitrary supplied
+string lenses, hook denial HTTP422, the existing sanitized internal HTTP500 and
+abort/destroyed/already-sent response guards. Malformed types receive HTTP400
+before hooks, providers, trajectory/context, retention or evaluation effects.
+The existing three-domain/eight-variant search bounds, scoring, provider selection,
+55-second run budget, transport limits and successful packet behavior are unchanged.
+
+The route fixture retains its whole preceding 28,506-byte file as a literal prefix,
+including all 50 original route criteria and assertions. It appends 25 input,
+preservation, hook-fault, mixed-burst and sixty-second paced criteria. The next
+existing CI paired controller explicitly compares authentic immediate-before
+`d6316366bcc274d6386f28696ba88f271757cf6a`, tree
+`ce3da2f90fe79b83fe1c79f6fccc9bf19d57961d`, with the next exact event head.
+A separate unchanged-current-main guard retains 8b and its tree. Both roles must
+pass all 75 original full identities; before must fail a new authored criterion,
+and new must pass all 100 desired identities, with zero skips/todos or invalid
+setup/load/unhandled failures. The existing normal installed graph, finite full
+captures, native child closure, source/config guards and failure classification
+remain required. Only the new route fixture overlays the immediate-before source.
+
+The two selected coercion specimens observe the original registered-handler
+promise and preserve its exact original TypeError/message/String-call source seam;
+injected hook faults admit only the same sentinel Error object. Unknown rejection
+provenance is rethrown. No rejected handler is relabeled fulfilled, no response is
+manufactured, and no unhandled/framework classifier is waived. The desired
+fulfillment/status assertion follows the original bounded observation.
+
+At this capture, implementation syntax/static execution, imports, runtime,
+installation, provider requests and the new natural paired CI are **NOT_RUN**.
+The earlier 8b-versus-d7 20 PASS/55 FAIL to 75 PASS result above stays dated and
+historical; it is not this incremental patch's causal proof. Root owns independent
+source review, any ordinary publication and actual evidence reconciliation before
+an observed-result update. Retained-history GitGuardian disposition, source adoption,
+the missing private worker target/authentication and real-provider factual quality
+remain separate gaps. No private deployment, paid-call/spend, production, retention
+privacy, security, visual/SEO or whole-portfolio success is certified by this source.

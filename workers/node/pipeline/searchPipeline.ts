@@ -13,6 +13,39 @@ import { createEvidenceSpans, type EvidenceManifest } from "../lib/evidenceSpan.
 import { computeRoutingHints, formatRoutingHintsForPrompt, type RoutingHint } from "../lib/routingHints.js";
 import { detectPainResolutions, type PainResolution } from "../lib/painMapping.js";
 import { extractDCFInputs, enrichDCFWithEdgar, runDCF, runReverseDCF, type DCFResult, type ReverseDCFResult } from "../lib/dcfModel.js";
+import { createPipelineBudget, fetchPipelineJson, PipelineHttpError, PIPELINE_PROVIDER_ROW_LIMIT } from "../lib/pipelineHttp.js";
+import { getConfiguredProviders, multiSearch, searchFreeProviders, toSearchSources } from "../lib/multiSearch.js";
+
+export type PipelineFailureCode = "PROVIDER_UNAVAILABLE" | "NO_RESEARCH_EVIDENCE" | "UPSTREAM_FAILURE" | "INVALID_PROVIDER_RESPONSE" | "TIMEOUT" | "ABORTED" | "INTERNAL_ERROR";
+export interface PipelineFailure {
+  stage: "admission" | "search" | "analyze" | "package";
+  code: PipelineFailureCode;
+  safeMessage: string;
+  upstreamStatus?: number;
+  provider?: string;
+}
+const FAILURE_MESSAGES: Record<PipelineFailureCode, string> = {
+  PROVIDER_UNAVAILABLE: "Research providers are not configured",
+  NO_RESEARCH_EVIDENCE: "No usable research evidence was returned",
+  UPSTREAM_FAILURE: "A required research provider failed",
+  INVALID_PROVIDER_RESPONSE: "A research provider returned an invalid response",
+  TIMEOUT: "Research exceeded its request budget", ABORTED: "Research was cancelled",
+  INTERNAL_ERROR: "Research could not be completed",
+};
+export function pipelineFailureHttpStatus(code: PipelineFailureCode): number | null {
+  return ({ PROVIDER_UNAVAILABLE: 503, NO_RESEARCH_EVIDENCE: 422, UPSTREAM_FAILURE: 502, INVALID_PROVIDER_RESPONSE: 502, TIMEOUT: 504, ABORTED: null, INTERNAL_ERROR: 500 })[code];
+}
+export function getPipelineAdmissionFailure(): PipelineFailure | null {
+  return !process.env.GEMINI_API_KEY || getConfiguredProviders().length === 0
+    ? { stage: "admission", code: "PROVIDER_UNAVAILABLE", safeMessage: FAILURE_MESSAGES.PROVIDER_UNAVAILABLE } : null;
+}
+export function getPipelineFailure(state: PipelineState): PipelineFailure | null {
+  return state.failure ?? (state.error ? { stage: "package", code: "INTERNAL_ERROR", safeMessage: FAILURE_MESSAGES.INTERNAL_ERROR } : null);
+}
+function failPipeline(state: PipelineState, stage: PipelineFailure["stage"], code: PipelineFailureCode, provider?: string, upstreamStatus?: number): PipelineState {
+  const failure: PipelineFailure = { stage, code, safeMessage: FAILURE_MESSAGES[code], ...(provider ? { provider: provider.slice(0, 40) } : {}), ...(upstreamStatus && upstreamStatus >= 100 && upstreamStatus <= 599 ? { upstreamStatus } : {}) };
+  return { ...state, error: failure.safeMessage, failure, confidence: 0, trace: [...state.trace, { step: stage, tool: provider, status: "error", detail: failure.safeMessage }] };
+}
 
 // ─── Pipeline State ──────────────────────────────────────────────
 
@@ -64,6 +97,7 @@ export interface PipelineState {
   trace: Array<{ step: string; tool?: string; status: string; detail?: string; durationMs?: number }>;
   totalDurationMs: number;
   error: string | null;
+  failure?: PipelineFailure;
 
   // Token usage (from Gemini API response)
   tokenUsage?: { inputTokens: number; outputTokens: number; totalTokens: number; model: string };
@@ -630,166 +664,49 @@ export function classify(state: PipelineState): PipelineState {
 
 // ─── Node 2: Search (Linkup API) ─────────────────────────────────
 
-export async function search(state: PipelineState): Promise<PipelineState> {
+export async function search(state: PipelineState, signal?: AbortSignal): Promise<PipelineState> {
   const start = Date.now();
-  const linkupKey = process.env.LINKUP_API_KEY;
-  const allowPaidSearch =
-    process.env.NODEBENCH_ALLOW_PAID_SEARCH === "true" ||
-    process.env.LINKUP_SEARCH_ALLOW_PAID === "true";
-
-  if (!allowPaidSearch || !linkupKey) {
-    try {
-      const { multiSearch, toSearchSources: toMultiSources } = await import("../lib/multiSearch.js");
-      const multi = await multiSearch(state.query, 8000);
-      const rawSources = toMultiSources(multi.sources);
-      const filteredSources = filterSearchSourcesForEntity(state.entity, rawSources, state.classification);
-      const filteredAnswer = buildSearchContextSummary(state.entity, state.classification, "", filteredSources);
-      const exploredSourceCount = dedupeSources(rawSources).length;
-
-      return {
-        ...state,
-        searchAnswer: filteredAnswer,
-        searchSources: filteredSources,
-        searchExploredSourceCount: exploredSourceCount,
-        searchDiscardedSourceCount: Math.max(0, exploredSourceCount - filteredSources.length),
-        searchQueryVariants: [state.query],
-        trace: [...state.trace, {
-          step: "search",
-          tool: multi.providers.length > 0 ? `free_search:${multi.providers.join("+")}` : "free_search",
-          status: filteredSources.length > 0 ? "ok" : "error",
-          detail: allowPaidSearch
-            ? "LINKUP_API_KEY unavailable; used free providers only"
-            : "paid search disabled; used free providers only",
-          durationMs: Date.now() - start,
-        }],
-      };
-    } catch (err: any) {
-      return {
-        ...state,
-        searchAnswer: "",
-        searchSources: [],
-        searchExploredSourceCount: 0,
-        searchDiscardedSourceCount: 0,
-        searchQueryVariants: [],
-        trace: [...state.trace, { step: "search", tool: "free_search", status: "error", detail: err?.message ?? "No free search provider", durationMs: Date.now() - start }],
-      };
-    }
-  }
-
-  if (!linkupKey) {
-    return {
-      ...state,
-      searchAnswer: "",
-      searchSources: [],
-      searchExploredSourceCount: 0,
-      searchDiscardedSourceCount: 0,
-      searchQueryVariants: [],
-      trace: [...state.trace, { step: "search", tool: "linkup", status: "error", detail: "No LINKUP_API_KEY", durationMs: Date.now() - start }],
-    };
-  }
-
+  const allowPaid = process.env.NODEBENCH_ALLOW_PAID_SEARCH === "true" || process.env.LINKUP_SEARCH_ALLOW_PAID === "true";
+  const paid = allowPaid && Boolean(process.env.LINKUP_API_KEY);
+  const queries = paid ? buildSearchQueries(state.query, state.entity, state.classification) : [state.query];
   try {
-    const queries = buildSearchQueries(state.query, state.entity, state.classification);
-    const results = await Promise.allSettled(
-      queries.map(async (queryVariant) => {
-        const resp = await fetch("https://api.linkup.so/v1/search", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${linkupKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            q: queryVariant,
-            depth: "standard",
-            outputType: "sourcedAnswer",
-          }),
-          signal: AbortSignal.timeout(30_000),
-        });
-
-        if (!resp.ok) {
-          throw new Error(`Linkup ${resp.status}`);
-        }
-
-        const data = (await resp.json()) as any;
-        return {
-          answer: data?.answer ?? "",
-          sources: (data?.sources ?? []).map((source: any) => ({
-            name: source.name ?? source.title ?? "",
-            url: source.url ?? "",
-            snippet: source.snippet ?? source.content ?? "",
-            siteName: resolveSearchSiteName(source),
-            faviconUrl: resolveSearchFaviconUrl(source),
-            thumbnailUrl: resolveSearchThumbnailUrl(source),
-            imageCandidates: resolveSearchImageCandidates(source),
-          })),
-        };
-      }),
-    );
-
-    const successful = results
-      .filter((result): result is PromiseFulfilledResult<{ answer: string; sources: Array<{ name: string; url: string; snippet: string; thumbnailUrl?: string }> }> => result.status === "fulfilled")
-      .map((result) => result.value);
-
-    if (successful.length === 0) {
-      throw new Error("Linkup returned no successful query variants");
+    signal?.throwIfAborted();
+    const results = paid ? await Promise.allSettled(queries.map(async (queryVariant) => {
+      const data = await fetchPipelineJson("https://api.linkup.so/v1/search", {
+        method: "POST", headers: { Authorization: `Bearer ${process.env.LINKUP_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ q: queryVariant, depth: "standard", outputType: "sourcedAnswer" }),
+      }, 1_048_576, signal, 30_000);
+      if (!Array.isArray(data.sources) || data.sources.length > PIPELINE_PROVIDER_ROW_LIMIT || (data.answer !== undefined && typeof data.answer !== "string")) throw new PipelineHttpError("INVALID_PROVIDER_RESPONSE");
+      return { answer: data.answer ?? "", sources: data.sources.map((source: any) => {
+        const name = source?.name ?? source?.title ?? "";
+        const snippet = source?.snippet ?? source?.content ?? "";
+        if (!source || typeof source.url !== "string" || typeof name !== "string" || typeof snippet !== "string") throw new PipelineHttpError("INVALID_PROVIDER_RESPONSE");
+        return { name, url: source.url, snippet, siteName: resolveSearchSiteName(source), faviconUrl: resolveSearchFaviconUrl(source), thumbnailUrl: resolveSearchThumbnailUrl(source), imageCandidates: resolveSearchImageCandidates(source) };
+      }) as SearchSource[] };
+    })) : [];
+    signal?.throwIfAborted();
+    const successful = results.filter((result): result is PromiseFulfilledResult<{ answer: string; sources: SearchSource[] }> => result.status === "fulfilled").map((result) => result.value);
+    // Reuse the same free dispatch; an exhausted paid sweep gets no extra paid retry.
+    const secondary = paid && successful.length === 0 ? await searchFreeProviders(state.query, 8000, signal) : await multiSearch(state.query, 8000, signal);
+    signal?.throwIfAborted();
+    const rawSources = [...successful.flatMap((result) => result.sources), ...toSearchSources(secondary.sources)];
+    const filtered = filterSearchSourcesForEntity(state.entity, rawSources, state.classification);
+    const failed = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (!filtered.length) {
+      const invalid = failed.find((result) => result.reason instanceof PipelineHttpError && result.reason.code === "INVALID_PROVIDER_RESPONSE")?.reason;
+      const secondaryInvalid = secondary.failures.find((failure) => failure.code === "INVALID_PROVIDER_RESPONSE");
+      if (successful.length || secondary.successfulProviderCount) return failPipeline(state, "search", "NO_RESEARCH_EVIDENCE");
+      return failPipeline(state, "search", invalid || secondaryInvalid ? "INVALID_PROVIDER_RESPONSE" : "UPSTREAM_FAILURE", paid ? "linkup" : secondary.failures[0]?.provider, failed[0]?.reason instanceof PipelineHttpError ? failed[0].reason.upstreamStatus : secondary.failures[0]?.upstreamStatus);
     }
-
-    const answer = successful.find((result) => result.answer.trim().length > 0)?.answer ?? "";
-    const rawSources = successful.flatMap((result) => result.sources);
-
-    // Merge with secondary providers (Brave/Serper/Tavily) if configured
-    let secondaryProviders: string[] = [];
-    try {
-      const { multiSearch, toSearchSources: toMultiSources } = await import("../lib/multiSearch.js");
-      const multi = await multiSearch(state.query, 8000);
-      if (multi.sources.length > 0) {
-        const extraSources = toMultiSources(multi.sources).map((s) => ({
-          name: s.name,
-          url: s.url,
-          snippet: s.snippet,
-          thumbnailUrl: s.thumbnailUrl,
-        }));
-        rawSources.push(...extraSources);
-        secondaryProviders = multi.providers.filter((p) => p !== "linkup");
-      }
-    } catch { /* secondary providers are best-effort */ }
-
-    const filteredSources = filterSearchSourcesForEntity(state.entity, rawSources, state.classification);
-    const filteredAnswer = buildSearchContextSummary(state.entity, state.classification, answer, filteredSources);
-    const exploredSourceCount = dedupeSources(rawSources).length;
-    const providerNote = secondaryProviders.length > 0 ? ` + ${secondaryProviders.join("+")}` : "";
-
-    return {
-      ...state,
-      searchAnswer: filteredAnswer,
-      searchSources: filteredSources,
-      searchExploredSourceCount: exploredSourceCount,
-      searchDiscardedSourceCount: Math.max(0, exploredSourceCount - filteredSources.length),
-      searchQueryVariants: queries,
-      trace: [...state.trace, {
-        step: "search",
-        tool: `linkup${providerNote}`,
-        status: "ok",
-        detail: `${filteredSources.length}/${exploredSourceCount} retained across ${queries.length} query variants${providerNote}, ${filteredAnswer.length} chars context`,
-        durationMs: Date.now() - start,
-      }],
-    };
-  } catch (err: any) {
-    return {
-      ...state,
-      searchAnswer: "",
-      searchSources: [],
-      searchExploredSourceCount: 0,
-      searchDiscardedSourceCount: 0,
-      searchQueryVariants: [],
-      trace: [...state.trace, {
-        step: "search",
-        tool: "linkup",
-        status: "error",
-        detail: err?.message ?? "search failed",
-        durationMs: Date.now() - start,
-      }],
-    };
+    const answer = successful.find((result) => result.answer.trim())?.answer ?? "";
+    const explored = dedupeSources(rawSources).length;
+    return { ...state, searchAnswer: buildSearchContextSummary(state.entity, state.classification, answer, filtered), searchSources: filtered,
+      searchExploredSourceCount: explored, searchDiscardedSourceCount: Math.max(0, explored - filtered.length), searchQueryVariants: queries,
+      trace: [...state.trace, ...(failed.length || secondary.failures.length ? [{ step: "search", status: "degraded", detail: `${failed.length + secondary.failures.length} provider attempts failed; usable evidence retained` }] : []),
+        { step: "search", tool: paid ? `linkup${secondary.providers.length ? `+${secondary.providers.join("+")}` : ""}` : `free_search:${secondary.providers.join("+")}`, status: "ok", detail: `${filtered.length}/${explored} retained`, durationMs: Date.now() - start }] };
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    return failPipeline(state, "search", error instanceof PipelineHttpError ? error.code : "UPSTREAM_FAILURE", paid ? "linkup" : "free_search", error instanceof PipelineHttpError ? error.upstreamStatus : undefined);
   }
 }
 
@@ -834,31 +751,12 @@ function normalizeParsedSourceIdx(sourceIdx: unknown, citationIndices: number[])
   return undefined;
 }
 
-export async function analyze(state: PipelineState): Promise<PipelineState> {
+export async function analyze(state: PipelineState, signal?: AbortSignal): Promise<PipelineState> {
   const start = Date.now();
   const geminiKey = process.env.GEMINI_API_KEY;
 
   if (!geminiKey || (!state.searchAnswer && state.searchSources.length === 0)) {
-    return {
-      ...state,
-      entityName: state.entity ?? "Unknown",
-      answer: state.searchAnswer || "No search results available.",
-      confidence: 0,
-      signals: [],
-      risks: [],
-      comparables: [],
-      nextActions: [],
-      nextQuestions: [],
-      keyMetrics: [],
-      whyThisTeam: null,
-      trace: [...state.trace, {
-        step: "analyze",
-        tool: "gemini",
-        status: "error",
-        detail: !geminiKey ? "No GEMINI_API_KEY" : "No search data to analyze",
-        durationMs: Date.now() - start,
-      }],
-    };
+    return failPipeline(state, "analyze", !geminiKey ? "PROVIDER_UNAVAILABLE" : "NO_RESEARCH_EVIDENCE", "gemini");
   }
 
   const sourcesContext = state.searchSources
@@ -922,30 +820,25 @@ Return ONLY valid JSON:
     // PERF: Shrunk per-model timeout from 25s → 10s to fail-fast on hanging models.
     // Worst case cascade: 10s * 3 = 30s (was 75s). Typical success < 5s.
     const models = ["gemini-3.1-flash-lite-preview", "gemini-3-flash-preview", "gemini-2.5-flash"];
-    let resp: Response | null = null;
+    let data: any;
+    let lastError: unknown;
     let usedModel = models[0];
     for (const model of models) {
       try {
+        signal?.throwIfAborted();
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
-        resp = await fetch(url, {
+        data = await fetchPipelineJson(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: { temperature: 0.1, maxOutputTokens: 2200, responseMimeType: "application/json" },
           }),
-          signal: AbortSignal.timeout(10_000),
-        });
-        if (resp.ok) { usedModel = model; break; }
-      } catch { continue; }
+        }, 262_144, signal, 10_000);
+        usedModel = model; break;
+      } catch (error) { if (signal?.aborted) throw error; lastError = error; }
     }
-    if (!resp) throw new Error("All Gemini models failed");
-
-    if (!resp.ok) {
-      throw new Error(`Gemini ${resp.status}`);
-    }
-
-    const data = (await resp.json()) as any;
+    if (!data) throw lastError ?? new PipelineHttpError("UPSTREAM_FAILURE");
 
     // Extract real token usage from Gemini API response
     const usageMetadata = data?.usageMetadata ?? {};
@@ -957,10 +850,13 @@ Return ONLY valid JSON:
     const jsonMatch = text.match(/\{[\s\S]*\}/);
 
     if (!jsonMatch) {
-      throw new Error("No JSON in Gemini response");
+      throw new PipelineHttpError("INVALID_PROVIDER_RESPONSE");
     }
 
-    const parsed = JSON.parse(jsonMatch[0].replace(/,\s*([\]}])/g, "$1"));
+    let parsed: any;
+    try { parsed = JSON.parse(jsonMatch[0].replace(/,\s*([\]}])/g, "$1")); }
+    catch { throw new PipelineHttpError("INVALID_PROVIDER_RESPONSE"); }
+    if (typeof parsed.answer !== "string" || !parsed.answer.trim() || typeof parsed.confidence !== "number" || !Number.isFinite(parsed.confidence)) throw new PipelineHttpError("INVALID_PROVIDER_RESPONSE");
     const normalizedSignals = Array.isArray(parsed.signals)
       ? parsed.signals
           .map((signal: any) => {
@@ -987,7 +883,7 @@ Return ONLY valid JSON:
           .filter((risk: { title: string; description: string }) => risk.title.length > 0 || risk.description.length > 0)
       : [];
     const guardedConfidence = applyConfidenceGuardrails(
-      typeof parsed.confidence === "number" ? parsed.confidence : 50,
+      parsed.confidence,
       sourceAudit,
     );
     const nextQuestions = Array.isArray(parsed.nextQuestions)
@@ -1018,33 +914,15 @@ Return ONLY valid JSON:
         durationMs: Date.now() - start,
       }],
     };
-  } catch (err: any) {
-    return {
-      ...state,
-      entityName: state.entity ?? "Unknown",
-      answer: state.searchAnswer || "Analysis failed.",
-      confidence: 20,
-      signals: [],
-      risks: [],
-      comparables: [],
-      nextActions: [],
-      nextQuestions: [],
-      keyMetrics: [],
-      whyThisTeam: null,
-      trace: [...state.trace, {
-        step: "analyze",
-        tool: "gemini",
-        status: "error",
-        detail: err?.message ?? "analysis failed",
-        durationMs: Date.now() - start,
-      }],
-    };
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    return failPipeline(state, "analyze", error instanceof PipelineHttpError ? error.code : "INVALID_PROVIDER_RESPONSE", "gemini", error instanceof PipelineHttpError ? error.upstreamStatus : undefined);
   }
 }
 
 // ─── Node 4: Package (deterministic) ─────────────────────────────
 
-export async function packageResult(state: PipelineState): Promise<PipelineState> {
+export async function packageResult(state: PipelineState, signal?: AbortSignal): Promise<PipelineState> {
   const start = Date.now();
 
   // Classify signals into taxonomy
@@ -1090,7 +968,7 @@ export async function packageResult(state: PipelineState): Promise<PipelineState
     });
     // Fallback: try SEC EDGAR for real financial data (US public companies)
     if (!dcfInputs.canRunDCF) {
-      try { dcfInputs = await enrichDCFWithEdgar(state.entityName, dcfInputs); } catch { /* EDGAR is best-effort */ }
+      dcfInputs = await enrichDCFWithEdgar(state.entityName, dcfInputs, signal);
     }
     if (dcfInputs.canRunDCF && dcfInputs.dcfInput) {
       dcfResult = runDCF(dcfInputs.dcfInput);
@@ -1164,60 +1042,39 @@ export function createInitialPipelineState(query: string, lens: string, contextH
 }
 
 export async function runSearchPipeline(
-  query: string,
-  lens: string,
-  onProgress?: OnPipelineProgress,
-  contextHint?: string,
+  query: string, lens: string, onProgress?: OnPipelineProgress, contextHint?: string, signal?: AbortSignal,
 ): Promise<PipelineState> {
-  const pipelineStart = Date.now();
+  const start = Date.now();
   let state = createInitialPipelineState(query, lens, contextHint);
-
-  // classify
-  onProgress?.({ stage: "classify", phase: "start", state });
-  const classifyStart = Date.now();
-  state = classify(state);
-  onProgress?.({ stage: "classify", phase: "done", state, durationMs: Date.now() - classifyStart });
-
-  // search
-  onProgress?.({ stage: "search", phase: "start", state });
-  const searchStart = Date.now();
-  state = await search(state);
-  onProgress?.({ stage: "search", phase: "done", state, durationMs: Date.now() - searchStart });
-
-  // analyze
-  onProgress?.({ stage: "analyze", phase: "start", state });
-  const analyzeStart = Date.now();
-  state = await analyze(state);
-  onProgress?.({ stage: "analyze", phase: "done", state, durationMs: Date.now() - analyzeStart });
-
-  // package
-  onProgress?.({ stage: "package", phase: "start", state });
-  const packageStart = Date.now();
-  state = await packageResult(state);
-  onProgress?.({ stage: "package", phase: "done", state, durationMs: Date.now() - packageStart });
-
-  state.totalDurationMs = Date.now() - pipelineStart;
-
-  // Save context for follow-up carry-forward
+  const budget = createPipelineBudget(signal, 55_000);
+  let stage: PipelineFailure["stage"] = "admission";
   try {
-    const { setSearchContext } = await import("../lib/searchContext.js");
-    if (state.entityName && state.confidence >= 30) {
-      setSearchContext({
-        entityName: state.entityName,
-        lens,
-        query,
-        answer: state.answer,
-        confidence: state.confidence,
-        sourceUrls: state.searchSources.map((s) => s.url).slice(0, 10),
-        signals: state.signals.map((s) => s.name).slice(0, 10),
-        risks: state.risks.map((r) => r.title).slice(0, 5),
-        keyMetrics: state.keyMetrics.slice(0, 5),
-        timestamp: Date.now(),
-      });
+    budget.signal.throwIfAborted();
+    const admission = getPipelineAdmissionFailure();
+    if (admission) { state = failPipeline(state, admission.stage, admission.code); return state; }
+    const stages = ["classify", "search", "analyze", "package"] as const;
+    for (const current of stages) {
+      stage = current === "classify" ? "admission" : current;
+      budget.signal.throwIfAborted();
+      onProgress?.({ stage: current, phase: "start", state });
+      const stageStart = Date.now();
+      state = current === "classify" ? classify(state) : current === "search" ? await search(state, budget.signal) : current === "analyze" ? await analyze(state, budget.signal) : await packageResult(state, budget.signal);
+      budget.signal.throwIfAborted();
+      if (getPipelineFailure(state)) return state;
+      onProgress?.({ stage: current, phase: "done", state, durationMs: Date.now() - stageStart });
     }
-  } catch { /* context save is best-effort */ }
-
-  return state;
+    if (state.entityName && state.confidence >= 30) {
+      const { setSearchContext } = await import("../lib/searchContext.js");
+      budget.signal.throwIfAborted();
+      setSearchContext({ entityName: state.entityName, lens, query, answer: state.answer, confidence: state.confidence,
+        sourceUrls: state.searchSources.map((source) => source.url).slice(0, 10), signals: state.signals.map((item) => item.name).slice(0, 10),
+        risks: state.risks.map((risk) => risk.title).slice(0, 5), keyMetrics: state.keyMetrics.slice(0, 5), timestamp: Date.now() });
+    }
+    return state;
+  } catch {
+    state = failPipeline(state, stage, budget.signal.aborted ? (signal?.aborted ? "ABORTED" : "TIMEOUT") : "INTERNAL_ERROR");
+    return state;
+  } finally { state.totalDurationMs = Date.now() - start; budget.dispose(); }
 }
 
 // ─── Envelope-aware pipeline wrapper ──────────────────────────────
@@ -1231,17 +1088,19 @@ import {
 import { trajectoryFromPipelineState, saveSearchTrajectory, type SearchTrajectory } from "../lib/trajectoryStore.js";
 import { detectReplayCandidate, type ReplayCandidate } from "../lib/replayDetector.js";
 
-export interface PipelineWithEnvelopeResult {
+export type PipelineWithEnvelopeResult = { ok: false; state: PipelineState } | {
+  ok: true;
   state: PipelineState;
   envelope: WorkflowEnvelope;
   trajectory: SearchTrajectory;
   replayCandidate: ReplayCandidate | null;
   wasReplay: boolean;
-}
+};
 
 export async function runSearchPipelineWithEnvelope(
   query: string,
   lens: string,
+  signal?: AbortSignal,
 ): Promise<PipelineWithEnvelopeResult> {
   // Pre-pipeline: check for replayable trajectory
   // Extract entity from query for replay lookup (simple heuristic: first capitalized multi-word)
@@ -1249,7 +1108,9 @@ export async function runSearchPipelineWithEnvelope(
   const replayCandidate = entityGuess ? detectReplayCandidate(entityGuess, lens, query) : null;
 
   // Run full pipeline (replay short-circuit is future work — for now always run full)
-  const state = await runSearchPipeline(query, lens);
+  const state = await runSearchPipeline(query, lens, undefined, undefined, signal);
+  if (getPipelineFailure(state)) return { ok: false, state };
+  signal?.throwIfAborted();
 
   // Create envelope
   const packetId = `pkt-${(state.entityName || "unknown").toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now().toString(36)}`;
@@ -1264,6 +1125,7 @@ export async function runSearchPipelineWithEnvelope(
   }
 
   return {
+    ok: true,
     state,
     envelope,
     trajectory,
@@ -1334,7 +1196,7 @@ export function stateToResultPacket(state: PipelineState): Record<string, unknow
     thumbnailUrl: source.thumbnailUrl,
     imageCandidates: source.imageCandidates,
     excerpt: source.snippet.slice(0, 280),
-    confidence: Math.max(45, Math.min(95, Math.round(source.qualityScore ?? 60))),
+    ...(typeof source.qualityScore === "number" && Number.isFinite(source.qualityScore) ? { confidence: Math.max(0, Math.min(100, source.qualityScore)) } : {}),
   }));
   const topSourceIds = sourceRefs.slice(0, 2).map((source) => source.id);
   const signalSourceIds = sourceIdsFromIndices(
@@ -1516,14 +1378,8 @@ export function stateToResultPacket(state: PipelineState): Record<string, unknow
     routingHints: state.routingHints.slice(0, 3),
     recommendedNextAction: enrichedNextActions[0]?.action,
     tokenUsage: state.tokenUsage ?? null,
-    realCost: state.tokenUsage ? {
-      model: state.tokenUsage.model,
-      inputTokens: state.tokenUsage.inputTokens,
-      outputTokens: state.tokenUsage.outputTokens,
-      inputCostUsd: (state.tokenUsage.inputTokens / 1_000_000) * 0.075,
-      outputCostUsd: (state.tokenUsage.outputTokens / 1_000_000) * 0.30,
-      totalCostUsd: ((state.tokenUsage.inputTokens / 1_000_000) * 0.075) + ((state.tokenUsage.outputTokens / 1_000_000) * 0.30),
-    } : null,
+    realCost: null,
+    costMeasurementStatus: "not_measured",
   };
 
   const envelope = createEnvelopeFromResultPacket({
