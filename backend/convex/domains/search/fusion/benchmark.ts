@@ -43,6 +43,7 @@ import { v } from "convex/values";
 import { action, internalMutation, internalQuery } from "../../../_generated/server";
 import { internal, api } from "../../../_generated/api";
 import type { SearchResponse, SearchSource, FusionSearchPayload } from "./types";
+import { anthropicText } from "../../../../../shared/llm/modelCatalog";
 import {
   normalizeModelInput,
   getModelSpec,
@@ -587,7 +588,7 @@ export const evaluateSearch = action({
         body: JSON.stringify({
           model: modelSpec.sdkId,
           max_tokens: 1500,
-          temperature: JUDGE_TEMPERATURE, // Pinned to 0 for determinism
+          // No temperature: Claude 4.7+/5.x answer 400 to non-default sampling.
           messages: [
             { role: "user", content: `You are an expert search quality evaluator. Respond only with valid JSON.\n\n${prompt}` },
           ],
@@ -600,7 +601,7 @@ export const evaluateSearch = action({
       }
 
       const data = await response.json();
-      llmResponse = data.content?.[0]?.text || "";
+      llmResponse = anthropicText(data.content);
     } else if (modelSpec.provider === "google") {
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${modelSpec.sdkId}:generateContent?key=${process.env.GOOGLE_GENERATIVE_AI_API_KEY}`,

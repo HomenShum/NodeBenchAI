@@ -52,9 +52,11 @@ export interface RerankResult {
 export const RRF_K = 60;
 export const MAX_RERANK_CANDIDATES = 12;
 // NOTE: must be a real model id the key can reach (verified via GET /v1beta/models).
-// gemini-3.5-flash is a THINKING model — it MUST be paired with thinkingConfig.thinkingBudget:0
+// gemini-3.5-flash is a THINKING model — it MUST be paired with a low thinking level
 // below, else it spends the token budget on a reasoning preamble and never emits the bare index
-// array (verified: thinking-on tok=96 → no array; thinking-0 tok=256 → "[0,1,2]" in ~700ms).
+// array (verified with the since-removed thinkingBudget:0: thinking-on tok=96 → no array;
+// thinking-0 tok=256 → "[0,1,2]" in ~700ms). Gemini 3.x replaced thinkingBudget with
+// thinkingConfig.thinkingLevel (`minimal` is unsupported), so the request now sends "low".
 const RERANK_MODEL = process.env.TRI_SEARCH_RERANK_MODEL || "gemini-3.5-flash";
 const RERANK_TIMEOUT_MS = Number(process.env.TRI_SEARCH_RERANK_TIMEOUT_MS) || 6000;
 const MAX_TITLE = 120;
@@ -137,9 +139,9 @@ export async function rerankWithGemini(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          // thinkingBudget:0 forces structured output on thinking models (3.x/2.5) so they
-          // emit the bare index array instead of a reasoning preamble; 256 tokens leaves room.
-          generationConfig: { temperature: 0, maxOutputTokens: 256, thinkingConfig: { thinkingBudget: 0 } },
+          // thinkingLevel "low" keeps thinking models (3.x) from spending the budget on a
+          // reasoning preamble so they emit the bare index array; 256 tokens leaves room.
+          generationConfig: { temperature: 0, maxOutputTokens: 256, thinkingConfig: { thinkingLevel: "low" } },
         }),
         signal: AbortSignal.timeout(opts.timeoutMs ?? RERANK_TIMEOUT_MS),
       },

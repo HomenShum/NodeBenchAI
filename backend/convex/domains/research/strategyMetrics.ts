@@ -12,6 +12,7 @@ import {
   getLlmModel,
   resolveModelAlias,
   getModelWithFailover,
+  anthropicText,
 } from "../../../../shared/llm/modelCatalog";
 
 const CACHE_TTL_MS = 12 * 60 * 60 * 1000;
@@ -34,7 +35,7 @@ async function generateWithProvider(
       system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }],
     });
-    return response.content[0]?.type === "text" ? response.content[0].text : "";
+    return anthropicText(response.content);
   }
 
   if (provider === "gemini") {

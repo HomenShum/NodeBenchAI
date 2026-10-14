@@ -32,6 +32,7 @@ export const APPROVED_MODELS = [
   "qwen3-235b",
   "minimax-m2.7",
   "mistral-large",
+  "nemotron-3-super-free",
   "laguna-s-2.1-free",
   "laguna-xs-2.1-free",
   "qwen3-coder-free",
@@ -293,6 +294,16 @@ export const MODEL_UI_INFO: Record<ApprovedModel, ModelUIInfo> = {
     contextWindow: "131K",
     icon: "OR",
   },
+  "nemotron-3-super-free": {
+    id: "nemotron-3-super-free",
+    name: "Nemotron 3 Super (Free)",
+    provider: "openrouter",
+    description: "Verified free lane with tools and structured outputs",
+    tier: "powerful",
+    contextWindow: "262K",
+    icon: "OR",
+    isFree: true,
+  },
   "laguna-s-2.1-free": {
     id: "laguna-s-2.1-free",
     name: "Laguna S 2.1 (Free)",
@@ -478,23 +489,32 @@ export const MODEL_UI_INFO: Record<ApprovedModel, ModelUIInfo> = {
 export const DEFAULT_MODEL: ApprovedModel = "kimi-k2.6";
 export const FALLBACK_MODEL: ApprovedModel = "gpt-5.4-mini";
 
+// Mirrors modelResolver.ts; approvedModels.drift.test.ts fails when they diverge.
 export const MODEL_PRIORITY_ORDER: ApprovedModel[] = [
   "kimi-k2.6",
-  "minimax-m2.7",
   "gemini-3.1-flash-lite-preview",
-  "gpt-5.4-mini",
   "gemini-3-flash-preview",
   "gemini-3.1-pro-preview",
+  "minimax-m2.7",
+  "gpt-5.4-mini",
   "gpt-5.4",
   "claude-sonnet-4.6",
   "claude-opus-4.7",
   "claude-haiku-4.5",
   "gpt-5.4-nano",
+  "laguna-s-2.1-free",
+  "laguna-xs-2.1-free",
   "qwen3-coder-free",
   "step-3.5-flash-free",
   "gpt-oss-120b-free",
   "trinity-large-free",
   "nemotron-3-nano-free",
+  "qwen3-next-free",
+  "llama-3.3-70b-free",
+  "glm-4.5-air-free",
+  "deepseek-r1-free",
+  "deepseek-chimera-free",
+  "venice-dolphin-free",
 ];
 
 export type NodeBenchRuntimeProfile = "advisor" | "executor" | "background";
@@ -503,16 +523,16 @@ export const NODEBENCH_ADVISOR_MODEL: ApprovedModel = "kimi-k2.6";
 
 export const NODEBENCH_EXECUTOR_MODELS: ApprovedModel[] = [
   "gemini-3.1-flash-lite-preview",
-  "gpt-5.4-mini",
-  "minimax-m2.7",
   "gemini-3-flash-preview",
+  "minimax-m2.7",
+  "gpt-5.4-mini",
   "kimi-k2.6",
 ];
 
 export const NODEBENCH_BACKGROUND_MODELS: ApprovedModel[] = [
   "gemini-3.1-pro-preview",
-  "kimi-k2.6",
   "gpt-5.4",
+  "kimi-k2.6",
   "gemini-3-flash-preview",
 ];
 

@@ -21,8 +21,10 @@ import dotenv from "dotenv";
 import { mkdirSync, writeFileSync, appendFileSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../backend/convex/_generated/api";
+import { resolveModelAlias } from "../backend/convex/domains/agents/mcp_tools/models/modelResolver";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -63,6 +65,10 @@ interface EpisodeResult {
   responseText?: string;
   responsePreview?: string;
   error?: string;
+  /** What the repo's resolver chose for `model` (returned by runPersonaEpisodeEval). */
+  resolvedModelId?: string;
+  /** True when this script's own retry switched to getEvalFallbackModel(). */
+  fallbackUsed?: boolean;
 }
 
 type ScenarioSuite = "core" | "next" | "stress";
@@ -239,6 +245,21 @@ function percentile(arr: number[], p: number): number {
   return sorted[Math.min(idx, sorted.length - 1)];
 }
 
+/** `--models` values the resolver does not know. Each one must abort the run (SPEC-v9 A.0.10). */
+export function unresolvedModels(models: readonly string[]): string[] {
+  return models.filter((m) => resolveModelAlias(m) === null);
+}
+
+/**
+ * Rows that cannot count as evidence for the requested candidate: the resolver chose
+ * a different model, or this script's retry switched models (SPEC-v9 A.0.3).
+ */
+export function identityViolations(results: readonly EpisodeResult[]): EpisodeResult[] {
+  return results.filter(
+    (r) => r.fallbackUsed === true || (r.resolvedModelId !== undefined && r.resolvedModelId !== r.model),
+  );
+}
+
 function getEvalFallbackModel(model: string): string | null {
   switch (model) {
     case "kimi-k2.6":
@@ -289,6 +310,7 @@ async function runSingleEpisode(
   try {
     const maxAttempts = 2;
     let run: any = null;
+    let resolvedModelId: string | undefined;
     let activeModel = model;
     let fallbackActivated = false;
 
@@ -310,6 +332,7 @@ async function runSingleEpisode(
       });
 
       run = result?.runs?.[0] ?? null;
+      resolvedModelId = typeof result?.resolvedModelId === "string" ? result.resolvedModelId : undefined;
       const responseForRetry = String(run?.responseText ?? run?.responsePreview ?? "").trim();
       const failureReasons = Array.isArray(run?.failureReasons) ? run.failureReasons.map((reason: unknown) => String(reason)) : [];
       const missingDebrief = failureReasons.some((reason) => reason.includes("Missing [DEBRIEF_V1_JSON] block"));
@@ -376,6 +399,8 @@ async function runSingleEpisode(
       responseText: responseForJudge,
       responsePreview: run?.responsePreview?.slice(0, 500),
       error: run ? undefined : "No run returned by personaEpisodeEval",
+      resolvedModelId,
+      fallbackUsed: fallbackActivated,
     };
   } catch (err) {
     const elapsed = Date.now() - startTime;
@@ -548,7 +573,7 @@ async function main() {
     "deepseek-r1",
     "deepseek-v3.2",
     "qwen3-235b",
-    "minimax-m2.1",
+    // minimax-m2.1 was removed: it is not an approved id, so it used to resolve to the default.
   ];
 
   let modelsToTest: string[];
@@ -559,6 +584,13 @@ async function main() {
   } else {
     // Default: current production lane only. Shadow comparisons must be explicit.
     modelsToTest = ["kimi-k2.6"];
+  }
+
+  // Fail closed: an unknown --models value used to resolve silently to the default
+  // model, so a "candidate" run could measure a different model.
+  const unknown = unresolvedModels(modelsToTest);
+  if (unknown.length > 0) {
+    throw new Error(`Unknown --models value(s): ${unknown.join(", ")} (not an approved model or alias)`);
   }
 
   // Select scenarios based on suite
@@ -788,10 +820,23 @@ async function main() {
     writeFileSync(metricsPath, JSON.stringify(metrics, null, 2) + "\n", "utf8");
     console.log(`   ${metricsPath} (success metrics)`);
   }
+
+  const violations = identityViolations(results);
+  if (violations.length > 0) {
+    console.error(
+      `\nERROR: ${violations.length} row(s) are not evidence for the requested model ` +
+        `(resolved to another id, or the retry switched models): ` +
+        violations.map((r) => `${r.model}/${r.scenarioId}->${r.resolvedModelId ?? "?"}${r.fallbackUsed ? " (fallback)" : ""}`).join(", "),
+    );
+    process.exitCode = 1;
+  }
 }
 
-main().catch((err) => {
-  const msg = err instanceof Error ? (err.stack || err.message || String(err)) : String(err);
-  process.stderr.write(`ERROR: ${msg}\n`);
-  process.exit(1);
-});
+// Run only as a script, so the pure helpers above can be imported by tests.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    const msg = err instanceof Error ? (err.stack || err.message || String(err)) : String(err);
+    process.stderr.write(`ERROR: ${msg}\n`);
+    process.exit(1);
+  });
+}

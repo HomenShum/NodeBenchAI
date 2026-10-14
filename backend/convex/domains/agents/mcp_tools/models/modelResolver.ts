@@ -109,6 +109,7 @@ export const APPROVED_MODELS = [
   "minimax-m2.7",      // MiniMax M2.7 - agentic executor lane $0.30/$1.20
   "mistral-large",     // Mistral Large 2411 - function calling $2/M
   // OpenRouter free-tier models (availability is re-verified before routing changes)
+  "nemotron-3-super-free", // NVIDIA Nemotron 3 Super 120B A12B - 262K, tools + structured outputs; FREE_LANE_MODEL
   "laguna-s-2.1-free", // Poolside Laguna S 2.1 - 262K, current free judge lane
   "laguna-xs-2.1-free", // Poolside Laguna XS 2.1 - 262K, free fallback judge lane
   "qwen3-coder-free",  // Qwen3 Coder 480B MoE (A3.5B) - 262K, agentic coding
@@ -138,6 +139,38 @@ export const DEFAULT_MODEL: ApprovedModel = "kimi-k2.6";
 
 // Fallback model when the primary lane is unavailable or over budget
 export const FALLBACK_MODEL: ApprovedModel = "gpt-5.4-mini";
+
+/**
+ * The one verified free lane. This is the typed resolver boundary (an approved
+ * alias): code that hands a value to the resolver writes this constant. The
+ * provider wire string is read from `MODEL_SPECS[FREE_LANE_MODEL].sdkId` and is
+ * never typed a second time. Evidence: NodeVideo's measured free-model benchmark
+ * (config/openrouter-free-routing.json), the only measured free pick in the portfolio.
+ * SPEC-v9 A.2.10 PR 1 (Codex v3 N2).
+ */
+export const FREE_LANE_MODEL: ApprovedModel = "nemotron-3-super-free";
+
+/**
+ * Thrown when an id is not an approved model, not a legacy alias, and not
+ * free-looking. Unknown ids never become a paid default (SPEC-v9 A.0.10).
+ */
+export class UnknownModelError extends Error {
+  readonly input: string;
+  constructor(input: string) {
+    super(`Unknown model "${input}". Allowed models: ${APPROVED_MODELS.join(", ")}`);
+    this.name = "UnknownModelError";
+    this.input = input;
+  }
+}
+
+/**
+ * Opt-in for the single kind of caller allowed to turn an unknown id into
+ * DEFAULT_MODEL: one that, in the same function, awaits a financial reservation
+ * for the resolved model (`reserveLlmRequestInternal`) before dispatch.
+ */
+export interface UnknownModelOptions {
+  allowPaidFallback?: boolean;
+}
 
 // Model priority order for production-first routing
 export const MODEL_PRIORITY_ORDER: ApprovedModel[] = [
@@ -257,6 +290,15 @@ function stripProviderPrefix(input: string): string {
   return match ? match[2].trim() : input;
 }
 
+/**
+ * An unknown id is "free-looking" when it carries the OpenRouter free suffix
+ * (`-free` / `:free`) or is one of the free route aliases.
+ */
+function isFreeLookingModelInput(input: string): boolean {
+  const normalized = input.trim().toLowerCase();
+  return /(-|:)free$/.test(normalized) || routeAliasToModel(normalized)?.routeTier === "free";
+}
+
 function routeAliasToModel(input: string): {
   routeTier: NodeBenchModelRouteTier;
   modelId: ApprovedModel;
@@ -324,12 +366,37 @@ export function resolvePipelineModelSelection(
     resolveModelAlias(normalized) ??
     resolveModelAlias(stripped);
 
-  return {
-    requestedModelId,
-    resolvedModelId: resolved ?? DEFAULT_MODEL,
-    isFreeRoute: resolved ? isFreeModel(resolved) : false,
-    usedDefault: !resolved,
-  };
+  if (resolved) {
+    return {
+      requestedModelId,
+      resolvedModelId: resolved,
+      isFreeRoute: isFreeModel(resolved),
+      usedDefault: false,
+    };
+  }
+
+  // Fail closed (SPEC-v9 A.0.10): a free-looking unknown id stays in the free
+  // lane; any other unknown id throws. It never becomes DEFAULT_MODEL, because
+  // the pipelines domain holds a launch counter, not a financial reservation.
+  if (isFreeLookingModelInput(requestedModelId) || isFreeLookingModelInput(stripped)) {
+    return {
+      requestedModelId,
+      resolvedModelId: FREE_LANE_MODEL,
+      routeTier: "free",
+      isFreeRoute: true,
+      usedDefault: false,
+    };
+  }
+  throw new UnknownModelError(requestedModelId);
+}
+
+/**
+ * Boundary guard for pipeline launches: throws `UnknownModelError` for an
+ * unknown, non-free-looking model id, using exactly the rules of
+ * `resolvePipelineModelSelection`. Empty input is the default route and passes.
+ */
+export function assertKnownPipelineModel(input: string | undefined | null): void {
+  resolvePipelineModelSelection(input);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -561,6 +628,17 @@ export const MODEL_SPECS: Record<ApprovedModel, ModelSpec> = {
   // Free availability is temporal; callers that require continuity must use an
   // explicit, provenance-preserving fallback rather than assuming this list is live.
   // ═══════════════════════════════════════════════════════════════════════════
+  // Free lane (FREE_LANE_MODEL). Wire id and 262,144-token context from NodeVideo's
+  // measured benchmark (config/openrouter-free-routing.json, 8/8 successes);
+  // tools + structured outputs per SPEC-v9 s1.2. isFreeModel() derives "free"
+  // from the zero pricing below, which is what costClass: free means in this repo.
+  "nemotron-3-super-free": {
+    alias: "nemotron-3-super-free",
+    provider: "openrouter",
+    sdkId: "nvidia/nemotron-3-super-120b-a12b:free",
+    capabilities: { vision: false, toolUse: true, streaming: true, structuredOutputs: true, maxContext: 262_144 },
+    pricing: { inputPerMillion: 0.00, outputPerMillion: 0.00 },
+  },
   "laguna-s-2.1-free": {
     alias: "laguna-s-2.1-free",
     provider: "openrouter",
@@ -731,6 +809,11 @@ export const LEGACY_ALIASES: Record<string, ApprovedModel> = {
   "gemini-flash": "gemini-3-flash-preview",
   "gemini-pro": "gemini-3.1-pro-preview",
   "gemini": "gemini-3-flash-preview",
+  // Provider-prefixed strings that wikiDreamingGraph.ts passes (and stores as modelUsed).
+  // They were unknown and silently ran on DEFAULT_MODEL; failing closed would break that
+  // job, so they resolve to the Gemini ids they name. SPEC-v9 A.2.10 PR 2 moves the ids.
+  "google:models/gemini-3-flash-preview": "gemini-3-flash-preview",
+  "google:models/gemini-3.1-pro-preview": "gemini-3.1-pro-preview",
 
   // Retired free models → redirect to best available free replacement
   "mimo-v2-flash-free": "qwen3-coder-free",
@@ -762,6 +845,8 @@ export const LEGACY_ALIASES: Record<string, ApprovedModel> = {
   "nvidia/llama-3.1-nemotron-70b-instruct:free": "nemotron-3-nano-free",
   "nemotron": "nemotron-3-nano-free",
   "nemotron-70b": "nemotron-3-nano-free",
+  // Free lane: the OpenRouter wire id resolves to the typed alias (SPEC-v9 A.2.10 PR 1)
+  "nvidia/nemotron-3-super-120b-a12b:free": "nemotron-3-super-free",
   // Current free model aliases (verified July 22, 2026)
   "poolside/laguna-s-2.1:free": "laguna-s-2.1-free",
   "poolside/laguna-s-2.1": "laguna-s-2.1-free",
@@ -902,19 +987,59 @@ export function getLanguageModelOrThrow(input: string): LanguageModel {
   return getLanguageModel(resolved);
 }
 
+// Unknown ids that were turned into DEFAULT_MODEL under `allowPaidFallback`.
+// A plain number, so it cannot grow: it is a count for the trace, not a store.
+let paidFallbackCount = 0;
+
+/** Number of unknown ids resolved to DEFAULT_MODEL via `allowPaidFallback` in this process. */
+export function getPaidFallbackCount(): number {
+  return paidFallbackCount;
+}
+
 /**
- * Get a language model from untrusted input with fallback to default
+ * Resolve untrusted input to an approved alias or fail closed (SPEC-v9 A.0.10):
+ *   - empty input                       -> DEFAULT_MODEL
+ *   - known alias                       -> that alias
+ *   - unknown, free-looking             -> FREE_LANE_MODEL (never a paid id)
+ *   - unknown, allowPaidFallback===true -> DEFAULT_MODEL, counted and annotated
+ *   - unknown otherwise                 -> throws UnknownModelError
  */
-export function getLanguageModelSafe(input: string | undefined | null): LanguageModel {
-  if (!input) {
-    return getLanguageModel(DEFAULT_MODEL);
-  }
+function resolveOrFailClosed(
+  input: string | undefined | null,
+  opts: UnknownModelOptions | undefined,
+  caller: string,
+): ApprovedModel {
+  if (!input) return DEFAULT_MODEL;
   const resolved = resolveModelAlias(input);
-  if (!resolved) {
-    console.warn(`[modelResolver] Unknown model "${input}", falling back to ${DEFAULT_MODEL}`);
-    return getLanguageModel(DEFAULT_MODEL);
+  if (resolved) return resolved;
+  if (isFreeLookingModelInput(input)) {
+    console.warn(`[modelResolver] ${caller}: unknown free-looking model "${input}" -> ${FREE_LANE_MODEL}`);
+    return FREE_LANE_MODEL;
   }
-  return getLanguageModel(resolved);
+  if (opts?.allowPaidFallback === true) {
+    paidFallbackCount += 1;
+    console.warn(
+      `[modelResolver] ${caller}: unknown model "${input}" -> ${DEFAULT_MODEL} (allowPaidFallback; count=${paidFallbackCount})`,
+    );
+    return DEFAULT_MODEL;
+  }
+  throw new UnknownModelError(input);
+}
+
+/**
+ * Get a language model from untrusted input. Fails closed for unknown ids; see
+ * `resolveOrFailClosed`. `allowPaidFallback: true` is permitted only where the
+ * same function awaits `reserveLlmRequestInternal` for the resolved model.
+ */
+export function getLanguageModelSafe(
+  input: string | undefined | null,
+  opts?: UnknownModelOptions,
+): LanguageModel {
+  const resolved = resolveOrFailClosed(input, opts, "getLanguageModelSafe");
+  const substituted = Boolean(input) && resolveModelAlias(input as string) === null;
+  const spec = MODEL_SPECS[resolved];
+  logModelResolution(String(input ?? ""), spec, "getLanguageModelSafe", substituted ? "unknown_input" : undefined);
+  return buildLanguageModel(spec);
 }
 
 /**
@@ -945,12 +1070,16 @@ export interface ModelResolutionEvent {
   caller: string;
   success: boolean;
   errorMessage?: string;
+  /** Set when the requested id was unknown and the resolver substituted another. */
+  fallback?: "unknown_input";
+  paidFallbackCount?: number;
 }
 
 function logModelResolution(
   requestedAlias: string,
   spec: ModelSpec,
-  caller: string
+  caller: string,
+  fallback?: "unknown_input",
 ): void {
   const event: ModelResolutionEvent = {
     event: "ModelResolution",
@@ -961,6 +1090,7 @@ function logModelResolution(
     provider: spec.provider,
     caller,
     success: true,
+    ...(fallback ? { fallback, paidFallbackCount } : {}),
   };
   console.log("[ModelResolver]", JSON.stringify(event));
 }
@@ -1024,14 +1154,11 @@ export function getModelsWithCapabilities(
  * Safely resolve a model alias and return normalized alias
  * Used for API boundary normalization
  */
-export function normalizeModelInput(input: string | undefined | null): ApprovedModel {
-  if (!input) return DEFAULT_MODEL;
-  const resolved = resolveModelAlias(input);
-  if (!resolved) {
-    console.warn(`[modelResolver] Normalizing unknown model "${input}" to ${DEFAULT_MODEL}`);
-    return DEFAULT_MODEL;
-  }
-  return resolved;
+export function normalizeModelInput(
+  input: string | undefined | null,
+  opts?: UnknownModelOptions,
+): ApprovedModel {
+  return resolveOrFailClosed(input, opts, "normalizeModelInput");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1231,7 +1358,9 @@ export async function executeWithModelFallback<T>(
  * Free availability is temporal; production callers should retain an explicit fallback.
  */
 export function getBestFreeModel(): ApprovedModel {
-  return "laguna-s-2.1-free";
+  // laguna-s-2.1:free expires on OpenRouter 2026-10-31 (SPEC-v9 A.1); the free
+  // lane is the registered, measured FREE_LANE_MODEL.
+  return FREE_LANE_MODEL;
 }
 
 /**

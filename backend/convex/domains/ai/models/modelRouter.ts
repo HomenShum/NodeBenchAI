@@ -16,7 +16,7 @@ import { v } from "convex/values";
 import { internalAction } from "../../../_generated/server";
 import { internal } from "../../../_generated/api";
 import { generateText } from "ai";
-import { getLanguageModelSafe } from "../../agents/mcp_tools/models";
+import { getLanguageModelSafe, getProviderForModel, resolveModelAlias } from "../../agents/mcp_tools/models";
 // B-PR4: capability-aware fallback chain.
 // resolveChain replaces the static `[...TIER_MODELS[tier]]` candidate list
 // with a tier-floor-enforced ordering that respects requested capabilities
@@ -98,17 +98,24 @@ export interface RouteResult {
   };
 }
 
+/** Claude 4.7+/5.x 400 on non-default sampling and Gemini 3.x deprecates it. */
+function acceptsSampling(modelId: string): boolean {
+  const alias = resolveModelAlias(modelId);
+  const provider = alias ? getProviderForModel(alias) : null;
+  return provider !== "anthropic" && provider !== "google";
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // MODEL TIERS — which models serve which tier
 // ═══════════════════════════════════════════════════════════════════════════
 
 const TIER_MODELS: Record<TaskTier, string[]> = {
+  // openai-gpt-oss-120b-free, arcee-trinity-large-free and nemotron-3-nano-30b-free
+  // were dropped: they are not approved aliases, so getLanguageModelSafe used to
+  // route them to the paid DEFAULT_MODEL (SPEC-v9 A.2.10 PR 1).
   free: [
     "qwen3-coder-free",
     "step-3.5-flash-free",
-    "openai-gpt-oss-120b-free",
-    "arcee-trinity-large-free",
-    "nemotron-3-nano-30b-free",
     "llama-3.3-70b-free",
   ],
   cheap: [
@@ -431,7 +438,9 @@ export const route = internalAction({
             content: m.content,
           })),
           maxOutputTokens: args.maxTokens ?? 2048,
-          temperature: args.temperature ?? 0.3,
+          // Claude 4.7+/5.x reject non-default sampling (400) and Gemini 3.x
+          // deprecates it, so only the other providers receive temperature.
+          ...(acceptsSampling(modelId) ? { temperature: args.temperature ?? 0.3 } : {}),
         });
 
         const inputTokens = result.usage?.inputTokens ?? 0;

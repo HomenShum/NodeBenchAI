@@ -181,3 +181,27 @@ describe("condenseQuery — multi-turn query rewrite", () => {
     expect(promptText).not.toContain("turn 0"); // beyond the last 3 → excluded
   });
 });
+
+describe("rerankWithGemini - request shape (Gemini 3.x)", () => {
+  // SPEC-v9 s1.3: Gemini 3.x replaced thinkingBudget with thinkingLevel (`minimal` unsupported).
+  // thinkingBudget:0 is how this reranker used to keep a thinking model from spending its
+  // 256-token cap on a reasoning preamble; thinkingLevel "low" is the replacement.
+  it("sends thinkingLevel low and no thinkingBudget", async () => {
+    const bodies: any[] = [];
+    const spyFetch = (async (_url: string, init: { body: string }) => {
+      bodies.push(JSON.parse(init.body));
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ candidates: [{ content: { parts: [{ text: "[1,0]" }] } }] }),
+      } as unknown as Response;
+    }) as unknown as typeof fetch;
+    const fused = rrfFuse([leg("linkup", ["a", "b"])]);
+    const r = await rerankWithGemini("entity funding", fused, { topN: 2, apiKey: "test", fetchImpl: spyFetch });
+    expect(r.rerankStatus).toBe("ok");
+    expect(bodies).toHaveLength(1);
+    const thinking = bodies[0].generationConfig.thinkingConfig;
+    expect(thinking).toEqual({ thinkingLevel: "low" });
+    expect(thinking).not.toHaveProperty("thinkingBudget");
+  });
+});

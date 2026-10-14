@@ -14,10 +14,13 @@
 import { describe, it, expect } from "vitest";
 import {
   buildCheckpointPrompt,
+  buildCheckpointRequestBody,
   parseCheckpointResponse,
   shouldContinue,
   EXTENDED_PROMPT_VERSION,
   MAX_CHECKPOINTS,
+  MAX_OUTPUT_TOKENS,
+  MAX_THINKING_BUDGET_TOKENS,
   type CheckpointPromptInput,
 } from "./extendedThinkingRunner";
 
@@ -263,5 +266,44 @@ describe("shouldContinue — chain termination rules", () => {
       thinkingBudgetTokens: 40_000,
     });
     expect(v.continue).toBe(false);
+  });
+});
+
+describe("buildCheckpointRequestBody - Anthropic request shape (SPEC-v9 A.0.6)", () => {
+  const prompt = { system: "sys", user: "usr" };
+
+  it("sends the hyphenated wire id for a stored dotted alias", () => {
+    // run.modelName defaults to the catalog alias "claude-sonnet-4.6"; api.anthropic.com
+    // rejects that string, so the body must carry the resolver's wire id.
+    const body = buildCheckpointRequestBody({ modelName: "claude-sonnet-4.6", prompt, remainingThinkingTokens: 40_000 });
+    expect(body.model).toBe("claude-sonnet-4-6");
+  });
+
+  it("uses adaptive thinking with output_config.effort, never budget_tokens", () => {
+    const body = buildCheckpointRequestBody({ modelName: "claude-sonnet-4.6", prompt, remainingThinkingTokens: 40_000 }) as any;
+    expect(body.thinking).toEqual({ type: "adaptive" });
+    expect(body.thinking).not.toHaveProperty("budget_tokens");
+    expect(body.output_config).toEqual({ effort: "medium" });
+    for (const key of ["temperature", "top_p", "top_k"]) expect(body).not.toHaveProperty(key);
+    expect(body.messages).toEqual([{ role: "user", content: "usr" }]);
+    expect(body.system).toBe("sys");
+  });
+
+  it("keeps the thinking budget a bound: max_tokens = answer cap + min(allowance, remaining)", () => {
+    const at = (remaining: number) =>
+      (buildCheckpointRequestBody({ modelName: "claude-sonnet-4.6", prompt, remainingThinkingTokens: remaining }) as any).max_tokens;
+    expect(at(40_000)).toBe(MAX_OUTPUT_TOKENS + MAX_THINKING_BUDGET_TOKENS);
+    expect(at(2_500)).toBe(MAX_OUTPUT_TOKENS + 2_500);
+    expect(at(0)).toBe(MAX_OUTPUT_TOKENS);
+    expect(at(-50)).toBe(MAX_OUTPUT_TOKENS);
+  });
+
+  it("accepts an operator-supplied wire id and refuses a name with no Anthropic id", () => {
+    expect(buildCheckpointRequestBody({ modelName: "claude-sonnet-4-6", prompt, remainingThinkingTokens: 1 }).model).toBe(
+      "claude-sonnet-4-6",
+    );
+    expect(() => buildCheckpointRequestBody({ modelName: "kimi-k2.6", prompt, remainingThinkingTokens: 1 })).toThrow(
+      /no Anthropic wire id/,
+    );
   });
 });

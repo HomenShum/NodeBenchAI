@@ -670,7 +670,8 @@ async function searchLinkup(question: string) {
   }
 }
 
-async function generateProviderAnswer(args: {
+// Exported for the request-shape test (SPEC-v9 A.0.6); not a Convex function.
+export async function generateProviderAnswer(args: {
   eventName: string;
   question: string;
   sources: Array<{ title: string; excerpt: string; body: string; uri?: string }>;
@@ -711,8 +712,9 @@ async function generateProviderAnswer(args: {
       },
       body: JSON.stringify({
         model,
-        max_tokens: 700,
-        temperature: 0.2,
+        // No temperature: Claude 4.7+/5.x answer 400 to non-default sampling.
+        // 2048 leaves room for adaptive thinking, which counts toward max_tokens.
+        max_tokens: 2048,
         system,
         messages: [{ role: "user", content: user }],
       }),
@@ -810,7 +812,8 @@ function deterministicBouncerAdvisory(args: {
   };
 }
 
-async function generateBouncerAdvisory(args: {
+// Exported for the request-shape test (SPEC-v9 A.0.6); not a Convex function.
+export async function generateBouncerAdvisory(args: {
   eventName: string;
   displayName: string;
   note?: string;
@@ -856,8 +859,8 @@ async function generateBouncerAdvisory(args: {
       },
       body: JSON.stringify({
         model: args.model,
-        max_tokens: 260,
-        temperature: 0,
+        // No temperature (400 on Claude 4.7+/5.x); 2048 covers thinking tokens.
+        max_tokens: 2048,
         system,
         messages: [{ role: "user", content: user }],
       }),
@@ -2502,7 +2505,8 @@ const JOIN_BOUNCER_SYSTEM = [
   'Output STRICT JSON only: {"recommendation":"approve|hold|deny","riskScore":0.0,"flags":[],"hostSummary":"...","guestMessage":"..."}',
 ].join(" ");
 
-async function runJoinBouncer(input: { eventName: string; displayName: string; note: string }): Promise<
+// Exported for the request-shape test (SPEC-v9 A.0.6); not a Convex function.
+export async function runJoinBouncer(input: { eventName: string; displayName: string; note: string }): Promise<
   | { recommendation: "approve" | "hold" | "deny"; riskScore: number; flags: string[]; hostSummary: string; guestMessage: string }
   | null
 > {
@@ -2524,8 +2528,8 @@ async function runJoinBouncer(input: { eventName: string; displayName: string; n
       headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
       body: JSON.stringify({
         model,
-        max_tokens: 300,
-        temperature: 0,
+        // No temperature (400 on Claude 4.7+/5.x); 2048 covers thinking tokens.
+        max_tokens: 2048,
         system: JOIN_BOUNCER_SYSTEM,
         messages: [{ role: "user", content: user }],
       }),

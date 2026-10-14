@@ -23,6 +23,7 @@ import { v } from "convex/values";
 import { internalMutation, mutation } from "../../_generated/server";
 import { components, internal } from "../../_generated/api";
 import { WorkflowManager } from "@convex-dev/workflow";
+import { assertKnownPipelineModel } from "../agents/mcp_tools/models/modelResolver";
 import { requireAuthenticatedPipelineOwnerKey } from "./pipelineOwnership";
 import {
   normalizePipelineLaunchText,
@@ -198,6 +199,9 @@ export const startPipelineRun = mutation({
   }),
   handler: async (ctx, args): Promise<{ workflowId: string }> => {
     const ownerKey = await requireAuthenticatedPipelineOwnerKey(ctx);
+    // Fail closed before admission: an unknown model id neither consumes a
+    // launch slot nor starts a workflow (SPEC-v9 A.0.10).
+    assertKnownPipelineModel(args.modelId);
     await reservePipelineLaunchAdmission(ctx, ownerKey);
     return await startPipelineWorkflowForOwner(ctx, args, ownerKey);
   },
@@ -214,6 +218,7 @@ export const startPipelineRunInternal = internalMutation({
   handler: async (ctx, args): Promise<{ workflowId: string }> => {
     const ownerKey = normalizePipelineOwnerKey(args.ownerKey);
     const { ownerKey: _ownerKey, ...launchArgs } = args;
+    assertKnownPipelineModel(args.modelId);
     if (ownerKey.startsWith("user:")) {
       await reservePipelineLaunchAdmission(ctx, ownerKey);
     }

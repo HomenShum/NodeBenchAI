@@ -65,8 +65,7 @@ export type AgentMode = "bare" | "mcp_lite" | "mcp_core" | "mcp_full";
 export interface RunConfig {
   taskId: string;
   agentMode: AgentMode;
-  model: string;
-  modelVersion: string;
+  model: string;          // candidate id: EVAL_MODEL (detectBackend().model), never hard-coded
   seed: number;           // trial seed (run 3-5 per config)
   toolsetPreset?: string; // lite/core/full for MCP modes
   timeout: number;        // max ms per run
@@ -84,6 +83,8 @@ export interface RunTelemetry {
   verificationCycles: VerificationCycleRecord[];
   /** Raw agent output for audit */
   outputHash: string;
+  /** The `model` string the provider returned (not the one requested) - SPEC-v9 A.0.3. */
+  echoedModel?: string;
   /** Error if run failed */
   error?: string;
 }

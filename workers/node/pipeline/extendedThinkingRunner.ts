@@ -30,6 +30,8 @@
  *     prompt drift vs model drift.
  */
 
+import { anthropicWireId } from "../../../shared/llm/modelCatalog.js";
+
 export const EXTENDED_PROMPT_VERSION = "ext-think-v1";
 
 /** Hard safety caps — Convex actions have wall-clock limits. */
@@ -88,6 +90,45 @@ export type CheckpointOutput = {
 export type ParseOutcome =
   | { ok: true; result: CheckpointOutput }
   | { ok: false; error: string };
+
+/* --------------------------------------------------------------------------
+ * Request construction
+ * ------------------------------------------------------------------------ */
+
+/**
+ * The Messages API body for ONE checkpoint.
+ *   - `model` is the Anthropic wire id from the explicit table in
+ *     shared/llm/modelCatalog.ts; the run's stored `modelName` may be a dotted
+ *     catalog alias ("claude-sonnet-4.6"), which api.anthropic.com rejects.
+ *     A name with no Anthropic wire id throws instead of being sent.
+ *   - Thinking is adaptive with `output_config.effort`: manual
+ *     `{type:"enabled", budget_tokens}` is deprecated on Sonnet/Opus 4.6 and
+ *     400s on Claude 5.x. Thinking tokens count toward `max_tokens`, so the
+ *     per-checkpoint remaining budget raises the cap above the answer size,
+ *     which keeps the run's thinking budget a real bound.
+ */
+export function buildCheckpointRequestBody(args: {
+  modelName: string;
+  prompt: Pick<CheckpointPrompt, "system" | "user">;
+  remainingThinkingTokens: number;
+}): Record<string, unknown> {
+  const model = anthropicWireId(args.modelName);
+  if (!model) {
+    throw new Error(`no Anthropic wire id for model "${args.modelName}"`);
+  }
+  const thinkingAllowance = Math.max(
+    0,
+    Math.min(MAX_THINKING_BUDGET_TOKENS, args.remainingThinkingTokens),
+  );
+  return {
+    model,
+    max_tokens: MAX_OUTPUT_TOKENS + thinkingAllowance,
+    thinking: { type: "adaptive" },
+    output_config: { effort: "medium" },
+    system: args.prompt.system,
+    messages: [{ role: "user", content: args.prompt.user }],
+  };
+}
 
 /* --------------------------------------------------------------------------
  * Prompt construction

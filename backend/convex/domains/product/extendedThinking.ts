@@ -44,11 +44,11 @@ import {
 import { api, internal } from "../../_generated/api";
 import {
   buildCheckpointPrompt,
+  buildCheckpointRequestBody,
   parseCheckpointResponse,
   shouldContinue,
   MAX_CHECKPOINTS,
   MAX_THINKING_BUDGET_TOKENS,
-  MAX_OUTPUT_TOKENS,
 } from "../../../../workers/node/pipeline/extendedThinkingRunner";
 
 const DEFAULT_MODEL = "claude-sonnet-4.6";
@@ -333,16 +333,13 @@ export const advanceRun = internalAction({
           "anthropic-version": "2023-06-01",
         },
         signal: controller.signal,
-        body: JSON.stringify({
-          model: run.modelName,
-          max_tokens: MAX_OUTPUT_TOKENS,
-          thinking: {
-            type: "enabled",
-            budget_tokens: Math.min(10_000, run.thinkingBudgetTokens - run.thinkingTokensUsed),
-          },
-          system: prompt.system,
-          messages: [{ role: "user", content: prompt.user }],
-        }),
+        body: JSON.stringify(
+          buildCheckpointRequestBody({
+            modelName: run.modelName,
+            prompt,
+            remainingThinkingTokens: run.thinkingBudgetTokens - run.thinkingTokensUsed,
+          }),
+        ),
       });
 
       if (!response.ok) {

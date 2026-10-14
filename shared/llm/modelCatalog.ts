@@ -128,6 +128,8 @@ export const modelPricing: Record<string, ModelPricing> = {
   "glm-4.5-air-free": { inputPer1M: 0.00, outputPer1M: 0.00, contextWindow: 131072 },
   "deepseek-chimera-free": { inputPer1M: 0.00, outputPer1M: 0.00, contextWindow: 163840 },
   "venice-dolphin-free": { inputPer1M: 0.00, outputPer1M: 0.00, contextWindow: 32768 },
+  // FREE_LANE_MODEL (modelResolver.ts); wire id nvidia/nemotron-3-super-120b-a12b:free, 262,144-token context (SPEC-v9 A.2.10 PR 1)
+  "nemotron-3-super-free": { inputPer1M: 0.00, outputPer1M: 0.00, contextWindow: 262144 },
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -562,6 +564,54 @@ export function resolveModelAlias(modelInput: string): string {
   return modelAliases[normalized] ?? modelInput;
 }
 
+// -----------------------------------------------------------------------------
+// ANTHROPIC WIRE IDS - explicit table, never string surgery
+// -----------------------------------------------------------------------------
+
+/**
+ * Catalog alias (dotted, UI-facing) -> the id api.anthropic.com accepts.
+ * The dotted alias is not a valid wire id, so every caller that hands a catalog
+ * model to Anthropic must go through `anthropicWireId`. Kept in sync with the
+ * `provider: "anthropic"` rows of `MODEL_SPECS` in modelResolver.ts by
+ * `anthropicWireIds.test.ts` (Convex cannot import this table from there, and
+ * this file cannot import from backend/convex).
+ */
+export const ANTHROPIC_WIRE_IDS: Readonly<Record<string, string>> = {
+  "claude-opus-4.7": "claude-opus-4-7",
+  "claude-sonnet-4.6": "claude-sonnet-4-6",
+  "claude-haiku-4.5": "claude-haiku-4-5",
+  "claude-opus-4.1": "claude-opus-4-1-20250805",
+  "claude-opus-4": "claude-opus-4-20250514",
+  "claude-sonnet-4": "claude-sonnet-4-20250514",
+  "claude-haiku-3.5": "claude-3-5-haiku-20241022",
+};
+
+/**
+ * The Anthropic wire id for a catalog alias (or short alias such as "claude").
+ * A string that already is a wire id is returned unchanged. Returns null when
+ * the input is neither, so callers decide whether to fail or pass it through.
+ */
+export function anthropicWireId(modelInput: string): string | null {
+  const resolved = resolveModelAlias(modelInput.trim());
+  const fromAlias = ANTHROPIC_WIRE_IDS[resolved];
+  if (fromAlias) return fromAlias;
+  return Object.values(ANTHROPIC_WIRE_IDS).includes(resolved) ? resolved : null;
+}
+
+/**
+ * Concatenated text of an Anthropic Messages response. Reads blocks by `type`:
+ * `content[0]` is a thinking block whenever adaptive thinking is on (default
+ * on Claude Haiku 5.5), so index 0 is not "the answer".
+ */
+export function anthropicText(
+  content: ReadonlyArray<{ type: string; text?: string }> | null | undefined,
+): string {
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((block) => (block?.type === "text" && typeof block.text === "string" ? block.text : ""))
+    .join("");
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // PROVIDER INTEGRATION STATUS
 // ═══════════════════════════════════════════════════════════════════════════
@@ -808,8 +858,20 @@ export function getEquivalentModel(modelName: string, targetProvider: LlmProvide
 }
 
 /**
+ * The string to put in a provider request. Callers of `getModelWithFailover`
+ * send `model` straight to the provider SDK, so for Anthropic it must be the
+ * wire id, not the dotted catalog alias (api.anthropic.com 404s on
+ * "claude-sonnet-4.6"). An unrecognised string is passed through unchanged:
+ * it may already be an operator-supplied wire id.
+ */
+function toProviderWireId(model: string, provider: LlmProvider): string {
+  return provider === "anthropic" ? (anthropicWireId(model) ?? model) : model;
+}
+
+/**
  * Get a working model with failover.
  * Tries the preferred model's provider first, then falls back to alternatives.
+ * The returned `model` is the provider wire id (see `toProviderWireId`).
  */
 export function getModelWithFailover(preferredModel: string): {
   model: string;
@@ -824,7 +886,7 @@ export function getModelWithFailover(preferredModel: string): {
   
   // Check if preferred provider is configured
   if (isProviderConfigured(provider)) {
-    return { model: preferredModel, provider, isFallback: false };
+    return { model: toProviderWireId(preferredModel, provider), provider, isFallback: false };
   }
   
   // Try fallback providers
@@ -833,7 +895,11 @@ export function getModelWithFailover(preferredModel: string): {
     if (isProviderConfigured(fallbackProvider)) {
       const equivalentModel = getEquivalentModel(preferredModel, fallbackProvider);
       console.warn(`[getModelWithFailover] ${provider} not configured, falling back to ${fallbackProvider}: ${equivalentModel}`);
-      return { model: equivalentModel, provider: fallbackProvider, isFallback: true };
+      return {
+        model: toProviderWireId(equivalentModel, fallbackProvider),
+        provider: fallbackProvider,
+        isFallback: true,
+      };
     }
   }
   

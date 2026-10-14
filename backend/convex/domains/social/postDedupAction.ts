@@ -23,6 +23,7 @@ import {
   getLlmModel,
   resolveModelAlias,
   getModelWithFailover,
+  anthropicText,
 } from "../../../../shared/llm/modelCatalog";
 import { generateDedupJudgePrompt, type DedupVerdict } from "./postDedup";
 
@@ -71,9 +72,7 @@ async function callDedupJudge(prompt: string): Promise<JudgeResponse> {
         messages: [{ role: "user", content: prompt }],
       });
       content =
-        response.content[0]?.type === "text"
-          ? response.content[0].text
-          : undefined;
+        anthropicText(response.content) || undefined;
     } else if (provider === "gemini") {
       const google = createGoogleGenerativeAI({
         apiKey: process.env.GEMINI_API_KEY,

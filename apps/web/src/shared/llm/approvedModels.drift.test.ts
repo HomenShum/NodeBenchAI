@@ -1,0 +1,52 @@
+/**
+ * Drift guard: apps/web/src/shared/llm/approvedModels.ts is a hand-kept mirror of
+ * backend/convex/domains/agents/mcp_tools/models/modelResolver.ts (Convex cannot import
+ * from the web tree). The two had already drifted - MODEL_PRIORITY_ORDER had 16 entries
+ * against the resolver's 24 - so the selector could offer or order models the backend
+ * would route differently (SPEC-v9 A.2.10 PR 1). Failing here means one side was edited
+ * without the other: regenerate the web side from the resolver, never loosen this test.
+ */
+
+import { describe, expect, it } from "vitest";
+
+import * as web from "./approvedModels";
+import * as backend from "../../../../../backend/convex/domains/agents/mcp_tools/models/modelResolver";
+
+describe("web approvedModels mirrors modelResolver", () => {
+  it("lists the same approved ids in the same order", () => {
+    expect([...web.APPROVED_MODELS]).toEqual([...backend.APPROVED_MODELS]);
+  });
+
+  it("has a UI row for every approved id, agreeing on provider and free status", () => {
+    expect(Object.keys(web.MODEL_UI_INFO).sort()).toEqual([...backend.APPROVED_MODELS].sort());
+    for (const id of backend.APPROVED_MODELS) {
+      const ui = web.MODEL_UI_INFO[id];
+      expect(ui.id, id).toBe(id);
+      expect(ui.provider, `${id} provider`).toBe(backend.MODEL_SPECS[id].provider);
+      expect(Boolean(ui.isFree), `${id} isFree`).toBe(backend.isFreeModel(id));
+    }
+  });
+
+  it("agrees on the default, fallback and free-lane constants", () => {
+    expect(web.DEFAULT_MODEL).toBe(backend.DEFAULT_MODEL);
+    expect(web.FALLBACK_MODEL).toBe(backend.FALLBACK_MODEL);
+    expect(web.MODEL_UI_INFO[backend.FREE_LANE_MODEL].isFree).toBe(true);
+  });
+
+  it("agrees on the priority order and the advisor/executor/background lanes", () => {
+    expect(web.MODEL_PRIORITY_ORDER).toEqual(backend.MODEL_PRIORITY_ORDER);
+    expect(web.NODEBENCH_ADVISOR_MODEL).toBe(backend.NODEBENCH_ADVISOR_MODEL);
+    expect(web.NODEBENCH_EXECUTOR_MODELS).toEqual(backend.NODEBENCH_EXECUTOR_MODELS);
+    expect(web.NODEBENCH_BACKGROUND_MODELS).toEqual(backend.NODEBENCH_BACKGROUND_MODELS);
+  });
+
+  it("normalizes every approved id to the same lane model", () => {
+    for (const profile of ["advisor", "executor", "background"] as const) {
+      for (const id of backend.APPROVED_MODELS) {
+        expect(web.normalizeNodeBenchRuntimeModel(id, profile), `${profile}/${id}`).toBe(
+          backend.normalizeNodeBenchRuntimeModel(id, profile),
+        );
+      }
+    }
+  });
+});

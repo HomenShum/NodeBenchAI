@@ -75,7 +75,11 @@ async function callClaude(systemPrompt, userPrompt) {
   }
 
   const data = await res.json();
-  return data.content[0].text;
+  // Read blocks by type: content[0] is a thinking block when adaptive thinking is on.
+  return (Array.isArray(data.content) ? data.content : [])
+    .filter((b) => b?.type === "text" && typeof b.text === "string")
+    .map((b) => b.text)
+    .join("");
 }
 
 async function main() {

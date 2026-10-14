@@ -100,6 +100,15 @@ jobs:
           backend/convex/domains/mcp/mcpSourcingDraft.integration.test.ts
           backend/convex/domains/mcp/mcpExecutionTraceEndpoints.integration.test.ts
           backend/convex/domains/agents/mcp_tools/models/modelResolver.test.ts
+          backend/convex/domains/pipelines/pipelineModelBoundary.test.ts
+          backend/convex/events.requestShape.test.ts
+          shared/llm/anthropicWireIds.test.ts
+          shared/search/triSearch.test.ts
+          workers/node/pipeline/extendedThinkingRunner.test.ts
+          scripts/eval-harness/evalHarness.test.ts
+          scripts/__tests__/toolGenRequestShape.test.ts
+          scripts/__tests__/comprehensiveEvalModels.test.ts
+          apps/web/src/shared/llm/approvedModels.drift.test.ts
           apps/web/src/features/agents/components/FastAgentPanel/__tests__/RunState.test.tsx
           backend/convex/domains/agents/autonomy/autonomy.integration.test.ts
           backend/convex/domains/agents/autonomy/autonomyTasteBench.integration.test.ts
