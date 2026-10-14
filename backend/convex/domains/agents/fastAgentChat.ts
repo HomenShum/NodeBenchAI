@@ -283,7 +283,8 @@ async function handleDocumentEdit(
  * Handle chat/question requests
  * Uses direct LLM call for quick responses
  */
-async function handleChatResponse(
+// Exported for providerCopies.requestShape.test.ts (SPEC-v9 A.0.6); not a Convex function.
+export async function handleChatResponse(
   ctx: ActionCtx,
   args: {
     message: string;

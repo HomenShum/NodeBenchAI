@@ -12,7 +12,8 @@ import { getLlmModel, getProviderForModel, resolveModelAlias, getModelWithFailov
 // Import it via: api.domains.ai.morningDigestQueries.getDigestData
 
 // Multi-provider LLM helper
-async function generateWithProvider(
+// Exported for providerCopies.requestShape.test.ts (SPEC-v9 A.0.6); not a Convex function.
+export async function generateWithProvider(
   modelInput: string,
   systemPrompt: string,
   userPrompt: string,

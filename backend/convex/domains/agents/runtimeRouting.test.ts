@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { chooseNodeBenchRuntimeRoute } from "./runtimeRouting";
+import { FREE_LANE_MODEL, UnknownModelError, isFreeModel } from "./mcp_tools/models/modelResolver";
 import type { UltraLongChatWorkingSet } from "../../../../shared/ultraLongChatContext";
 
 function buildWorkingSet(
@@ -199,5 +200,59 @@ describe("chooseNodeBenchRuntimeRoute", () => {
     expect(route.reason).toBe("cheap_executor_default");
     expect(route.model).toBe("gemini-3.1-flash-lite-preview");
     expect(route.fallbackModels).toContain("kimi-k2.6");
+  });
+});
+
+// A request for the free lane, or for a model that does not exist, must not become a paid
+// request (SPEC-v9 A.0.10). Persona: a user who picked the free model in the selector.
+describe("chooseNodeBenchRuntimeRoute keeps cost class and fails closed", () => {
+  const paidAvailable = [
+    "kimi-k2.6",
+    "gemini-3.1-pro-preview",
+    "gemini-3-flash-preview",
+    "gemini-3.1-flash-lite-preview",
+    "gpt-5.4",
+    "gpt-5.4-mini",
+    "minimax-m2.7",
+  ] as never;
+  const ask = (requestedModel: string, prompt: string, availableModels: never | null = paidAvailable) =>
+    chooseNodeBenchRuntimeRoute({ prompt, requestedModel, useCoordinator: true, availableModels, workingSet: buildWorkingSet() });
+
+  it("an explicit free request stays on the free lane in the advisor, executor and background routes", () => {
+    const advisor = ask(FREE_LANE_MODEL, "Plan and orchestrate a deep research run on Stripe.");
+    expect(advisor.model).toBe(FREE_LANE_MODEL);
+    expect(advisor.fallbackModels.every((id) => isFreeModel(id))).toBe(true);
+
+    const executor = ask(FREE_LANE_MODEL, "Summarize this company.");
+    expect(executor.model).toBe(FREE_LANE_MODEL);
+    expect(executor.fallbackModels.every((id) => isFreeModel(id))).toBe(true);
+
+    const background = chooseNodeBenchRuntimeRoute({
+      prompt: "Continue.",
+      requestedModel: FREE_LANE_MODEL,
+      availableModels: paidAvailable,
+      workingSet: buildWorkingSet({ contextRotRisk: "high" }),
+    });
+    expect(background.model).toBe(FREE_LANE_MODEL);
+    expect(background.fallbackModels.every((id) => isFreeModel(id))).toBe(true);
+  });
+
+  it("a free primary that is not in the available list does not fall over to a paid model", () => {
+    // availableModels contains only paid ids: the old chooser would pick the first paid candidate.
+    const route = ask(FREE_LANE_MODEL, "Plan and orchestrate a deep research run on Stripe.");
+    expect(isFreeModel(route.model)).toBe(true);
+  });
+
+  it("an unknown requested id throws on every route instead of taking a paid default", () => {
+    for (const prompt of [
+      "Plan and orchestrate a deep research run on Stripe.", // advisor
+      "Summarize this company.", // executor (reaches resolveRequestedExecutorModel)
+    ]) {
+      expect(() => ask("gpt-9-ultra", prompt), prompt).toThrow(UnknownModelError);
+    }
+  });
+
+  it("a free-looking unknown id takes the free lane on the executor route", () => {
+    expect(ask("some-model-free", "Summarize this company.").model).toBe(FREE_LANE_MODEL);
   });
 });

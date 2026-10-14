@@ -245,18 +245,25 @@ function percentile(arr: number[], p: number): number {
   return sorted[Math.min(idx, sorted.length - 1)];
 }
 
-/** `--models` values the resolver does not know. Each one must abort the run (SPEC-v9 A.0.10). */
-export function unresolvedModels(models: readonly string[]): string[] {
-  return models.filter((m) => resolveModelAlias(m) === null);
+/**
+ * `--models` values that are not a canonical approved id: unknown ids, and legacy
+ * aliases such as `gpt-4o-mini` (which resolve to another model, so every row would be
+ * disqualified only after the paid run finished). Each one aborts the run before any
+ * request is made (SPEC-v9 A.0.10).
+ */
+export function nonCanonicalModels(models: readonly string[]): string[] {
+  return models.filter((m) => resolveModelAlias(m) !== m);
 }
 
 /**
- * Rows that cannot count as evidence for the requested candidate: the resolver chose
- * a different model, or this script's retry switched models (SPEC-v9 A.0.3).
+ * Rows that cannot count as evidence for the requested candidate (SPEC-v9 A.0.3): the
+ * resolver chose a different model, this script's retry switched models, or the row
+ * carries no identity at all (a deployment built before the identity fields existed,
+ * or a call that threw before it returned).
  */
 export function identityViolations(results: readonly EpisodeResult[]): EpisodeResult[] {
   return results.filter(
-    (r) => r.fallbackUsed === true || (r.resolvedModelId !== undefined && r.resolvedModelId !== r.model),
+    (r) => !r.resolvedModelId || r.resolvedModelId !== r.model || r.fallbackUsed !== false,
   );
 }
 
@@ -290,7 +297,7 @@ function getEvalJudgeFallbackModel(model: string): string | null {
 // EVALUATION FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════════════
 
-async function runSingleEpisode(
+export async function runSingleEpisode(
   client: ConvexHttpClient,
   secret: string,
   model: string,
@@ -307,12 +314,13 @@ async function runSingleEpisode(
         ? suite
         : "core";
 
+  // Hoisted so an error row keeps the identity evidence it gathered before it threw.
+  let resolvedModelId: string | undefined;
+  let fallbackActivated = false;
   try {
     const maxAttempts = 2;
     let run: any = null;
-    let resolvedModelId: string | undefined;
     let activeModel = model;
-    let fallbackActivated = false;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       const scenarioInput = {
@@ -412,6 +420,8 @@ async function runSingleEpisode(
       elapsed,
       failureReasons: [],
       error: err instanceof Error ? err.message : String(err),
+      resolvedModelId,
+      fallbackUsed: fallbackActivated,
     };
   }
 }
@@ -588,9 +598,9 @@ async function main() {
 
   // Fail closed: an unknown --models value used to resolve silently to the default
   // model, so a "candidate" run could measure a different model.
-  const unknown = unresolvedModels(modelsToTest);
+  const unknown = nonCanonicalModels(modelsToTest);
   if (unknown.length > 0) {
-    throw new Error(`Unknown --models value(s): ${unknown.join(", ")} (not an approved model or alias)`);
+    throw new Error(`Non-canonical --models value(s): ${unknown.join(", ")} (each must be an approved id exactly; aliases and unknown ids are refused)`);
   }
 
   // Select scenarios based on suite
@@ -825,7 +835,7 @@ async function main() {
   if (violations.length > 0) {
     console.error(
       `\nERROR: ${violations.length} row(s) are not evidence for the requested model ` +
-        `(resolved to another id, or the retry switched models): ` +
+        `(resolved to another id, no resolved identity, or the retry switched models): ` +
         violations.map((r) => `${r.model}/${r.scenarioId}->${r.resolvedModelId ?? "?"}${r.fallbackUsed ? " (fallback)" : ""}`).join(", "),
     );
     process.exitCode = 1;

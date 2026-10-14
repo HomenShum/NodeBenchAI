@@ -11,7 +11,7 @@ import { api, internal } from "../../_generated/api";
 import type { Id } from "../../_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { createCoordinatorAgent } from "./core/coordinatorAgent";
-import { DEFAULT_MODEL, normalizeModelInput } from "./mcp_tools/models";
+import { DEFAULT_MODEL, normalizeModelInput, UnknownModelError } from "./mcp_tools/models";
 
 // Agent-mode chat should use the same CoordinatorAgent wiring as streaming mode.
 const createChatAgent = (model: string) => createCoordinatorAgent(model);
@@ -133,6 +133,8 @@ export const continueThread = (action as any)({
         modelName = normalizeModelInput(streamThreadByAgentId.model);
       }
     } catch (err) {
+      // An unknown stored model must stop the turn, not continue on DEFAULT_MODEL (SPEC-v9 A.0.10).
+      if (err instanceof UnknownModelError) throw err;
       console.warn("[agentChatActions.continueThread] Failed to resolve thread model, using default.", err);
     }
 

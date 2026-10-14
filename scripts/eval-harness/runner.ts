@@ -164,7 +164,7 @@ async function runOne(
   seed: number,
   model: string,
   resultsDir: string,
-): Promise<void> {
+): Promise<RunTelemetry> {
   const config: RunConfig = {
     taskId: task.id,
     agentMode: mode,
@@ -180,6 +180,7 @@ async function runOne(
   writeFileSync(outPath, JSON.stringify(telemetry, null, 2));
   console.log(`Result written to: ${outPath}`);
   console.log(`Composite score: ${computeCompositeScore(telemetry.scorecard).toFixed(3)}`);
+  return telemetry;
 }
 
 /** Returns the process exit code. `resultsDir` is a parameter so tests can use a temp dir. */
@@ -271,10 +272,20 @@ export async function main(args: string[], resultsDir: string = RESULTS_DIR): Pr
     seeds = [seedIdx !== -1 ? parseInt(args[seedIdx + 1], 10) : 1];
   }
 
+  const failed: string[] = [];
   for (const task of tasks) {
     for (const seed of seeds) {
-      await runOne(task, mode, seed, model, resultsDir);
+      const telemetry = await runOne(task, mode, seed, model, resultsDir);
+      if (telemetry.error) failed.push(`${task.id} s${seed}: ${telemetry.error}`);
     }
+  }
+  // A real backend exits non-zero when any run failed, so a migration eval cannot
+  // pass on error rows. The stub backend always reports its STUB marker; that smoke
+  // path stays exit 0.
+  if (backend.backend !== "stub" && failed.length > 0) {
+    console.error(`${failed.length} run(s) failed:`);
+    for (const line of failed) console.error(`  ${line}`);
+    return 1;
   }
   return 0;
 }

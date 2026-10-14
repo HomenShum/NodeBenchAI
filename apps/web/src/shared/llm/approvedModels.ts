@@ -502,6 +502,7 @@ export const MODEL_PRIORITY_ORDER: ApprovedModel[] = [
   "claude-opus-4.7",
   "claude-haiku-4.5",
   "gpt-5.4-nano",
+  "nemotron-3-super-free",
   "laguna-s-2.1-free",
   "laguna-xs-2.1-free",
   "qwen3-coder-free",
@@ -567,6 +568,11 @@ export function normalizeNodeBenchRuntimeModel(
 
   if (!candidate) {
     return fallback;
+  }
+
+  // A free model keeps its cost class in every profile (mirrors modelResolver.ts).
+  if (MODEL_UI_INFO[candidate].isFree) {
+    return candidate;
   }
 
   if (profile === "advisor" && NODEBENCH_ADVISOR_ALLOWED.has(candidate)) {

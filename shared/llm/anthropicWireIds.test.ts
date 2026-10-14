@@ -15,11 +15,12 @@ import {
   ANTHROPIC_WIRE_IDS,
   anthropicText,
   anthropicWireId,
+  FREE_LANE_CATALOG_ID,
   getModelWithFailover,
   llmModelCatalog,
   resolveModelAlias,
 } from "./modelCatalog";
-import { MODEL_SPECS } from "../../backend/convex/domains/agents/mcp_tools/models/modelResolver";
+import { FREE_LANE_MODEL, MODEL_SPECS } from "../../backend/convex/domains/agents/mcp_tools/models/modelResolver";
 
 describe("ANTHROPIC_WIRE_IDS agrees with the resolver's MODEL_SPECS", () => {
   const anthropicSpecs = Object.values(MODEL_SPECS).filter((spec) => spec.provider === "anthropic");
@@ -119,5 +120,49 @@ describe("anthropicText reads content blocks by type", () => {
     expect(anthropicText([{ type: "thinking" }])).toBe("");
     expect(anthropicText(undefined)).toBe("");
     expect(anthropicText(null)).toBe("");
+  });
+});
+
+// An unknown id used to become gpt-5.4-mini on OpenAI, free-looking ones included
+// (SPEC-v9 A.0.10; PR #662 review round 1).
+describe("getModelWithFailover fails closed", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubEnv("OPENAI_API_KEY", "sk-test-key-not-real-0000");
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-test-key-not-real");
+    vi.stubEnv("OPENROUTER_API_KEY", "sk-or-test-key-not-real");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("names the same free lane as the resolver", () => {
+    expect(FREE_LANE_CATALOG_ID).toBe(FREE_LANE_MODEL);
+  });
+
+  it("sends an unknown free-looking id to the free lane on OpenRouter, never to a paid OpenAI default", () => {
+    for (const id of ["retired-model-free", "someone/new-model:free"]) {
+      expect(getModelWithFailover(id), id).toEqual({ model: FREE_LANE_MODEL, provider: "openrouter", isFallback: true });
+    }
+  });
+
+  it("every model the catalog itself names still resolves, so no default now throws", () => {
+    const named = new Set(Object.values(llmModelCatalog).flatMap((byTask) => Object.values(byTask).flat()));
+    expect(named.size).toBeGreaterThan(10);
+    for (const id of named) expect(() => getModelWithFailover(resolveModelAlias(id)), id).not.toThrow();
+  });
+
+  it("throws for any other unknown id", () => {
+    for (const id of ["not-a-model", "freeloader-pro", "mistral-unknown"]) {
+      expect(() => getModelWithFailover(id), id).toThrow(/Unknown model/);
+    }
+  });
+
+  it("a configured free catalog model stays free, and an unconfigured provider never fails over to a paid one", () => {
+    expect(getModelWithFailover(FREE_LANE_MODEL)).toMatchObject({ provider: "openrouter", isFallback: false });
+    vi.stubEnv("OPENROUTER_API_KEY", "");
+    expect(() => getModelWithFailover(FREE_LANE_MODEL)).toThrow(/never fails over to a paid provider/);
   });
 });

@@ -54,7 +54,8 @@ interface DedupJudgmentResult {
 /**
  * Call LLM to judge dedup verdict.
  */
-async function callDedupJudge(prompt: string): Promise<JudgeResponse> {
+// Exported for providerCopies.requestShape.test.ts (SPEC-v9 A.0.6); not a Convex function.
+export async function callDedupJudge(prompt: string): Promise<JudgeResponse> {
   const { model: modelName, provider } = getModelWithFailover(
     resolveModelAlias(getLlmModel("judge"))
   );

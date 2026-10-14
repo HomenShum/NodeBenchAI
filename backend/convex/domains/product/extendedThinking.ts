@@ -45,6 +45,7 @@ import { api, internal } from "../../_generated/api";
 import {
   buildCheckpointPrompt,
   buildCheckpointRequestBody,
+  estimateThinkingTokens,
   parseCheckpointResponse,
   shouldContinue,
   MAX_CHECKPOINTS,
@@ -378,13 +379,10 @@ export const advanceRun = internalAction({
             const textBlock = envelope.content?.find((b) => b.type === "text");
             rawText = textBlock?.text ?? null;
             outputTokens = envelope.usage?.output_tokens ?? 0;
-            // Anthropic returns total tokens; extended thinking tokens are
-            // included in output_tokens for billing.  We approximate
-            // thinkingTokens from the length of the 'thinking' block.
-            const thinkingBlock = envelope.content?.find((b) => b.type === "thinking");
-            thinkingTokens = thinkingBlock?.thinking
-              ? Math.ceil(thinkingBlock.thinking.length / 4)
-              : 0;
+            // output_tokens is thinking + answer with no split, and the thinking
+            // block's text is omitted by default on Sonnet 5.x / Opus 4.7+, so its
+            // length cannot be used. Charge output_tokens minus the answer.
+            thinkingTokens = estimateThinkingTokens(outputTokens, rawText ?? "");
             if (!rawText) errorMessage = "no text block in anthropic response";
           } catch (err) {
             errorMessage = `anthropic envelope parse: ${

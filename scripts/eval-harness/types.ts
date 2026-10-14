@@ -79,7 +79,10 @@ export interface RunTelemetry {
   startedAt: string;
   completedAt: string;
   scorecard: Scorecard;
+  /** Tools that actually ran and returned a result. This harness runs none, so it stays empty. */
   toolCalls: ToolCallRecord[];
+  /** Tools the model asked for (tool_use blocks). A request is not an execution and earns no score. */
+  requestedTools?: ToolRequestRecord[];
   verificationCycles: VerificationCycleRecord[];
   /** Raw agent output for audit */
   outputHash: string;
@@ -87,6 +90,11 @@ export interface RunTelemetry {
   echoedModel?: string;
   /** Error if run failed */
   error?: string;
+}
+
+export interface ToolRequestRecord {
+  toolName: string;
+  inputHash: string;
 }
 
 export interface ToolCallRecord {

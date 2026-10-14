@@ -103,9 +103,14 @@ export type ParseOutcome =
  *     A name with no Anthropic wire id throws instead of being sent.
  *   - Thinking is adaptive with `output_config.effort`: manual
  *     `{type:"enabled", budget_tokens}` is deprecated on Sonnet/Opus 4.6 and
- *     400s on Claude 5.x. Thinking tokens count toward `max_tokens`, so the
- *     per-checkpoint remaining budget raises the cap above the answer size,
- *     which keeps the run's thinking budget a real bound.
+ *     400s on Claude 5.x. Thinking tokens count toward `max_tokens`, and adaptive
+ *     thinking has no separate thinking cap, so `max_tokens` bounds thinking PLUS
+ *     answer, not thinking alone. What it guarantees: one checkpoint spends at most
+ *     MAX_OUTPUT_TOKENS + min(MAX_THINKING_BUDGET_TOKENS, remaining) tokens in total,
+ *     so a run, charged after every checkpoint by `estimateThinkingTokens` (from
+ *     `usage.output_tokens`) and stopped by `shouldContinue`, spends at most
+ *     `thinkingBudgetTokens + MAX_OUTPUT_TOKENS` on thinking. The budget is a
+ *     checkpoint-granular bound with that one-answer overshoot, not an exact cap.
  */
 export function buildCheckpointRequestBody(args: {
   modelName: string;
@@ -128,6 +133,19 @@ export function buildCheckpointRequestBody(args: {
     system: args.prompt.system,
     messages: [{ role: "user", content: args.prompt.user }],
   };
+}
+
+/**
+ * Thinking tokens one checkpoint spent, from the provider's own usage. The Messages
+ * API reports `output_tokens` as thinking + answer with no split, and on Sonnet 5.x
+ * and Opus 4.7+ the thinking block's text is omitted by default, so its length says
+ * nothing. Subtracting the answer's estimated tokens (chars / 4, which under-counts
+ * JSON and therefore leans toward charging more thinking, never less) leaves the
+ * thinking charge.
+ */
+export function estimateThinkingTokens(outputTokens: number, answerText: string): number {
+  const answerTokens = Math.floor(answerText.length / 4);
+  return Math.max(0, Math.floor(outputTokens) - answerTokens);
 }
 
 /* --------------------------------------------------------------------------

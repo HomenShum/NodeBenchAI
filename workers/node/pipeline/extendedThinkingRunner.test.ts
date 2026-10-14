@@ -15,6 +15,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildCheckpointPrompt,
   buildCheckpointRequestBody,
+  estimateThinkingTokens,
   parseCheckpointResponse,
   shouldContinue,
   EXTENDED_PROMPT_VERSION,
@@ -289,13 +290,37 @@ describe("buildCheckpointRequestBody - Anthropic request shape (SPEC-v9 A.0.6)",
     expect(body.system).toBe("sys");
   });
 
-  it("keeps the thinking budget a bound: max_tokens = answer cap + min(allowance, remaining)", () => {
+  it("caps total output per checkpoint: max_tokens = answer cap + min(allowance, remaining)", () => {
+    // This bounds thinking PLUS answer. Adaptive thinking has no separate thinking cap, so with 2,500
+    // tokens left a checkpoint may still think for up to 6,500 (the 4,000 answer room is not reserved).
+    // The run-level bound is the next test.
     const at = (remaining: number) =>
       (buildCheckpointRequestBody({ modelName: "claude-sonnet-4.6", prompt, remainingThinkingTokens: remaining }) as any).max_tokens;
     expect(at(40_000)).toBe(MAX_OUTPUT_TOKENS + MAX_THINKING_BUDGET_TOKENS);
     expect(at(2_500)).toBe(MAX_OUTPUT_TOKENS + 2_500);
     expect(at(0)).toBe(MAX_OUTPUT_TOKENS);
     expect(at(-50)).toBe(MAX_OUTPUT_TOKENS);
+  });
+
+  it("a run spends at most thinkingBudgetTokens + MAX_OUTPUT_TOKENS on thinking when every checkpoint thinks to its cap", () => {
+    // Worst case: each checkpoint uses all of max_tokens, answers with 1 token of text, and the run
+    // charges thinking from usage exactly as extendedThinking.advanceRun does. The thinking block's text is
+    // omitted (Sonnet 5.x), so nothing but usage.output_tokens can drive the charge.
+    const budget = 15_000;
+    let charged = 0;
+    let actuallySpent = 0;
+    for (let checkpoint = 1; checkpoint <= MAX_CHECKPOINTS; checkpoint++) {
+      const maxTokens = (buildCheckpointRequestBody({ modelName: "claude-sonnet-4.6", prompt, remainingThinkingTokens: budget - charged }) as any).max_tokens;
+      const answer = "x".repeat(4); // 1 token
+      actuallySpent += maxTokens - 1;
+      charged += estimateThinkingTokens(maxTokens, answer);
+      const verdict = shouldContinue({ currentCheckpoint: checkpoint, totalCheckpoints: MAX_CHECKPOINTS, researchComplete: false, thinkingTokensUsed: charged, thinkingBudgetTokens: budget });
+      if (!verdict.continue) break;
+    }
+    expect(charged).toBeGreaterThanOrEqual(budget);
+    expect(actuallySpent).toBeLessThanOrEqual(budget + MAX_OUTPUT_TOKENS);
+    // and the charge never undercounts what was spent
+    expect(charged).toBeGreaterThanOrEqual(actuallySpent);
   });
 
   it("accepts an operator-supplied wire id and refuses a name with no Anthropic id", () => {
@@ -305,5 +330,18 @@ describe("buildCheckpointRequestBody - Anthropic request shape (SPEC-v9 A.0.6)",
     expect(() => buildCheckpointRequestBody({ modelName: "kimi-k2.6", prompt, remainingThinkingTokens: 1 })).toThrow(
       /no Anthropic wire id/,
     );
+  });
+});
+
+describe("estimateThinkingTokens", () => {
+  it("is output_tokens minus the answer's estimated tokens, never negative", () => {
+    expect(estimateThinkingTokens(5_000, "x".repeat(400))).toBe(4_900);
+    expect(estimateThinkingTokens(50, "x".repeat(4_000))).toBe(0);
+    expect(estimateThinkingTokens(0, "")).toBe(0);
+  });
+
+  it("does not depend on the thinking block text (it is omitted by default on Sonnet 5.x / Opus 4.7+)", () => {
+    // The function has no thinking-text input at all: a run that omits display still pays.
+    expect(estimateThinkingTokens(3_000, "answer")).toBeGreaterThan(2_900);
   });
 });

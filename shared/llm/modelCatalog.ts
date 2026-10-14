@@ -869,7 +869,26 @@ function toProviderWireId(model: string, provider: LlmProvider): string {
 }
 
 /**
+ * The verified free lane as the catalog names it. Must equal `FREE_LANE_MODEL`
+ * in modelResolver.ts (this file cannot import from backend/convex);
+ * anthropicWireIds.test.ts pins the two together.
+ */
+export const FREE_LANE_CATALOG_ID = "nemotron-3-super-free";
+
+/** Free-looking unknown ids: the OpenRouter `-free` / `:free` suffix. */
+function isFreeLookingModel(model: string): boolean {
+  return /(-|:)free$/.test(model.trim().toLowerCase());
+}
+
+function isFreeCatalogModel(model: string): boolean {
+  const price = modelPricing[model];
+  return price != null && price.inputPer1M === 0 && price.outputPer1M === 0;
+}
+
+/**
  * Get a working model with failover.
+ * An unknown id fails closed (SPEC-v9 A.0.10): free-looking -> the free lane,
+ * anything else throws. A free model never fails over to a paid provider.
  * Tries the preferred model's provider first, then falls back to alternatives.
  * The returned `model` is the provider wire id (see `toProviderWireId`).
  */
@@ -881,7 +900,10 @@ export function getModelWithFailover(preferredModel: string): {
   const provider = getProviderForModel(preferredModel);
   
   if (!provider) {
-    return { model: DEFAULT_FALLBACK_MODEL, provider: "openai", isFallback: true };
+    if (isFreeLookingModel(preferredModel)) {
+      return { model: FREE_LANE_CATALOG_ID, provider: "openrouter", isFallback: true };
+    }
+    throw new Error(`[getModelWithFailover] Unknown model "${preferredModel}"`);
   }
   
   // Check if preferred provider is configured
@@ -889,6 +911,10 @@ export function getModelWithFailover(preferredModel: string): {
     return { model: toProviderWireId(preferredModel, provider), provider, isFallback: false };
   }
   
+  if (isFreeCatalogModel(preferredModel)) {
+    throw new Error(`[getModelWithFailover] Free model "${preferredModel}": ${provider} is not configured and a free request never fails over to a paid provider`);
+  }
+
   // Try fallback providers
   const fallbacks = providerFallbackChain[provider];
   for (const fallbackProvider of fallbacks) {

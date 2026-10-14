@@ -412,6 +412,7 @@ export async function runPiOrAiSdkCompletion(args: PiRunArgs): Promise<PiRunResu
     // Fallback: AI SDK path.
     const ai = await import("ai");
     const {
+      calculateCost,
       executeWithModelFallback,
       getModelSpec,
       resolvePipelineModelSelection,
@@ -440,12 +441,15 @@ export async function runPiOrAiSdkCompletion(args: PiRunArgs): Promise<PiRunResu
     );
     const result = fallback.result;
     const spec = getModelSpec(fallback.modelUsed);
+    const inputTokens = result.usage?.inputTokens ?? 0;
+    const outputTokens = result.usage?.outputTokens ?? 0;
     return {
       text: result.text,
       usage: {
-        inputTokens: result.usage?.inputTokens ?? 0,
-        outputTokens: result.usage?.outputTokens ?? 0,
-        estimatedUsd: 0,
+        inputTokens,
+        outputTokens,
+        // Priced from the model that actually answered; a hardcoded 0 hid paid fallbacks.
+        estimatedUsd: calculateCost(fallback.modelUsed, inputTokens, outputTokens).totalCost,
       },
       modelId: fallback.modelUsed,
       providerId: spec.provider as PiProviderId,

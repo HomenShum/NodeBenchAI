@@ -405,10 +405,8 @@ export const route = internalAction({
         console.warn(
           `[modelRouter] chain resolver returned empty (reason=${resolution.reason}); falling back to TIER_MODELS[${tier}]`,
         );
+        // The free tier never appends paid candidates (SPEC-v9 A.0.10).
         candidates = [...(TIER_MODELS[tier] ?? TIER_MODELS.cheap)];
-        if (tier === "free") {
-          candidates.push(...TIER_MODELS.cheap);
-        }
       }
     }
 

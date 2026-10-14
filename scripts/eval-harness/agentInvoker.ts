@@ -14,7 +14,7 @@
  */
 
 import { createHash } from "node:crypto";
-import type { RunConfig, RunTelemetry, Scorecard, ToolCallRecord, EvalTask } from "./types.js";
+import type { RunConfig, RunTelemetry, Scorecard, ToolCallRecord, ToolRequestRecord, EvalTask } from "./types.js";
 
 export type InvokerBackend = "stub" | "anthropic" | "openai";
 
@@ -130,7 +130,10 @@ async function invokeAnthropic(
 
   const startedAt = new Date().toISOString();
   const startMs = Date.now();
+  // No tool runs in this harness and no result is sent back, so tool_use blocks are
+  // only requests: they are recorded apart from `toolCalls` and earn no score.
   const toolCalls: ToolCallRecord[] = [];
+  const requestedTools: ToolRequestRecord[] = [];
   let error: string | undefined;
   let outputHash = "";
   let tokenCount = 0;
@@ -169,21 +172,22 @@ async function invokeAnthropic(
         .join("");
       for (const block of blocks) {
         if (block.type !== "tool_use" || !block.name) continue;
-        toolCalls.push({
+        requestedTools.push({
           toolName: block.name,
-          durationMs: 0,
-          success: true,
           inputHash: sha256(JSON.stringify(block.input ?? null)),
-          outputHash: "",
-          followedQuickRef: null,
-          timestamp: new Date().toISOString(),
         });
       }
       outputHash = sha256(text);
       tokenCount = (data.usage?.input_tokens ?? 0) + (data.usage?.output_tokens ?? 0);
       // The model string the provider returned, not the one requested (SPEC-v9 A.0.3).
       echoedModel = data.model;
-      if (data.stop_reason === "refusal") error = "Anthropic stop_reason: refusal";
+      const problems: string[] = [];
+      if (data.stop_reason === "refusal") problems.push("Anthropic stop_reason: refusal");
+      if (data.stop_reason === "tool_use") {
+        problems.push(`Anthropic stop_reason: tool_use; ${requestedTools.length} tool(s) requested, none executed (unfinished turn)`);
+      }
+      if (!echoedModel) problems.push("Anthropic response carries no model string, so the run has no identity evidence");
+      if (problems.length > 0) error = problems.join("; ");
     }
   } catch (err) {
     error = err instanceof Error ? (err.name === "AbortError" ? "request timeout" : err.message) : String(err);
@@ -220,6 +224,7 @@ async function invokeAnthropic(
     completedAt,
     scorecard,
     toolCalls,
+    requestedTools,
     verificationCycles: [],
     outputHash,
     echoedModel,

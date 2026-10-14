@@ -15,6 +15,8 @@
 
 import { readFileSync, writeFileSync, appendFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { claudeText } from "./analyze-gap.mjs";
 
 const MANIFEST_PATH = "/tmp/tool-manifest.json";
 const MCP_ROOT = join(process.cwd(), "packages/mcp-local");
@@ -50,7 +52,20 @@ function setOutput(key, value) {
   console.log(`::set-output name=${key}::${value}`);
 }
 
-async function callClaude(systemPrompt, userPrompt) {
+/**
+ * The Messages API body. No sampling parameters: Claude 4.7+/5.x answer 400 to them.
+ * PR 1 moves no ids; PR 2 changes the model literal with its own request-shape update.
+ */
+export function buildClaudeRequest(systemPrompt, userPrompt) {
+  return {
+    model: "claude-sonnet-4-6",
+    max_tokens: 4096,
+    system: systemPrompt,
+    messages: [{ role: "user", content: userPrompt }],
+  };
+}
+
+export async function callClaude(systemPrompt, userPrompt) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("Missing ANTHROPIC_API_KEY");
 
@@ -61,12 +76,7 @@ async function callClaude(systemPrompt, userPrompt) {
       "anthropic-version": "2023-06-01",
       "content-type": "application/json",
     },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-6",
-      max_tokens: 4096,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-    }),
+    body: JSON.stringify(buildClaudeRequest(systemPrompt, userPrompt)),
   });
 
   if (!res.ok) {
@@ -74,12 +84,8 @@ async function callClaude(systemPrompt, userPrompt) {
     throw new Error(`Claude API ${res.status}: ${text}`);
   }
 
-  const data = await res.json();
   // Read blocks by type: content[0] is a thinking block when adaptive thinking is on.
-  return (Array.isArray(data.content) ? data.content : [])
-    .filter((b) => b?.type === "text" && typeof b.text === "string")
-    .map((b) => b.text)
-    .join("");
+  return claudeText(await res.json());
 }
 
 async function main() {
@@ -204,7 +210,10 @@ describe("Static: ${spec.toolName} tool", () => {
   setOutput("manifest_path", MANIFEST_PATH);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// Run only as a script, so the request builder can be imported by tests.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

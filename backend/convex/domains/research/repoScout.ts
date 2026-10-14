@@ -30,7 +30,8 @@ type MoatAnalysis = {
   moatRisks?: string[];
 };
 
-async function generateWithProvider(
+// Exported for providerCopies.requestShape.test.ts (SPEC-v9 A.0.6); not a Convex function.
+export async function generateWithProvider(
   modelInput: string,
   systemPrompt: string,
   userPrompt: string,

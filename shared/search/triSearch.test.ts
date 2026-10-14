@@ -188,7 +188,9 @@ describe("rerankWithGemini - request shape (Gemini 3.x)", () => {
   // 256-token cap on a reasoning preamble; thinkingLevel "low" is the replacement.
   it("sends thinkingLevel low and no thinkingBudget", async () => {
     const bodies: any[] = [];
-    const spyFetch = (async (_url: string, init: { body: string }) => {
+    const urls: string[] = [];
+    const spyFetch = (async (url: string, init: { body: string }) => {
+      urls.push(String(url));
       bodies.push(JSON.parse(init.body));
       return {
         ok: true,
@@ -200,6 +202,9 @@ describe("rerankWithGemini - request shape (Gemini 3.x)", () => {
     const r = await rerankWithGemini("entity funding", fused, { topN: 2, apiKey: "test", fetchImpl: spyFetch });
     expect(r.rerankStatus).toBe("ok");
     expect(bodies).toHaveLength(1);
+    // The model rides in the URL, not the body: pin it so a changed default is a visible test change.
+    // PR 1 moves no ids; PR 2 changes it to gemini-3.8-flash with TRI_SEARCH_RERANK_MODEL precedence unchanged.
+    expect(urls[0]).toContain(`/models/${process.env.TRI_SEARCH_RERANK_MODEL || "gemini-3.5-flash"}:generateContent`);
     const thinking = bodies[0].generationConfig.thinkingConfig;
     expect(thinking).toEqual({ thinkingLevel: "low" });
     expect(thinking).not.toHaveProperty("thinkingBudget");

@@ -17,7 +17,8 @@ import {
 
 const CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 
-async function generateWithProvider(
+// Exported for providerCopies.requestShape.test.ts (SPEC-v9 A.0.6); not a Convex function.
+export async function generateWithProvider(
   modelInput: string,
   systemPrompt: string,
   userPrompt: string,

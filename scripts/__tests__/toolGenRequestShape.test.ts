@@ -12,6 +12,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // @ts-expect-error - plain .mjs script without types
 import { buildClaudeRequest, callClaude, claudeText } from "../tool-gen/analyze-gap.mjs";
+// @ts-expect-error - plain .mjs script without types
+import * as generateTool from "../tool-gen/generate-tool.mjs";
 
 describe("analyze-gap.mjs Anthropic request", () => {
   beforeEach(() => {
@@ -64,4 +66,49 @@ describe("analyze-gap.mjs Anthropic request", () => {
 
   // Importing the module at the top of this file is itself the guard test: an unguarded
   // main() would read /tmp/daily-brief.json and call process.exit(1) inside the worker.
+});
+
+// generate-tool.mjs is the second raw-fetch Anthropic call of the daily job. It builds its
+// own body (a longer output cap and a different model than analyze-gap), so it needs its
+// own request-shape test rather than leaning on analyze-gap's.
+describe("generate-tool.mjs Anthropic request", () => {
+  beforeEach(() => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "test-key-not-real");
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("builds a body with no sampling keys, no prefill and room to think", () => {
+    const body = generateTool.buildClaudeRequest("system text", "user text");
+    // PR 1 moves no ids; PR 2 changes this literal to claude-sonnet-5-5 with its own update.
+    expect(body.model).toBe("claude-sonnet-4-6");
+    for (const key of ["temperature", "top_p", "top_k"]) expect(body).not.toHaveProperty(key);
+    expect(body.max_tokens).toBe(4096);
+    expect(body.messages).toEqual([{ role: "user", content: "user text" }]);
+  });
+
+  it("sends exactly that body and returns the text block, not content[0]", async () => {
+    const seen: Array<{ url: string; body: any }> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: { body: string }) => {
+        seen.push({ url, body: JSON.parse(init.body) });
+        return new Response(
+          JSON.stringify({ content: [{ type: "thinking", thinking: "x", signature: "s" }, { type: "text", text: '{"toolObjectCode":"{}"}' }] }),
+          { status: 200 },
+        );
+      }),
+    );
+    expect(await generateTool.callClaude("sys", "usr")).toBe('{"toolObjectCode":"{}"}');
+    expect(seen).toHaveLength(1);
+    expect(seen[0].url).toBe("https://api.anthropic.com/v1/messages");
+    expect(seen[0].body).toEqual(generateTool.buildClaudeRequest("sys", "usr"));
+  });
+
+  it("surfaces an HTTP failure instead of returning an empty answer", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("bad request", { status: 400 })));
+    await expect(generateTool.callClaude("sys", "usr")).rejects.toThrow(/Claude API 400/);
+  });
 });

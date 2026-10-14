@@ -79,24 +79,53 @@ describe("agentInvoker Anthropic backend", () => {
     expect(body).not.toHaveProperty("tool_choice");
   });
 
-  it("reads blocks by type: text after a thinking block, tool_use recorded as a tool call", async () => {
+  it("reads blocks by type: text after a thinking block; a tool_use is a request, not an executed call", async () => {
     const { fetchImpl } = fakeMessagesTransport({
       model: "m",
+      stop_reason: "end_turn",
       content: [
         { type: "thinking", thinking: "…", signature: "s" },
         { type: "text", text: "plan" },
-        { type: "tool_use", id: "t1", name: "convex_audit_schema", input: { path: "schema.ts" } },
+        { type: "tool_use", id: "t1", name: "convex_search_gotchas", input: { path: "schema.ts" } },
       ],
       usage: { input_tokens: 1, output_tokens: 1 },
     });
-    const telemetry = await invokeAgent(config("mcp_lite"), task, {
+    const telemetry = await invokeAgent(config("mcp_core"), task, {
       backend: "anthropic",
       apiKey: "k",
       model: "candidate-model",
       fetchImpl,
     });
-    expect(telemetry.toolCalls.map((c) => c.toolName)).toEqual(["convex_audit_schema"]);
+    // No tool runs in this harness: the request is recorded apart and earns no score.
+    // (Before: it was recorded as a successful ToolCallRecord and set knowledgeReuseRate to 1.)
+    expect(telemetry.requestedTools?.map((c) => c.toolName)).toEqual(["convex_search_gotchas"]);
+    expect(telemetry.toolCalls).toEqual([]);
+    expect(telemetry.scorecard.efficiency.toolCallCount).toBe(0);
+    expect(telemetry.scorecard.compounding.knowledgeReuseRate).toBe(0);
     expect(telemetry.outputHash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("marks an unfinished tool_use turn as an error", async () => {
+    const { fetchImpl } = fakeMessagesTransport({
+      model: "m",
+      stop_reason: "tool_use",
+      content: [{ type: "tool_use", id: "t1", name: "convex_audit_schema", input: {} }],
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+    const telemetry = await invokeAgent(config("mcp_lite"), task, { backend: "anthropic", apiKey: "k", model: "candidate-model", fetchImpl });
+    expect(telemetry.error).toMatch(/tool_use.*none executed/);
+    expect(telemetry.toolCalls).toEqual([]);
+  });
+
+  it("marks a response that echoes no model as an error: it is not identity evidence", async () => {
+    const { fetchImpl } = fakeMessagesTransport({
+      stop_reason: "end_turn",
+      content: [{ type: "text", text: "done" }],
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+    const telemetry = await invokeAgent(config("bare"), task, { backend: "anthropic", apiKey: "k", model: "candidate-model", fetchImpl });
+    expect(telemetry.error).toMatch(/no model string/);
+    expect(telemetry.echoedModel).toBeUndefined();
   });
 
   it("reports an HTTP failure and a refusal as errors, never as a clean run", async () => {
@@ -138,6 +167,7 @@ describe("runner --tier / --seeds", () => {
   afterEach(() => {
     rmSync(dir, { recursive: true, force: true });
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
@@ -178,6 +208,42 @@ describe("runner --tier / --seeds", () => {
     vi.stubEnv("EVAL_MODEL", "");
     expect(await main(["--tier", "tier1", "--seeds", "1"], dir)).toBe(1);
     expect(readAll()).toHaveLength(0);
+  });
+
+  it("exits non-zero when a real backend answers HTTP 400 on every run, and still writes the error rows", async () => {
+    // Before: ten HTTP 400 responses wrote ten error rows and the runner exited 0, so the
+    // declared migrationEvalCommand could pass without a single successful provider call.
+    vi.stubEnv("EVAL_BACKEND", "anthropic");
+    vi.stubEnv("EVAL_MODEL", "candidate-under-test");
+    vi.stubEnv("ANTHROPIC_API_KEY", "test-key-not-real");
+    const fetchSpy = vi.fn(async () => new Response(JSON.stringify({ error: { type: "invalid_request_error" } }), { status: 400 }));
+    vi.stubGlobal("fetch", fetchSpy);
+    const tier1 = EVAL_DATASET.tasks.filter((t) => t.tier.startsWith("tier1"));
+
+    expect(await main(["--tier", "tier1", "--seeds", "1"], dir)).toBe(1);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(tier1.length);
+    const rows = readAll();
+    expect(rows).toHaveLength(tier1.length);
+    for (const { telemetry } of rows) expect(telemetry.error).toMatch(/HTTP 400/);
+    vi.unstubAllGlobals();
+  });
+
+  it("exits 0 when every real-backend run completes cleanly", async () => {
+    vi.stubEnv("EVAL_BACKEND", "anthropic");
+    vi.stubEnv("EVAL_MODEL", "candidate-under-test");
+    vi.stubEnv("ANTHROPIC_API_KEY", "test-key-not-real");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({ model: "candidate-under-test", stop_reason: "end_turn", content: [{ type: "text", text: "ok" }], usage: { input_tokens: 1, output_tokens: 1 } }),
+          { status: 200 },
+        ),
+      ),
+    );
+    expect(await main(["--task", task.id, "--mode", "bare", "--seed", "1"], dir)).toBe(0);
+    vi.unstubAllGlobals();
   });
 
   it("rejects an empty tier selection and a bad --seeds", async () => {

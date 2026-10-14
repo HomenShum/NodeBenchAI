@@ -3,6 +3,7 @@ import {
   NODEBENCH_ADVISOR_MODEL,
   NODEBENCH_BACKGROUND_MODELS,
   NODEBENCH_EXECUTOR_MODELS,
+  isFreeModel,
   normalizeNodeBenchRuntimeModel,
   resolveModelAlias,
   type ApprovedModel,
@@ -81,7 +82,11 @@ function chooseAvailableRouteModels(args: {
   candidates: ApprovedModel[];
   availableModels?: ApprovedModel[] | null;
 }): { model: ApprovedModel; fallbackModels: ApprovedModel[] } {
-  const ordered = [args.primary, ...buildFallbacks(args.primary, args.candidates)];
+  // A free primary never falls back to a paid candidate (SPEC-v9 A.0.10).
+  const candidates = isFreeModel(args.primary)
+    ? args.candidates.filter(isFreeModel)
+    : args.candidates;
+  const ordered = [args.primary, ...buildFallbacks(args.primary, candidates)];
   const availableOrdered = ordered.filter((model, index, array) => {
     if (array.indexOf(model) !== index) return false;
     return isRoutableModelAvailable(model, args.availableModels);
@@ -94,7 +99,7 @@ function chooseAvailableRouteModels(args: {
 
   return {
     model: args.primary,
-    fallbackModels: buildFallbacks(args.primary, args.candidates),
+    fallbackModels: buildFallbacks(args.primary, candidates),
   };
 }
 
@@ -105,9 +110,13 @@ function resolveRequestedExecutorModel(
     return null;
   }
 
-  const resolved = resolveModelAlias(requestedModel);
-  if (!resolved) {
-    return null;
+  // An unknown id throws (or becomes the free lane when free-looking); it must
+  // not fall through to the paid executor default (SPEC-v9 A.0.10).
+  const resolved =
+    resolveModelAlias(requestedModel) ??
+    normalizeNodeBenchRuntimeModel(requestedModel, "executor");
+  if (isFreeModel(resolved)) {
+    return resolved;
   }
 
   if (!REQUESTABLE_EXECUTOR_MODELS.has(resolved)) {

@@ -143,7 +143,8 @@ async function fetchSourceContent(
 /**
  * Call LLM-as-a-judge to verify claim against source
  */
-async function judgeClaimAgainstSource(
+// Exported for providerCopies.requestShape.test.ts (SPEC-v9 A.0.6); not a Convex function.
+export async function judgeClaimAgainstSource(
   claimText: string,
   sourceContent: string
 ): Promise<JudgeResult> {

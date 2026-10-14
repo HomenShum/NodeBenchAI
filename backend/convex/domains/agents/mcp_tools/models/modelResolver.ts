@@ -186,8 +186,10 @@ export const MODEL_PRIORITY_ORDER: ApprovedModel[] = [
   "claude-opus-4.7",
   "claude-haiku-4.5",
   "gpt-5.4-nano",
-  // EXPERIMENTAL / FREE LANES
-  "laguna-s-2.1-free",      // Current primary free route
+  // EXPERIMENTAL / FREE LANES. Every id from here on is free, so a chain that
+  // starts on a free model never reaches a paid one (modelResolver.test.ts pins this).
+  "nemotron-3-super-free",  // FREE_LANE_MODEL: head of the free segment
+  "laguna-s-2.1-free",      // Previous primary free route (expires 2026-10-31)
   "laguna-xs-2.1-free",     // Current explicit free fallback
   "qwen3-coder-free",       // Legacy free alias retained for compatibility
   "step-3.5-flash-free",    // 196B MoE, reasoning + tools
@@ -244,11 +246,18 @@ const NODEBENCH_EXECUTOR_ALLOWED = new Set<ApprovedModel>([
 
 const NODEBENCH_BACKGROUND_ALLOWED = new Set<ApprovedModel>(NODEBENCH_BACKGROUND_MODELS);
 
+/**
+ * First resolver on the FastAgent public entry points. Empty input takes the
+ * profile default. Anything else goes through `resolveOrFailClosed` (A.0.10): a
+ * free-looking unknown id becomes FREE_LANE_MODEL, any other unknown id throws
+ * `UnknownModelError`. A free model keeps its cost class in every profile; a
+ * known paid model the profile does not allow takes the profile default.
+ */
 export function normalizeNodeBenchRuntimeModel(
   input: string | undefined | null,
   profile: NodeBenchRuntimeProfile = "advisor",
+  opts?: UnknownModelOptions,
 ): ApprovedModel {
-  const resolved = input ? resolveModelAlias(input) : null;
   const fallback =
     profile === "advisor"
       ? NODEBENCH_ADVISOR_MODEL
@@ -256,10 +265,15 @@ export function normalizeNodeBenchRuntimeModel(
         ? NODEBENCH_BACKGROUND_MODELS[0]
         : NODEBENCH_EXECUTOR_MODELS[0];
 
-  if (!resolved) {
+  if (!input) {
     return fallback;
   }
 
+  const resolved = resolveOrFailClosed(input, opts, "normalizeNodeBenchRuntimeModel");
+
+  if (isFreeModel(resolved)) {
+    return resolved;
+  }
   if (profile === "advisor" && NODEBENCH_ADVISOR_ALLOWED.has(resolved)) {
     return resolved;
   }
@@ -1230,6 +1244,19 @@ export function getFreeModels(): ApprovedModel[] {
 }
 
 /**
+ * Index of `model` in MODEL_PRIORITY_ORDER. A start model that is not in the
+ * order throws: restarting it at index 0 (a paid model) would turn a free
+ * request into a paid one (SPEC-v9 A.0.10).
+ */
+function priorityIndexOrThrow(model: ApprovedModel, caller: string): number {
+  const index = MODEL_PRIORITY_ORDER.indexOf(model);
+  if (index === -1) {
+    throw new Error(`[modelResolver] ${caller}: "${model}" is not in MODEL_PRIORITY_ORDER; refusing to restart at the head of the paid chain`);
+  }
+  return index;
+}
+
+/**
  * Get the next model in the priority fallback chain
  * Returns null if no more models available
  */
@@ -1253,12 +1280,13 @@ export function getLanguageModelWithFallback(preferredModel?: ApprovedModel): {
 } {
   const modelId = preferredModel ?? DEFAULT_MODEL;
   const spec = MODEL_SPECS[modelId];
+  const index = priorityIndexOrThrow(modelId, "getLanguageModelWithFallback");
 
   return {
     model: buildLanguageModel(spec),
     modelId,
     isFree: isFreeModel(modelId),
-    fallbackChain: MODEL_PRIORITY_ORDER.slice(MODEL_PRIORITY_ORDER.indexOf(modelId) + 1),
+    fallbackChain: MODEL_PRIORITY_ORDER.slice(index + 1),
   };
 }
 
@@ -1284,13 +1312,8 @@ export async function executeWithModelFallback<T>(
   let fallbacksUsed = 0;
   let lastError: Error | null = null;
 
-  // Get the starting index in priority order
-  let modelIndex = MODEL_PRIORITY_ORDER.indexOf(currentModel);
-  if (modelIndex === -1) {
-    // Model not in priority order, start from beginning
-    modelIndex = 0;
-    currentModel = MODEL_PRIORITY_ORDER[0];
-  }
+  // Get the starting index in priority order; an unlisted start model throws.
+  let modelIndex = priorityIndexOrThrow(currentModel, "executeWithModelFallback");
 
   while (modelIndex < MODEL_PRIORITY_ORDER.length) {
     currentModel = MODEL_PRIORITY_ORDER[modelIndex];
@@ -1367,9 +1390,5 @@ export function getBestFreeModel(): ApprovedModel {
  * Get the fallback chain starting from a given model
  */
 export function getFallbackChain(startModel: ApprovedModel = DEFAULT_MODEL): ApprovedModel[] {
-  const startIndex = MODEL_PRIORITY_ORDER.indexOf(startModel);
-  if (startIndex === -1) {
-    return [...MODEL_PRIORITY_ORDER];
-  }
-  return MODEL_PRIORITY_ORDER.slice(startIndex);
+  return MODEL_PRIORITY_ORDER.slice(priorityIndexOrThrow(startModel, "getFallbackChain"));
 }

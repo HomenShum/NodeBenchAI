@@ -10,6 +10,7 @@
 import { describe, expect, it } from "vitest";
 
 import * as web from "./approvedModels";
+import { PIPELINE_MODEL_OPTIONS } from "./pipelineModelRoutes";
 import * as backend from "../../../../../backend/convex/domains/agents/mcp_tools/models/modelResolver";
 
 describe("web approvedModels mirrors modelResolver", () => {
@@ -47,6 +48,16 @@ describe("web approvedModels mirrors modelResolver", () => {
           backend.normalizeNodeBenchRuntimeModel(id, profile),
         );
       }
+    }
+  });
+
+  it("pins every selector option, including the auto-free literal, to the backend route resolver", () => {
+    // pipelineModelRoutes.ts types its resolved ids by hand. With getBestFreeModel reverted to
+    // laguna, the web tests still passed and only modelResolver.test.ts failed; this closes that gap.
+    for (const option of PIPELINE_MODEL_OPTIONS) {
+      const resolved = backend.resolvePipelineModelSelection(option.value);
+      expect(resolved.resolvedModelId, `${option.value} resolvedModelId`).toBe(option.resolvedModelId);
+      expect(resolved.isFreeRoute, `${option.value} isFree`).toBe(option.isFree);
     }
   });
 });
