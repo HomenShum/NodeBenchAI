@@ -16,6 +16,7 @@ import {
   anthropicText,
   anthropicWireId,
   FREE_LANE_CATALOG_ID,
+  FREE_LANE_WIRE_ID,
   getModelWithFailover,
   llmModelCatalog,
   resolveModelAlias,
@@ -140,12 +141,37 @@ describe("getModelWithFailover fails closed", () => {
 
   it("names the same free lane as the resolver", () => {
     expect(FREE_LANE_CATALOG_ID).toBe(FREE_LANE_MODEL);
+    expect(FREE_LANE_WIRE_ID).toBe(MODEL_SPECS[FREE_LANE_MODEL].sdkId);
   });
 
-  it("sends an unknown free-looking id to the free lane on OpenRouter, never to a paid OpenAI default", () => {
+  it("sends an unknown free-looking id to the free lane on OpenRouter as the WIRE id, never a paid default or the alias", () => {
+    // The returned `model` goes straight into the provider request, so the alias
+    // `nemotron-3-super-free` must never be what comes back (SPEC-v9 A.2.10 rule (b)).
     for (const id of ["retired-model-free", "someone/new-model:free"]) {
-      expect(getModelWithFailover(id), id).toEqual({ model: FREE_LANE_MODEL, provider: "openrouter", isFallback: true });
+      expect(getModelWithFailover(id), id).toEqual({ model: FREE_LANE_WIRE_ID, provider: "openrouter", isFallback: true });
     }
+  });
+
+  it("free route aliases take the free lane instead of throwing", () => {
+    for (const id of ["openrouter/free", "auto-free", "nodebench:auto-free", "kilo-auto/free", "free"]) {
+      expect(getModelWithFailover(id), id).toEqual({ model: FREE_LANE_WIRE_ID, provider: "openrouter", isFallback: true });
+    }
+  });
+
+  it("a prefix-shaped invented id never fails over to a paid provider, even when only Gemini is configured", () => {
+    // Before: getProviderForModel inferred a provider from the prefix, so these missed the
+    // unknown-id branch and failed over to the paid gemini-3.1-flash-lite-preview.
+    vi.stubEnv("OPENAI_API_KEY", "");
+    vi.stubEnv("ANTHROPIC_API_KEY", "");
+    vi.stubEnv("OPENROUTER_API_KEY", "");
+    vi.stubEnv("GEMINI_API_KEY", "gemini-test-key-not-real");
+    for (const id of ["gpt-not-real", "claude-not-real"]) {
+      expect(() => getModelWithFailover(id), id).toThrow(/never fails over to a paid default/);
+    }
+    // free-looking wins over the prefix
+    expect(getModelWithFailover("gpt-not-real-free")).toEqual({ model: FREE_LANE_WIRE_ID, provider: "openrouter", isFallback: true });
+    // a KNOWN catalog model still fails over as before
+    expect(getModelWithFailover("gpt-5.4").provider).toBe("gemini");
   });
 
   it("every model the catalog itself names still resolves, so no default now throws", () => {
@@ -161,7 +187,7 @@ describe("getModelWithFailover fails closed", () => {
   });
 
   it("a configured free catalog model stays free, and an unconfigured provider never fails over to a paid one", () => {
-    expect(getModelWithFailover(FREE_LANE_MODEL)).toMatchObject({ provider: "openrouter", isFallback: false });
+    expect(getModelWithFailover(FREE_LANE_MODEL)).toEqual({ model: FREE_LANE_WIRE_ID, provider: "openrouter", isFallback: false });
     vi.stubEnv("OPENROUTER_API_KEY", "");
     expect(() => getModelWithFailover(FREE_LANE_MODEL)).toThrow(/never fails over to a paid provider/);
   });

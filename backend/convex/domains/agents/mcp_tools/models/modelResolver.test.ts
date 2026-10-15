@@ -250,6 +250,25 @@ describe("fallback helpers keep a free request on free models", () => {
   });
 });
 
+describe("an approved PAID model outside the priority order keeps main's behaviour", () => {
+  // Main restarts such a start model at the head of the order (kimi-k2.6) and lists the whole chain.
+  // Changing that is a caller-argument decision (PR body, C item c), not part of A.0.10.
+  const paidUnlisted = ["glm-4.7-flash", "deepseek-r1", "gemini-2.5-flash", "mistral-large", "claude-opus-4"];
+  it.each(paidUnlisted)("%s does not throw and starts at the head", async (id) => {
+    // buildLanguageModel needs a key to construct the head model and the requested model.
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key-not-real");
+    vi.stubEnv("GEMINI_API_KEY", "test-key-not-real");
+    expect(APPROVED_MODELS as readonly string[]).toContain(id);
+    expect(MODEL_PRIORITY_ORDER as readonly string[]).not.toContain(id);
+    expect(isFreeModel(id as never)).toBe(false);
+    const r = await executeWithModelFallback(async (_m, used) => used, { startModel: id as never });
+    expect(r.modelUsed).toBe(MODEL_PRIORITY_ORDER[0]);
+    expect(getFallbackChain(id as never)).toEqual(MODEL_PRIORITY_ORDER);
+    expect(getLanguageModelWithFallback(id as never).fallbackChain).toEqual(MODEL_PRIORITY_ORDER);
+    vi.unstubAllEnvs();
+  });
+});
+
 describe("normalizeNodeBenchRuntimeModel is the first resolver and fails closed", () => {
   beforeEach(() => {
     vi.spyOn(console, "warn").mockImplementation(() => {});

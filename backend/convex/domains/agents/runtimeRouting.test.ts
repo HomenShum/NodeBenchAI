@@ -237,6 +237,49 @@ describe("chooseNodeBenchRuntimeRoute keeps cost class and fails closed", () => 
     expect(background.fallbackModels.every((id) => isFreeModel(id))).toBe(true);
   });
 
+  it("an explicit free request stays free on every executor branch a prompt keyword can reach", () => {
+    // Persona: a user who picked the free model, then typed "patch this script" or "return JSON".
+    // Before: these branches never read requestedModel and sent the turn to a paid Gemini model.
+    const cases: Array<[string, string, Parameters<typeof chooseNodeBenchRuntimeRoute>[0]]> = [
+      ["tool_heavy_executor", "Use the browser tool to patch this script", { prompt: "", workingSet: buildWorkingSet() }],
+      ["structured_executor", "Return JSON with these fields", { prompt: "", workingSet: buildWorkingSet() }],
+      [
+        "context_rot_guard",
+        "Continue the analysis.",
+        { prompt: "", workingSet: buildWorkingSet({ contextRotRisk: "medium", activeAngles: ["entity_profile", "public_signals", "funding_intelligence"] }) },
+      ],
+      [
+        "large_context_executor",
+        "Continue the analysis.",
+        { prompt: "", workingSet: buildWorkingSet({ activeAngles: ["entity_profile", "public_signals"] }) },
+      ],
+      ["anonymous_fast_executor", "Summarize this company.", { prompt: "", isAnonymous: true, workingSet: buildWorkingSet() }],
+    ];
+    for (const [reason, prompt, base] of cases) {
+      const route = chooseNodeBenchRuntimeRoute({
+        ...base,
+        prompt,
+        requestedModel: FREE_LANE_MODEL,
+        useCoordinator: false,
+        availableModels: paidAvailable,
+      });
+      expect(route.reason, reason).toBe(reason);
+      expect(route.model, reason).toBe(FREE_LANE_MODEL);
+      expect(route.fallbackModels.every((id) => isFreeModel(id)), reason).toBe(true);
+    }
+  });
+
+  it("without a free request those branches keep their paid defaults", () => {
+    const route = chooseNodeBenchRuntimeRoute({
+      prompt: "Use the browser tool to patch this script",
+      requestedModel: "gpt-5.4-mini",
+      availableModels: paidAvailable,
+      workingSet: buildWorkingSet(),
+    });
+    expect(route.reason).toBe("tool_heavy_executor");
+    expect(route.model).toBe("gemini-3-flash-preview");
+  });
+
   it("a free primary that is not in the available list does not fall over to a paid model", () => {
     // availableModels contains only paid ids: the old chooser would pick the first paid candidate.
     const route = ask(FREE_LANE_MODEL, "Plan and orchestrate a deep research run on Stripe.");

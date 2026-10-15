@@ -147,6 +147,49 @@ describe("agentInvoker Anthropic backend", () => {
     expect(refused.error).toMatch(/refusal/);
   });
 
+  it("counts only end_turn as a clean run: max_tokens, pause_turn and a missing stop_reason are errors", async () => {
+    for (const stop_reason of ["max_tokens", "pause_turn", undefined]) {
+      const telemetry = await invokeAgent(config("bare"), task, {
+        backend: "anthropic",
+        apiKey: "k",
+        model: "candidate-model",
+        fetchImpl: fakeMessagesTransport({ model: "m", stop_reason, content: [{ type: "text", text: "cut off" }] }).fetchImpl,
+      });
+      expect(telemetry.error, `stop_reason ${String(stop_reason)}`).toMatch(/stop_reason: (max_tokens|pause_turn|missing)/);
+    }
+  });
+
+  it("bounds the read: an oversized stream is cancelled, not buffered", async () => {
+    let pulled = 0;
+    const chunk = new TextEncoder().encode("x".repeat(1_000_000));
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1;
+        controller.enqueue(chunk);
+        if (pulled > 50) controller.close();
+      },
+    });
+    const telemetry = await invokeAgent(config("bare"), task, {
+      backend: "anthropic",
+      apiKey: "k",
+      model: "candidate-model",
+      fetchImpl: (async () => new Response(stream, { status: 200 })) as unknown as typeof fetch,
+    });
+    expect(telemetry.error).toMatch(/exceeded/);
+    expect(pulled).toBeLessThan(10);
+  });
+
+  it("refuses a declared content-length over the cap without reading the body", async () => {
+    const telemetry = await invokeAgent(config("bare"), task, {
+      backend: "anthropic",
+      apiKey: "k",
+      model: "candidate-model",
+      fetchImpl: (async () =>
+        new Response("{}", { status: 200, headers: { "content-length": "999999999" } })) as unknown as typeof fetch,
+    });
+    expect(telemetry.error).toMatch(/exceeded/);
+  });
+
   it("refuses to run without a key", async () => {
     await expect(invokeAgent(config("bare"), task, { backend: "anthropic", model: "m" })).rejects.toThrow(/ANTHROPIC_API_KEY/);
   });

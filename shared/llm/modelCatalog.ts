@@ -858,13 +858,23 @@ export function getEquivalentModel(modelName: string, targetProvider: LlmProvide
 }
 
 /**
+ * The verified free lane's OpenRouter wire id. Must equal
+ * `MODEL_SPECS[FREE_LANE_MODEL].sdkId` in modelResolver.ts (this file cannot import from
+ * backend/convex); anthropicWireIds.test.ts pins the two together. SPEC-v9 A.2.10: the
+ * alias `nemotron-3-super-free` never reaches a provider.
+ */
+export const FREE_LANE_WIRE_ID = "nvidia/nemotron-3-super-120b-a12b:free";
+
+/**
  * The string to put in a provider request. Callers of `getModelWithFailover`
  * send `model` straight to the provider SDK, so for Anthropic it must be the
  * wire id, not the dotted catalog alias (api.anthropic.com 404s on
- * "claude-sonnet-4.6"). An unrecognised string is passed through unchanged:
- * it may already be an operator-supplied wire id.
+ * "claude-sonnet-4.6"), and the free-lane alias becomes its OpenRouter wire id.
+ * An unrecognised string is passed through unchanged: it may already be an
+ * operator-supplied wire id.
  */
 function toProviderWireId(model: string, provider: LlmProvider): string {
+  if (provider === "openrouter" && model === FREE_LANE_CATALOG_ID) return FREE_LANE_WIRE_ID;
   return provider === "anthropic" ? (anthropicWireId(model) ?? model) : model;
 }
 
@@ -875,9 +885,22 @@ function toProviderWireId(model: string, provider: LlmProvider): string {
  */
 export const FREE_LANE_CATALOG_ID = "nemotron-3-super-free";
 
-/** Free-looking unknown ids: the OpenRouter `-free` / `:free` suffix. */
+/** The free route aliases; mirrors `routeAliasToModel` (routeTier "free") in modelResolver.ts. */
+const FREE_ROUTE_ALIASES = new Set(["free", "auto-free", "nodebench:auto-free", "kilo-auto/free", "openrouter/free"]);
+
+/** Free-looking unknown ids: the OpenRouter `-free` / `:free` suffix or a free route alias. */
 function isFreeLookingModel(model: string): boolean {
-  return /(-|:)free$/.test(model.trim().toLowerCase());
+  const normalized = model.trim().toLowerCase();
+  return /(-|:)free$/.test(normalized) || FREE_ROUTE_ALIASES.has(normalized);
+}
+
+/**
+ * A model this catalog knows by name. A provider prefix (`gpt-`, `claude-`, `gemini-`) is enough to
+ * route an operator-supplied wire id to its own provider (env overrides keep working), but it is not
+ * knowledge: an id that is only prefix-shaped never fails over to a different, paid provider.
+ */
+function isKnownCatalogModel(model: string): boolean {
+  return modelPricing[model] != null || modelEquivalents[model] != null || anthropicWireId(model) !== null;
 }
 
 function isFreeCatalogModel(model: string): boolean {
@@ -887,8 +910,9 @@ function isFreeCatalogModel(model: string): boolean {
 
 /**
  * Get a working model with failover.
- * An unknown id fails closed (SPEC-v9 A.0.10): free-looking -> the free lane,
- * anything else throws. A free model never fails over to a paid provider.
+ * An unknown id fails closed (SPEC-v9 A.0.10): free-looking -> the free lane (wire id),
+ * anything else is passed only to the provider its prefix names when that provider is
+ * configured, and throws otherwise. A free model never fails over to a paid provider.
  * Tries the preferred model's provider first, then falls back to alternatives.
  * The returned `model` is the provider wire id (see `toProviderWireId`).
  */
@@ -897,20 +921,26 @@ export function getModelWithFailover(preferredModel: string): {
   provider: LlmProvider;
   isFallback: boolean;
 } {
+  const known = isKnownCatalogModel(preferredModel);
   const provider = getProviderForModel(preferredModel);
-  
+
+  if (!known && isFreeLookingModel(preferredModel)) {
+    // The wire id, not the alias: the caller sends `model` to the provider as is.
+    return { model: FREE_LANE_WIRE_ID, provider: "openrouter", isFallback: true };
+  }
   if (!provider) {
-    if (isFreeLookingModel(preferredModel)) {
-      return { model: FREE_LANE_CATALOG_ID, provider: "openrouter", isFallback: true };
-    }
     throw new Error(`[getModelWithFailover] Unknown model "${preferredModel}"`);
   }
-  
+
   // Check if preferred provider is configured
   if (isProviderConfigured(provider)) {
     return { model: toProviderWireId(preferredModel, provider), provider, isFallback: false };
   }
-  
+
+  if (!known) {
+    throw new Error(`[getModelWithFailover] Unknown model "${preferredModel}": ${provider} is not configured and an unrecognised id never fails over to a paid default`);
+  }
+
   if (isFreeCatalogModel(preferredModel)) {
     throw new Error(`[getModelWithFailover] Free model "${preferredModel}": ${provider} is not configured and a free request never fails over to a paid provider`);
   }

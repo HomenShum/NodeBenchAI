@@ -264,7 +264,10 @@ export async function condenseQuery(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0, maxOutputTokens: 128, thinkingConfig: { thinkingBudget: 0 } },
+          // Same Gemini 3.x model as the reranker: thinkingBudget is removed there (SPEC-v9 s1.3), so
+          // thinkingLevel "low" replaces it. Thinking counts toward the cap, so 256 (the rerank sizing)
+          // leaves room for a 400-char rewrite; a truncated reply would silently fall back to the raw question.
+          generationConfig: { temperature: 0, maxOutputTokens: 256, thinkingConfig: { thinkingLevel: "low" } },
         }),
         signal: AbortSignal.timeout(opts.timeoutMs ?? RERANK_TIMEOUT_MS),
       },

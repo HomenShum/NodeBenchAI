@@ -30,6 +30,33 @@ interface InvokerOptions {
 /** BOUND_READ: a Messages response larger than this is treated as a failed run. */
 const MAX_RESPONSE_CHARS = 4_000_000;
 
+/**
+ * BOUND_READ: never buffers more than MAX_RESPONSE_CHARS. A declared content-length over the cap is
+ * refused before any byte is read; otherwise the stream is cancelled the moment the cap is crossed.
+ * Returns null when the body is too large.
+ */
+async function readBounded(response: Response): Promise<string | null> {
+  const declared = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > MAX_RESPONSE_CHARS) {
+    await response.body?.cancel();
+    return null;
+  }
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value, { stream: true });
+    if (text.length > MAX_RESPONSE_CHARS) {
+      await reader.cancel();
+      return null;
+    }
+  }
+  return text + decoder.decode();
+}
+
 function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -152,11 +179,11 @@ async function invokeAnthropic(
       body: JSON.stringify(buildAnthropicRequest(config, task, options.model ?? config.model)),
       signal: controller.signal,
     });
-    const raw = await response.text();
-    if (!response.ok) {
-      error = `Anthropic HTTP ${response.status}: ${raw.slice(0, 240)}`;
-    } else if (raw.length > MAX_RESPONSE_CHARS) {
+    const raw = await readBounded(response);
+    if (raw === null) {
       error = `Anthropic response exceeded ${MAX_RESPONSE_CHARS} chars`;
+    } else if (!response.ok) {
+      error = `Anthropic HTTP ${response.status}: ${raw.slice(0, 240)}`;
     } else {
       const data = JSON.parse(raw) as {
         model?: string;
@@ -182,9 +209,13 @@ async function invokeAnthropic(
       // The model string the provider returned, not the one requested (SPEC-v9 A.0.3).
       echoedModel = data.model;
       const problems: string[] = [];
-      if (data.stop_reason === "refusal") problems.push("Anthropic stop_reason: refusal");
+      // Only end_turn is a finished answer. max_tokens (adaptive thinking counts toward the cap on
+      // Claude 5.x, so a cap sized for 4.5 truncates), pause_turn and a missing stop_reason are all
+      // unfinished turns and must not count as a clean run.
       if (data.stop_reason === "tool_use") {
         problems.push(`Anthropic stop_reason: tool_use; ${requestedTools.length} tool(s) requested, none executed (unfinished turn)`);
+      } else if (data.stop_reason !== "end_turn") {
+        problems.push(`Anthropic stop_reason: ${data.stop_reason ?? "missing"} (not end_turn, unfinished or truncated turn)`);
       }
       if (!echoedModel) problems.push("Anthropic response carries no model string, so the run has no identity evidence");
       if (problems.length > 0) error = problems.join("; ");

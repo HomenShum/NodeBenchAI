@@ -50,12 +50,23 @@ describe("modelRouter.route request shape and cost class", () => {
 
   it("omits temperature for Claude and Gemini and sends it for the providers that accept it", async () => {
     const sent: Record<string, boolean> = {};
+    const dispatched: Record<string, string> = {};
     for (const pinnedModel of ["claude-sonnet-4.6", "gemini-3.1-pro-preview", "kimi-k2.6", "gpt-5.4"]) {
       generateText.mockClear();
       await call(makeCtx(), { pinnedModel, temperature: 0.7 });
       expect(generateText).toHaveBeenCalledTimes(1);
-      sent[pinnedModel] = "temperature" in generateText.mock.calls[0][0];
+      const request = generateText.mock.calls[0][0];
+      sent[pinnedModel] = "temperature" in request;
+      dispatched[pinnedModel] = (request.model as { modelId: string }).modelId;
+      for (const key of ["top_p", "top_k", "topP", "topK"]) expect(request, `${pinnedModel} ${key}`).not.toHaveProperty(key);
     }
+    // The outgoing model string, so a wrong-model dispatch cannot pass on the temperature check alone.
+    expect(dispatched).toEqual({
+      "claude-sonnet-4.6": "claude-sonnet-4-6",
+      "gemini-3.1-pro-preview": "gemini-3.1-pro-preview",
+      "kimi-k2.6": "moonshotai/kimi-k2.6",
+      "gpt-5.4": "gpt-5.4",
+    });
     expect(sent).toEqual({
       "claude-sonnet-4.6": false,
       "gemini-3.1-pro-preview": false,
@@ -76,6 +87,35 @@ describe("modelRouter.route request shape and cost class", () => {
     expect(generateText).toHaveBeenCalledTimes(3);
     const tried = generateText.mock.calls.map((c) => (c[0].model as { modelId: string }).modelId);
     expect(tried.every((id) => id.endsWith(":free")), tried.join(", ")).toBe(true);
+  });
+
+  it("a free request is capped at free even when the registry chain holds a paid model (requireVision)", async () => {
+    // Before: tier is a floor in the registry chain, so requireVision put glm-4.7-flash ($0.07/M)
+    // in the free chain; it was dispatched and recorded isFree=false, actualTier=cheap.
+    resolveChain.mockReturnValue({ chain: ["glm-4.7-flash", "nemotron-3-super-free"], reason: "ok", diagnostics: { primaryOutcome: "primary", candidatePoolSize: 2 } });
+    const result = await call(makeCtx(), { tier: "free", requireVision: true });
+    const tried = generateText.mock.calls.map((c) => (c[0].model as { modelId: string }).modelId);
+    expect(tried).toEqual(["nvidia/nemotron-3-super-120b-a12b:free"]);
+    expect(result.modelId).toBe("nemotron-3-super-free");
+    expect(result.isFree).toBe(true);
+    expect(result.routing.actualTier).toBe("free");
+    expect(result.costUsd).toBe(0);
+
+    // No free model qualifies: the call fails, nothing is dispatched.
+    generateText.mockClear();
+    resolveChain.mockReturnValue({ chain: ["glm-4.7-flash"], reason: "ok", diagnostics: { primaryOutcome: "primary", candidatePoolSize: 1 } });
+    await expect(call(makeCtx(), { tier: "free", requireVision: true })).rejects.toThrow(/All 0 models failed/);
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it("a pinned free-lane route is recorded as free, not as premium paid usage", async () => {
+    const ctx = makeCtx();
+    const result = await call(ctx, { pinnedModel: "nemotron-3-super-free" });
+    expect(result.isFree).toBe(true);
+    expect(result.costUsd).toBe(0);
+    expect(result.routing.actualTier).toBe("free");
+    const logged = (ctx.runMutation.mock.calls[0] as unknown as [unknown, Record<string, unknown>])[1];
+    expect(logged).toMatchObject({ modelId: "nemotron-3-super-free", actualTier: "free", costUsd: 0 });
   });
 
   it("a cheap-tier outage still falls through the cheap list (the paid list is only for paid tiers)", async () => {

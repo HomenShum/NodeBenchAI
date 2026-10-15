@@ -61,6 +61,7 @@ describe("mcp-local Anthropic provider request shape", () => {
     const result = await handler(researchWritingTools as never, "polish_academic_text")({ text: "We propose a method." });
     expect(create).toHaveBeenCalledTimes(1);
     const body = create.mock.calls[0][0];
+    expect(body.model).toBe("claude-haiku-4-5-20251001"); // PR 1 moves no ids
     for (const key of ["temperature", "top_p", "top_k"]) expect(body, key).not.toHaveProperty(key);
     expect(body.max_tokens).toBe(4096);
     expect(result.polishedText).toBe("the answer");

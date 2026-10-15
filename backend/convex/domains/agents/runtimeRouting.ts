@@ -103,18 +103,35 @@ function chooseAvailableRouteModels(args: {
   };
 }
 
-function resolveRequestedExecutorModel(
-  requestedModel?: string | null,
-): ApprovedModel | null {
+function resolveRequestedModel(requestedModel?: string | null): ApprovedModel | null {
   if (!requestedModel) {
     return null;
   }
-
   // An unknown id throws (or becomes the free lane when free-looking); it must
   // not fall through to the paid executor default (SPEC-v9 A.0.10).
-  const resolved =
+  return (
     resolveModelAlias(requestedModel) ??
-    normalizeNodeBenchRuntimeModel(requestedModel, "executor");
+    normalizeNodeBenchRuntimeModel(requestedModel, "executor")
+  );
+}
+
+/**
+ * The model the caller explicitly asked for, but only when it is free. Every
+ * executor branch starts from this so a request for the free lane is never
+ * routed to a paid model by a prompt keyword (SPEC-v9 A.0.10).
+ */
+function resolveRequestedFreeModel(requestedModel?: string | null): ApprovedModel | null {
+  const resolved = resolveRequestedModel(requestedModel);
+  return resolved && isFreeModel(resolved) ? resolved : null;
+}
+
+function resolveRequestedExecutorModel(
+  requestedModel?: string | null,
+): ApprovedModel | null {
+  const resolved = resolveRequestedModel(requestedModel);
+  if (!resolved) {
+    return null;
+  }
   if (isFreeModel(resolved)) {
     return resolved;
   }
@@ -136,6 +153,10 @@ export function chooseNodeBenchRuntimeRoute(
   const messagesCompacted = workingSet?.messagesCompacted ?? 0;
   const contextRotRisk = workingSet?.contextRotRisk ?? "low";
   const hasOpenRouter = args.hasOpenRouter !== false;
+  const requestedFree = resolveRequestedFreeModel(args.requestedModel);
+  // Executor branches that pick a fixed default start from the requested free model when there is one.
+  const executorPrimary = (fixedDefault: ApprovedModel) =>
+    requestedFree ?? normalizeNodeBenchRuntimeModel(fixedDefault, "executor");
   const pickRouteModels = (
     primary: ApprovedModel,
     candidates: ApprovedModel[],
@@ -147,10 +168,7 @@ export function chooseNodeBenchRuntimeRoute(
     });
 
   if (args.isAnonymous) {
-    const preferredModel = normalizeNodeBenchRuntimeModel(
-      "gemini-3.1-flash-lite-preview",
-      "executor",
-    );
+    const preferredModel = executorPrimary("gemini-3.1-flash-lite-preview");
     const { model, fallbackModels } = pickRouteModels(preferredModel, [
       "gemini-3-flash-preview",
       ...(hasOpenRouter ? (["minimax-m2.7"] as ApprovedModel[]) : []),
@@ -272,10 +290,7 @@ export function chooseNodeBenchRuntimeRoute(
     contextRotRisk === "medium" &&
     (activeAngles.length >= 3 || (messagesCompacted >= 18 && activeAngles.length >= 2))
   ) {
-    const preferredModel = normalizeNodeBenchRuntimeModel(
-      "gemini-3-flash-preview",
-      "executor",
-    );
+    const preferredModel = executorPrimary("gemini-3-flash-preview");
     const { model, fallbackModels } = pickRouteModels(preferredModel, [
       "gemini-3.1-flash-lite-preview",
       ...(hasOpenRouter ? (["minimax-m2.7"] as ApprovedModel[]) : []),
@@ -292,10 +307,7 @@ export function chooseNodeBenchRuntimeRoute(
   }
 
   if (toolHeavyExecutorSignal) {
-    const preferredModel = normalizeNodeBenchRuntimeModel(
-      "gemini-3-flash-preview",
-      "executor",
-    );
+    const preferredModel = executorPrimary("gemini-3-flash-preview");
     const { model, fallbackModels } = pickRouteModels(preferredModel, [
       "gemini-3.1-flash-lite-preview",
       ...(hasOpenRouter ? (["minimax-m2.7"] as ApprovedModel[]) : []),
@@ -312,10 +324,7 @@ export function chooseNodeBenchRuntimeRoute(
   }
 
   if (structuredExecutorSignal) {
-    const preferredModel = normalizeNodeBenchRuntimeModel(
-      "gemini-3.1-flash-lite-preview",
-      "executor",
-    );
+    const preferredModel = executorPrimary("gemini-3.1-flash-lite-preview");
     const { model, fallbackModels } = pickRouteModels(preferredModel, [
       "gemini-3-flash-preview",
       ...(hasOpenRouter ? (["minimax-m2.7"] as ApprovedModel[]) : []),
@@ -332,10 +341,7 @@ export function chooseNodeBenchRuntimeRoute(
   }
 
   if (activeAngles.length >= 2 || jitSlices.length >= 2) {
-    const preferredModel = normalizeNodeBenchRuntimeModel(
-      "gemini-3-flash-preview",
-      "executor",
-    );
+    const preferredModel = executorPrimary("gemini-3-flash-preview");
     const { model, fallbackModels } = pickRouteModels(preferredModel, [
       "gemini-3.1-flash-lite-preview",
       ...(hasOpenRouter ? (["minimax-m2.7"] as ApprovedModel[]) : []),

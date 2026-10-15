@@ -16,7 +16,7 @@ import { v } from "convex/values";
 import { internalAction } from "../../../_generated/server";
 import { internal } from "../../../_generated/api";
 import { generateText } from "ai";
-import { getLanguageModelSafe, getProviderForModel, resolveModelAlias } from "../../agents/mcp_tools/models";
+import { getLanguageModelSafe, getProviderForModel, isFreeModel, resolveModelAlias } from "../../agents/mcp_tools/models";
 // B-PR4: capability-aware fallback chain.
 // resolveChain replaces the static `[...TIER_MODELS[tier]]` candidate list
 // with a tier-floor-enforced ordering that respects requested capabilities
@@ -148,6 +148,9 @@ const MODEL_PRICING: Record<string, { input: number; output: number }> = {
   "arcee-trinity-large-free": { input: 0, output: 0 },
   "nemotron-3-nano-30b-free": { input: 0, output: 0 },
   "llama-3.3-70b-free": { input: 0, output: 0 },
+  // FREE_LANE_MODEL: without this row calculateCost bills it at the $1/$5 default and the audit
+  // row records a pinned free route as premium paid usage. Prices for the new paid ids land in PR 2.
+  "nemotron-3-super-free": { input: 0, output: 0 },
   "glm-4.7-flash": { input: 0.07, output: 0.07 },
   "gemini-3-flash-preview": { input: 0.50, output: 3.00 },
   "claude-haiku-4.5": { input: 1.00, output: 5.00 },
@@ -407,6 +410,16 @@ export const route = internalAction({
         );
         // The free tier never appends paid candidates (SPEC-v9 A.0.10).
         candidates = [...(TIER_MODELS[tier] ?? TIER_MODELS.cheap)];
+      }
+
+      // A free request is capped at free (SPEC-v9 A.0.10): the registry chain applies tier as a
+      // floor, so a capability requirement (for example requireVision) can put a paid model in it.
+      // If no free model qualifies the call fails below instead of billing.
+      if (tier === "free") {
+        candidates = candidates.filter((id) => {
+          const alias = resolveModelAlias(id);
+          return alias !== null && isFreeModel(alias);
+        });
       }
     }
 

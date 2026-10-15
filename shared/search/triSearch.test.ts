@@ -209,4 +209,23 @@ describe("rerankWithGemini - request shape (Gemini 3.x)", () => {
     expect(thinking).toEqual({ thinkingLevel: "low" });
     expect(thinking).not.toHaveProperty("thinkingBudget");
   });
+
+  it("condenseQuery sends the same thinking shape to the same model (thinkingBudget is removed on 3.6+)", async () => {
+    // Before: condenseQuery kept thinkingBudget:0 against RERANK_MODEL while the rerank call moved to
+    // thinkingLevel, so the rewrite would 400 and silently fall back to the raw question.
+    const bodies: any[] = [];
+    const urls: string[] = [];
+    const spyFetch = (async (url: string, init: { body: string }) => {
+      urls.push(String(url));
+      bodies.push(JSON.parse(init.body));
+      return { ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: "rewritten query" }] } }] }) } as unknown as Response;
+    }) as unknown as typeof fetch;
+    const r = await condenseQuery("and the cost?", ["audit tool calls"], { apiKey: "test", fetchImpl: spyFetch });
+    expect(r.status).toBe("rewritten");
+    expect(urls[0]).toContain(`/models/${process.env.TRI_SEARCH_RERANK_MODEL || "gemini-3.5-flash"}:generateContent`);
+    const thinking = bodies[0].generationConfig.thinkingConfig;
+    expect(thinking).toEqual({ thinkingLevel: "low" });
+    expect(thinking).not.toHaveProperty("thinkingBudget");
+    expect(JSON.stringify(bodies[0])).not.toContain("thinkingBudget");
+  });
 });

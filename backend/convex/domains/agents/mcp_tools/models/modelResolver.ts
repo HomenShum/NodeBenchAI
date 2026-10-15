@@ -1244,14 +1244,16 @@ export function getFreeModels(): ApprovedModel[] {
 }
 
 /**
- * Index of `model` in MODEL_PRIORITY_ORDER. A start model that is not in the
- * order throws: restarting it at index 0 (a paid model) would turn a free
- * request into a paid one (SPEC-v9 A.0.10).
+ * Index of `model` in MODEL_PRIORITY_ORDER, or -1 for an approved model that is
+ * not listed (callers then keep main's behaviour: the chain starts at the head).
+ * A free start model that is not listed throws: restarting it at index 0 (a paid
+ * model) would turn a free request into a paid one (SPEC-v9 A.0.10). Known paid
+ * ids are untouched until the listed-order decision (PR body, C item c).
  */
 function priorityIndexOrThrow(model: ApprovedModel, caller: string): number {
   const index = MODEL_PRIORITY_ORDER.indexOf(model);
-  if (index === -1) {
-    throw new Error(`[modelResolver] ${caller}: "${model}" is not in MODEL_PRIORITY_ORDER; refusing to restart at the head of the paid chain`);
+  if (index === -1 && isFreeModel(model)) {
+    throw new Error(`[modelResolver] ${caller}: free model "${model}" is not in MODEL_PRIORITY_ORDER; refusing to restart at the head of the paid chain`);
   }
   return index;
 }
@@ -1312,8 +1314,9 @@ export async function executeWithModelFallback<T>(
   let fallbacksUsed = 0;
   let lastError: Error | null = null;
 
-  // Get the starting index in priority order; an unlisted start model throws.
-  let modelIndex = priorityIndexOrThrow(currentModel, "executeWithModelFallback");
+  // Starting index in priority order; an unlisted paid model starts at the head (as on main),
+  // an unlisted free model throws.
+  let modelIndex = Math.max(0, priorityIndexOrThrow(currentModel, "executeWithModelFallback"));
 
   while (modelIndex < MODEL_PRIORITY_ORDER.length) {
     currentModel = MODEL_PRIORITY_ORDER[modelIndex];
@@ -1390,5 +1393,5 @@ export function getBestFreeModel(): ApprovedModel {
  * Get the fallback chain starting from a given model
  */
 export function getFallbackChain(startModel: ApprovedModel = DEFAULT_MODEL): ApprovedModel[] {
-  return MODEL_PRIORITY_ORDER.slice(priorityIndexOrThrow(startModel, "getFallbackChain"));
+  return MODEL_PRIORITY_ORDER.slice(Math.max(0, priorityIndexOrThrow(startModel, "getFallbackChain")));
 }
