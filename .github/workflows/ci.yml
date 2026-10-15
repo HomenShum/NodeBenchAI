@@ -116,6 +116,8 @@ jobs:
           backend/convex/domains/agents/runtimeRouting.test.ts
           backend/convex/domains/verification/instagramClaimVerification.test.ts
           backend/convex/domains/agents/agentChatActions.failClosed.test.ts
+          backend/convex/domains/research/dailyBriefModelBoundary.test.ts
+          scripts/__tests__/judgeScratchnodeChatVideo.requestShape.test.ts
           packages/mcp-local/src/__tests__/anthropicRequestShape.test.ts
           apps/web/src/features/agents/components/FastAgentPanel/__tests__/RunState.test.tsx
           backend/convex/domains/agents/autonomy/autonomy.integration.test.ts

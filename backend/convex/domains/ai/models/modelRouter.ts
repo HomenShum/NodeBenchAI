@@ -16,7 +16,7 @@ import { v } from "convex/values";
 import { internalAction } from "../../../_generated/server";
 import { internal } from "../../../_generated/api";
 import { generateText } from "ai";
-import { getLanguageModelSafe, getProviderForModel, isFreeModel, resolveModelAlias } from "../../agents/mcp_tools/models";
+import { getLanguageModelSafe, getProviderForModel, isFreeModel, normalizeModelInput, resolveModelAlias } from "../../agents/mcp_tools/models";
 // B-PR4: capability-aware fallback chain.
 // resolveChain replaces the static `[...TIER_MODELS[tier]]` candidate list
 // with a tier-floor-enforced ordering that respects requested capabilities
@@ -436,8 +436,13 @@ export const route = internalAction({
       failedWith: number | string;
     }> = [];
 
-    for (const modelId of candidates) {
+    for (const candidate of candidates) {
+      // Resolve once: dispatch, pricing, isFree, actualTier, cache and audit all use the model that
+      // actually answers. A pinned 'auto-free', the free-lane wire id or an unknown '-free' id is
+      // dispatched to the free lane and must be recorded as free, not priced as the raw string.
+      let modelId = candidate;
       try {
+        modelId = normalizeModelInput(candidate);
         const model = getLanguageModelSafe(modelId);
         if (!model) continue;
 
@@ -556,7 +561,7 @@ export const route = internalAction({
           typeof rawStatus === "number"
             ? rawStatus
             : (lastError.message || "error").slice(0, 80);
-        failedAttempts.push({ modelId, failedWith });
+        failedAttempts.push({ modelId: candidate, failedWith });
 
         // Retry on 429/503 with backoff
         if (

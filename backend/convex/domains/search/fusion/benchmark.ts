@@ -610,7 +610,7 @@ export const evaluateSearch = action({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contents: [{ parts: [{ text: `You are an expert search quality evaluator. Respond only with valid JSON.\n\n${prompt}` }] }],
-            generationConfig: { temperature: JUDGE_TEMPERATURE, maxOutputTokens: 1500 }, // Pinned to 0 for determinism
+            generationConfig: { maxOutputTokens: 1500 }, // no sampling: deprecated on Gemini 3.x (SPEC-v9 s1.3); was temperature 0
           }),
         }
       );

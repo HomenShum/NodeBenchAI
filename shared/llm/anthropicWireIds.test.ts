@@ -91,9 +91,15 @@ describe("getModelWithFailover sends wire ids to Anthropic", () => {
     });
   });
 
-  it("passes an operator-supplied claude string through untouched (env override precedence)", () => {
+  it("passes a known wire id through untouched", () => {
+    // Round 3 (A.0.10): this used to pass the unknown snapshot "claude-haiku-4-5-20251001" through
+    // on its `claude-` prefix alone. No caller supplies one (getLlmModel has no env override), the
+    // public actions normalise user input to the alias first, and a prefix is not knowledge.
     vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-test-key-not-real");
-    expect(getModelWithFailover("claude-haiku-4-5-20251001").model).toBe("claude-haiku-4-5-20251001");
+    for (const wire of Object.values(ANTHROPIC_WIRE_IDS)) {
+      expect(getModelWithFailover(wire), wire).toMatchObject({ model: wire, provider: "anthropic", isFallback: false });
+    }
+    expect(() => getModelWithFailover("claude-haiku-4-5-20251001")).toThrow(/Unknown model/);
   });
 
   it("leaves non-Anthropic providers alone", () => {
@@ -178,6 +184,21 @@ describe("getModelWithFailover fails closed", () => {
     const named = new Set(Object.values(llmModelCatalog).flatMap((byTask) => Object.values(byTask).flat()));
     expect(named.size).toBeGreaterThan(10);
     for (const id of named) expect(() => getModelWithFailover(resolveModelAlias(id)), id).not.toThrow();
+  });
+
+  it("an invented or unlisted paid id throws even when its provider is configured", () => {
+    // Round 3 (A.0.10): with OPENAI_API_KEY set these returned {provider:"openai", isFallback:false}
+    // and reached openai.chat.completions.create from the public daily-brief actions.
+    for (const id of ["gpt-not-real", "gpt-5.5-pro", "claude-not-real", "gemini-not-real"]) {
+      expect(() => getModelWithFailover(id), id).toThrow(/Unknown model/);
+    }
+  });
+
+  it("every resolver spec the catalog can route resolves by its sdkId", () => {
+    for (const spec of Object.values(MODEL_SPECS)) {
+      if (spec.provider !== "openai" && spec.provider !== "google") continue;
+      expect(() => getModelWithFailover(spec.sdkId), spec.sdkId).not.toThrow();
+    }
   });
 
   it("throws for any other unknown id", () => {

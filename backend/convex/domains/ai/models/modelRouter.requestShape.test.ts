@@ -118,6 +118,26 @@ describe("modelRouter.route request shape and cost class", () => {
     expect(logged).toMatchObject({ modelId: "nemotron-3-super-free", actualTier: "free", costUsd: 0 });
   });
 
+  it.each(["auto-free", "nvidia/nemotron-3-super-120b-a12b:free", "invented-free"])(
+    "a pinned free alias or wire id (%s) is priced, classified, cached and logged as the free lane it dispatched to",
+    async (pinnedModel) => {
+      // Before: the raw string was priced ($1/$5 default), isFree false, actualTier "premium" even
+      // though the request went to the free lane (audit data, PR #662 round 2).
+      const ctx = makeCtx();
+      const result = await call(ctx, { tier: "free", pinnedModel, cacheKey: `pin-${pinnedModel}` });
+      expect((generateText.mock.calls[0][0].model as { modelId: string }).modelId).toBe("nvidia/nemotron-3-super-120b-a12b:free");
+      expect(result).toMatchObject({ modelId: "nemotron-3-super-free", isFree: true, costUsd: 0 });
+      expect(result.routing.actualTier).toBe("free");
+      const logged = (ctx.runMutation.mock.calls[0] as unknown as [unknown, Record<string, unknown>])[1];
+      expect(logged).toMatchObject({ modelId: "nemotron-3-super-free", actualTier: "free", costUsd: 0, pinnedModel });
+
+      generateText.mockClear();
+      const cached = await call(makeCtx(), { tier: "free", pinnedModel, cacheKey: `pin-${pinnedModel}` });
+      expect(generateText).not.toHaveBeenCalled();
+      expect(cached).toMatchObject({ modelId: "nemotron-3-super-free", isFree: true, fromCache: true });
+    },
+  );
+
   it("a cheap-tier outage still falls through the cheap list (the paid list is only for paid tiers)", async () => {
     resolveChain.mockReturnValue({ chain: [], reason: "no_matches_for_requirement", diagnostics: { primaryOutcome: "not_supplied", candidatePoolSize: 0 } });
     generateText.mockRejectedValue(Object.assign(new Error("provider down"), { status: 400 }));

@@ -70,9 +70,13 @@ describe("benchmark.evaluateSearch judge request shape", () => {
     expect(captured[0].body.temperature).toBe(0);
   });
 
-  it("Gemini judge keeps temperature pinned to 0 in generationConfig, with the model in the URL", async () => {
+  it("Gemini judge sends no sampling keys (deprecated on Gemini 3.x, SPEC-v9 s1.3), with the model in the URL", async () => {
+    // Round 3: this test used to require generationConfig.temperature === 0 and would have blocked
+    // the removal; ignored today, a 400 later. The determinism pin stays on the OpenAI and the
+    // other judges.
     const { captured } = await run("gemini-3.1-pro-preview");
     expect(captured[0].url).toContain("/models/gemini-3.1-pro-preview:generateContent");
-    expect(captured[0].body.generationConfig.temperature).toBe(0);
+    for (const key of ["temperature", "topP", "topK", "top_p", "top_k"]) expect(captured[0].body.generationConfig, key).not.toHaveProperty(key);
+    expect(captured[0].body.generationConfig.maxOutputTokens).toBe(1500);
   });
 });

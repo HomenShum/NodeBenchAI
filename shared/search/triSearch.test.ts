@@ -182,6 +182,14 @@ describe("condenseQuery — multi-turn query rewrite", () => {
   });
 });
 
+// Sampling is deprecated on Gemini 3.x (ignored today, a 400 later; SPEC-v9 s1.3). Both calls used to
+// send generationConfig.temperature 0.
+const expectNoSampling = (body: any) => {
+  for (const key of ["temperature", "topP", "topK", "top_p", "top_k"]) {
+    expect(body.generationConfig, key).not.toHaveProperty(key);
+  }
+};
+
 describe("rerankWithGemini - request shape (Gemini 3.x)", () => {
   // SPEC-v9 s1.3: Gemini 3.x replaced thinkingBudget with thinkingLevel (`minimal` unsupported).
   // thinkingBudget:0 is how this reranker used to keep a thinking model from spending its
@@ -208,6 +216,7 @@ describe("rerankWithGemini - request shape (Gemini 3.x)", () => {
     const thinking = bodies[0].generationConfig.thinkingConfig;
     expect(thinking).toEqual({ thinkingLevel: "low" });
     expect(thinking).not.toHaveProperty("thinkingBudget");
+    expectNoSampling(bodies[0]);
   });
 
   it("condenseQuery sends the same thinking shape to the same model (thinkingBudget is removed on 3.6+)", async () => {
@@ -227,5 +236,6 @@ describe("rerankWithGemini - request shape (Gemini 3.x)", () => {
     expect(thinking).toEqual({ thinkingLevel: "low" });
     expect(thinking).not.toHaveProperty("thinkingBudget");
     expect(JSON.stringify(bodies[0])).not.toContain("thinkingBudget");
+    expectNoSampling(bodies[0]);
   });
 });

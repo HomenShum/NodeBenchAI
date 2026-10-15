@@ -73,7 +73,7 @@ Return ONLY JSON:
     const result = await ai.models.generateContent({
       model: MODEL,
       contents: [{ role: "user", parts: [{ fileData: { fileUri: file.uri, mimeType: "video/webm" } }, { text: PROMPT }] }],
-      config: { responseMimeType: "application/json", temperature: 0.2, maxOutputTokens: 3500, thinkingConfig: { thinkingLevel: "low" } },
+      config: { responseMimeType: "application/json", maxOutputTokens: 3500, thinkingConfig: { thinkingLevel: "low" } },
     });
     const text = (result.text || "").trim();
     let parsed;

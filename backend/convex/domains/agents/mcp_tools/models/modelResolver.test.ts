@@ -269,6 +269,53 @@ describe("an approved PAID model outside the priority order keeps main's behavio
   });
 });
 
+describe("the fallback helpers resolve an unvalidated start model first (A.0.10, PR #662 round 2)", () => {
+  // pdfInsights.generatePDFInsights casts a user-supplied `args.model` to ApprovedModel. Persona: a
+  // signed-in user posts a retired free alias, a typo, or the OpenRouter wire id of the free lane.
+  // Before: priorityIndexOrThrow called isFreeModel on the raw string, so each one died with
+  // "Cannot read properties of undefined (reading 'pricing')" before the callback ran.
+  const FREE_WIRE = MODEL_SPECS[FREE_LANE_MODEL].sdkId;
+  beforeEach(() => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key-not-real");
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it.each(["x-free", "retired-model-free", "someone/new:free"])("free-looking unknown %s resolves to the free lane in all three helpers", async (id) => {
+    const r = await executeWithModelFallback(async (_m, used) => used, { startModel: id as never });
+    expect(r.modelUsed).toBe(FREE_LANE_MODEL);
+    expect(r.isFree).toBe(true);
+    const chain = getFallbackChain(id as never);
+    expect(chain[0]).toBe(FREE_LANE_MODEL);
+    expect(chain.every((m) => isFreeModel(m))).toBe(true);
+    expect(getLanguageModelWithFallback(id as never).modelId).toBe(FREE_LANE_MODEL);
+  });
+
+  it("the registered free-lane wire id resolves through the alias table", async () => {
+    expect(FREE_WIRE).toBe("nvidia/nemotron-3-super-120b-a12b:free");
+    const r = await executeWithModelFallback(async (_m, used) => used, { startModel: FREE_WIRE as never });
+    expect(r.modelUsed).toBe(FREE_LANE_MODEL);
+    expect(getFallbackChain(FREE_WIRE as never)[0]).toBe(FREE_LANE_MODEL);
+    expect(getLanguageModelWithFallback(FREE_WIRE as never).modelId).toBe(FREE_LANE_MODEL);
+  });
+
+  it("any other unknown id throws UnknownModelError before the callback runs", async () => {
+    const fn = vi.fn(async () => "x");
+    await expect(executeWithModelFallback(fn, { startModel: "not-a-model" as never })).rejects.toBeInstanceOf(UnknownModelError);
+    expect(fn).not.toHaveBeenCalled();
+    expect(() => getFallbackChain("not-a-model" as never)).toThrow(UnknownModelError);
+    expect(() => getLanguageModelWithFallback("not-a-model" as never)).toThrow(UnknownModelError);
+  });
+
+  it("an omitted start model still means DEFAULT_MODEL", () => {
+    expect(getLanguageModelWithFallback().modelId).toBe(DEFAULT_MODEL);
+    expect(getFallbackChain()).toEqual(getFallbackChain(DEFAULT_MODEL));
+  });
+});
+
 describe("normalizeNodeBenchRuntimeModel is the first resolver and fails closed", () => {
   beforeEach(() => {
     vi.spyOn(console, "warn").mockImplementation(() => {});

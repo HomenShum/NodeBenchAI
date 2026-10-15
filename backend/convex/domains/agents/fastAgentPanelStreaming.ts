@@ -445,6 +445,7 @@ import {
   getLanguageModelSafe,
   normalizeModelInput,
   normalizeNodeBenchRuntimeModel,
+  isFreeModel,
   DEFAULT_MODEL,
   isModelAvailable,
   type ApprovedModel,
@@ -4806,6 +4807,7 @@ export const streamAsync = internalAction({
           ...route.fallbackModels,
         ],
         excludedModels: [activeModel, ...attemptedModels],
+        requireFree: isFreeModel(activeModel),
         isModelAvailable,
         checkModel: checkRuntimeModelAccess,
       });

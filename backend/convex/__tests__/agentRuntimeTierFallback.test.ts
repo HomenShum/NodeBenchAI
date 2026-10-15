@@ -17,6 +17,13 @@ import {
   formatPublicAgentRunError,
   projectAgentRunPresentation,
 } from "../domains/agents/agentRunPresentation";
+import {
+  getBestModelForTier,
+  getProviderForModel,
+  isModelAllowedForTier,
+  type UserTier,
+} from "../../../shared/llm/modelCatalog";
+import { FREE_LANE_MODEL } from "../domains/agents/mcp_tools/models/modelResolver";
 import { setEffectiveModel } from "../domains/agents/orchestrator/queueProtocol";
 import {
   checkRequestAllowed,
@@ -174,6 +181,59 @@ describe("selectTierEligibleRuntimeModel", () => {
       estimatedInputTokens: 2000,
       estimatedOutputTokens: 1000,
     });
+  });
+
+  // A.0.10: the real tier policy (checkRequestAccess' own calls), not a stub.
+  const realTierCheck = (tier: UserTier) => async (model: string) =>
+    isModelAllowedForTier(model, tier)
+      ? allowed()
+      : denied(
+          `Model "${model}" is not available on the ${tier} tier`,
+          getBestModelForTier("chat", tier, getProviderForModel(model) || "openai"),
+        );
+
+  it.each(["anonymous", "free"] as const)(
+    "never answers a free-lane request with a paid model on the %s tier",
+    async (tier) => {
+      const checkModel = vi.fn(realTierCheck(tier));
+      const result = await selectTierEligibleRuntimeModel({
+        primaryModel: FREE_LANE_MODEL,
+        fallbackModels: [],
+        checkModel,
+      });
+
+      expect(result.model).toBeNull();
+      expect(checkModel.mock.calls.map(([m]) => m)).toEqual([FREE_LANE_MODEL]);
+      expect(getTierSelectionFailureReason(result)).toContain(
+        `not available on the ${tier} tier`,
+      );
+    },
+  );
+
+  it("still serves the free lane where the tier allows it", async () => {
+    const result = await selectTierEligibleRuntimeModel({
+      primaryModel: FREE_LANE_MODEL,
+      checkModel: realTierCheck("pro"),
+    });
+    expect(result.model).toBe(FREE_LANE_MODEL);
+  });
+
+  it("keeps a failed free run free when choosing a post-stream fallback", async () => {
+    const result = await selectTierEligibleRuntimeModel({
+      primaryModel: "gpt-5.4-mini",
+      excludedModels: [FREE_LANE_MODEL],
+      requireFree: true,
+      checkModel: realTierCheck("pro"),
+    });
+    expect(result.model).toBeNull();
+  });
+
+  it("preserves the paid fallbacks for a paid primary", async () => {
+    const result = await selectTierEligibleRuntimeModel({
+      primaryModel: "kimi-k2.6",
+      checkModel: realTierCheck("anonymous"),
+    });
+    expect(result.model).toBe("gpt-5.4-nano");
   });
 
   it("skips already-attempted models when choosing a tier-eligible fallback", async () => {

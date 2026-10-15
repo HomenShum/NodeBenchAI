@@ -1280,7 +1280,9 @@ export function getLanguageModelWithFallback(preferredModel?: ApprovedModel): {
   isFree: boolean;
   fallbackChain: ApprovedModel[];
 } {
-  const modelId = preferredModel ?? DEFAULT_MODEL;
+  // The start model arrives from public actions as an unvalidated string (pdfInsights): resolve it
+  // first, so an unknown id throws UnknownModelError / a free-looking one takes the free lane.
+  const modelId = resolveOrFailClosed(preferredModel, undefined, "getLanguageModelWithFallback");
   const spec = MODEL_SPECS[modelId];
   const index = priorityIndexOrThrow(modelId, "getLanguageModelWithFallback");
 
@@ -1310,7 +1312,7 @@ export async function executeWithModelFallback<T>(
 ): Promise<{ result: T; modelUsed: ApprovedModel; isFree: boolean; fallbacksUsed: number }> {
   const { startModel = DEFAULT_MODEL, maxRetries = RETRY_CONFIG.maxRetries, onFallback } = options ?? {};
 
-  let currentModel = startModel;
+  let currentModel = resolveOrFailClosed(startModel, undefined, "executeWithModelFallback");
   let fallbacksUsed = 0;
   let lastError: Error | null = null;
 
@@ -1393,5 +1395,6 @@ export function getBestFreeModel(): ApprovedModel {
  * Get the fallback chain starting from a given model
  */
 export function getFallbackChain(startModel: ApprovedModel = DEFAULT_MODEL): ApprovedModel[] {
-  return MODEL_PRIORITY_ORDER.slice(Math.max(0, priorityIndexOrThrow(startModel, "getFallbackChain")));
+  const start = resolveOrFailClosed(startModel, undefined, "getFallbackChain");
+  return MODEL_PRIORITY_ORDER.slice(Math.max(0, priorityIndexOrThrow(start, "getFallbackChain")));
 }

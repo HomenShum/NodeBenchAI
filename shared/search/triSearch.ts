@@ -141,7 +141,7 @@ export async function rerankWithGemini(
           contents: [{ parts: [{ text: prompt }] }],
           // thinkingLevel "low" keeps thinking models (3.x) from spending the budget on a
           // reasoning preamble so they emit the bare index array; 256 tokens leaves room.
-          generationConfig: { temperature: 0, maxOutputTokens: 256, thinkingConfig: { thinkingLevel: "low" } },
+          generationConfig: { maxOutputTokens: 256, thinkingConfig: { thinkingLevel: "low" } }, // no sampling: deprecated on Gemini 3.x (SPEC-v9 s1.3)
         }),
         signal: AbortSignal.timeout(opts.timeoutMs ?? RERANK_TIMEOUT_MS),
       },
@@ -267,7 +267,7 @@ export async function condenseQuery(
           // Same Gemini 3.x model as the reranker: thinkingBudget is removed there (SPEC-v9 s1.3), so
           // thinkingLevel "low" replaces it. Thinking counts toward the cap, so 256 (the rerank sizing)
           // leaves room for a 400-char rewrite; a truncated reply would silently fall back to the raw question.
-          generationConfig: { temperature: 0, maxOutputTokens: 256, thinkingConfig: { thinkingLevel: "low" } },
+          generationConfig: { maxOutputTokens: 256, thinkingConfig: { thinkingLevel: "low" } }, // no sampling: deprecated on Gemini 3.x (SPEC-v9 s1.3)
         }),
         signal: AbortSignal.timeout(opts.timeoutMs ?? RERANK_TIMEOUT_MS),
       },

@@ -11,6 +11,7 @@ import { v } from "convex/values";
 import { internalAction, action } from "../../_generated/server";
 import { internal, api } from "../../_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { normalizeModelInput } from "../agents/mcp_tools/models/modelResolver";
 
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
@@ -373,9 +374,11 @@ export const runNextPersonalTask = action({
   handler: async (ctx, args): Promise<any> => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
+    // A.0.10: an unknown model id throws here, before any provider is reached.
+    const model = args.model === undefined ? undefined : normalizeModelInput(args.model);
     return await ctx.runAction(
       internal.domains.research.dailyBriefPersonalOverlay.runNextPersonalTaskInternal,
-      args,
+      model === undefined ? args : { ...args, model },
     );
   },
 });

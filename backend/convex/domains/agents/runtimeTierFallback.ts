@@ -1,5 +1,6 @@
 import {
   isApprovedModel,
+  isFreeModel,
   resolveModelAlias,
   type ApprovedModel,
 } from "./mcp_tools/models/modelResolver";
@@ -238,8 +239,14 @@ export async function selectTierEligibleRuntimeModel(args: {
   excludedModels?: readonly ApprovedModel[];
   checkModel: (model: ApprovedModel) => Promise<TierModelCheck>;
   isModelAvailable?: (model: ApprovedModel) => boolean;
+  /**
+   * A.0.10: a free request never becomes a paid one. Defaults to the primary's
+   * cost class; a caller falling back from a free run passes true explicitly.
+   */
+  requireFree?: boolean;
 }): Promise<TierModelSelection> {
   const isModelAvailable = args.isModelAvailable ?? (() => true);
+  const requireFree = args.requireFree ?? isFreeModel(args.primaryModel);
   const queue: ApprovedModel[] = [];
   const seen = new Set<ApprovedModel>();
   const excluded = new Set(args.excludedModels ?? []);
@@ -247,6 +254,7 @@ export async function selectTierEligibleRuntimeModel(args: {
 
   const enqueue = (model: ApprovedModel, index?: number) => {
     if (seen.has(model) || excluded.has(model)) return;
+    if (requireFree && !isFreeModel(model)) return;
     seen.add(model);
     if (typeof index === "number") {
       queue.splice(index, 0, model);
@@ -257,7 +265,8 @@ export async function selectTierEligibleRuntimeModel(args: {
 
   enqueue(args.primaryModel);
   for (const model of args.fallbackModels ?? []) enqueue(model);
-  for (const model of TIER_SAFE_RUNTIME_FALLBACKS) enqueue(model);
+  // The tier-safe list is all paid; a free request must fail with the tier reason instead.
+  if (!requireFree) for (const model of TIER_SAFE_RUNTIME_FALLBACKS) enqueue(model);
 
   for (let index = 0; index < queue.length; index += 1) {
     const model = queue[index];
