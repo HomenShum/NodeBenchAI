@@ -47,6 +47,7 @@ import {
   buildCheckpointRequestBody,
   estimateThinkingTokens,
   parseCheckpointResponse,
+  resolveCheckpointModel,
   shouldContinue,
   MAX_CHECKPOINTS,
   MAX_THINKING_BUDGET_TOKENS,
@@ -96,6 +97,8 @@ export const requestExtendedRun = mutation({
       ),
     );
     const modelName = args.modelName ?? DEFAULT_MODEL;
+    // A.0.10: an id with no Anthropic wire id is rejected here, before a run is inserted or a job scheduled.
+    resolveCheckpointModel(modelName);
     const now = Date.now();
 
     const runId = await ctx.db.insert("extendedThinkingRuns", {

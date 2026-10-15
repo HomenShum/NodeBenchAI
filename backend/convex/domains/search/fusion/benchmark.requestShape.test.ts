@@ -60,6 +60,8 @@ describe("benchmark.evaluateSearch judge request shape", () => {
     expect(captured[0].body.model).toBe("claude-sonnet-4-6");
     for (const key of ["temperature", "top_p", "top_k"]) expect(captured[0].body, key).not.toHaveProperty(key);
     expect(captured[0].body.max_tokens).toBeGreaterThanOrEqual(1024);
+    // Claude 4.7+/5.x answer 400 to an assistant prefill: the conversation must end on a user turn (round 4).
+    expect(captured[0].body.messages.at(-1).role).toBe("user");
     expect(result.judgeModel).toBe("claude-sonnet-4.6");
     expect(result.judgeResult.reasoning).toBe("r");
   });
@@ -68,6 +70,7 @@ describe("benchmark.evaluateSearch judge request shape", () => {
     const { captured } = await run("gpt-5.4");
     expect(captured[0].url).toBe("https://api.openai.com/v1/chat/completions");
     expect(captured[0].body.temperature).toBe(0);
+    expect(captured[0].body.messages.at(-1).role).toBe("user");
   });
 
   it("Gemini judge sends no sampling keys (deprecated on Gemini 3.x, SPEC-v9 s1.3), with the model in the URL", async () => {
@@ -78,5 +81,7 @@ describe("benchmark.evaluateSearch judge request shape", () => {
     expect(captured[0].url).toContain("/models/gemini-3.1-pro-preview:generateContent");
     for (const key of ["temperature", "topP", "topK", "top_p", "top_k"]) expect(captured[0].body.generationConfig, key).not.toHaveProperty(key);
     expect(captured[0].body.generationConfig.maxOutputTokens).toBe(1500);
+    // A model-turn prefill is a 400 on Gemini 3.x; a content with no role is a user turn.
+    expect(captured[0].body.contents.at(-1).role ?? "user").toBe("user");
   });
 });

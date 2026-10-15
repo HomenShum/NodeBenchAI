@@ -15,6 +15,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildCheckpointPrompt,
   buildCheckpointRequestBody,
+  resolveCheckpointModel,
   estimateThinkingTokens,
   parseCheckpointResponse,
   shouldContinue,
@@ -321,6 +322,23 @@ describe("buildCheckpointRequestBody - Anthropic request shape (SPEC-v9 A.0.6)",
     expect(actuallySpent).toBeLessThanOrEqual(budget + MAX_OUTPUT_TOKENS);
     // and the charge never undercounts what was spent
     expect(charged).toBeGreaterThanOrEqual(actuallySpent);
+  });
+
+  it("Haiku 4.5 keeps manual thinking with budget_tokens and gets no effort; an allowance under 1,024 sends no thinking", () => {
+    const body = (modelName: string, remaining: number) => buildCheckpointRequestBody({ modelName, prompt, remainingThinkingTokens: remaining }) as any;
+    for (const modelName of ["claude-haiku-4-5", "claude-haiku-4-5-20251001", "claude-sonnet-4-5-20250929", "claude-opus-4-5-20251101"]) {
+      expect(body(modelName, 40_000).thinking, modelName).toEqual({ type: "enabled", budget_tokens: MAX_THINKING_BUDGET_TOKENS });
+      expect(body(modelName, 40_000), modelName).not.toHaveProperty("output_config");
+      expect(body(modelName, 3_000).thinking, modelName).toEqual({ type: "enabled", budget_tokens: 3_000 });
+      expect(body(modelName, 1_023), modelName).not.toHaveProperty("thinking");
+      expect(body(modelName, 0), modelName).not.toHaveProperty("thinking");
+    }
+  });
+
+  it("resolveCheckpointModel returns the wire id and throws for a name with no Anthropic id", () => {
+    expect(resolveCheckpointModel("claude-sonnet-4.6")).toBe("claude-sonnet-4-6");
+    expect(resolveCheckpointModel("claude-haiku-4-5-20251001")).toBe("claude-haiku-4-5-20251001");
+    expect(() => resolveCheckpointModel("claude-not-real")).toThrow(/no Anthropic wire id/);
   });
 
   it("accepts an operator-supplied wire id and refuses a name with no Anthropic id", () => {

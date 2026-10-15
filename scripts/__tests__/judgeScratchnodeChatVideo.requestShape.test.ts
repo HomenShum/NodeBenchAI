@@ -51,5 +51,7 @@ describe("judgeScratchnodeChatVideo.mjs Gemini request", () => {
     }
     expect(request.config.thinkingConfig).toEqual({ thinkingLevel: "low" });
     expect(request.config.maxOutputTokens).toBe(3500);
+    // A model-turn prefill is a 400 on Gemini 3.x: the conversation ends on a user turn.
+    expect(request.contents.at(-1).role).toBe("user");
   });
 });

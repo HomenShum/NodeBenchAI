@@ -587,15 +587,47 @@ export const ANTHROPIC_WIRE_IDS: Readonly<Record<string, string>> = {
 };
 
 /**
+ * Ids `modelResolver.LEGACY_ALIASES` recognises and that `main` sent to the provider unchanged,
+ * so they keep going out unchanged: PR 1 moves no ids (SPEC-v9 A.0.4). Each already is its own
+ * wire string; the resolver's lossy alias for it (for example `claude-sonnet-4-5-20250929` ->
+ * `claude-sonnet-4`, retired) is never what a caller asked for. The ids move in PR 2.
+ * Left out on purpose: the dotted `claude-opus-4.6`, `claude-opus-4.5`, `claude-sonnet-4.5`
+ * (never wire ids, api.anthropic.com 404s on them) and `gpt-oss*` (OpenRouter free aliases that
+ * the `gpt-` prefix used to route to paid OpenAI). `anthropicWireIds.test.ts` pins this list
+ * against `LEGACY_ALIASES`, so a new resolver alias that main would have passed through
+ * fails the test instead of being rejected at runtime.
+ */
+export const LEGACY_PASSTHROUGH_IDS: ReadonlySet<string> = new Set([
+  "claude-haiku-4-5-20251001",
+  "claude-sonnet-4-5-20250929",
+  "claude-opus-4-5-20251101",
+  "gpt-5.2",
+  "gpt-5.1",
+  "gpt-5.1-codex",
+  "gpt-5-mini",
+  "gpt-5-nano",
+  "gpt-5-chat-latest",
+  "gpt-4.1-mini",
+  "gpt-4.1-nano",
+  "gpt-4o",
+  "gpt-4o-mini",
+  "gemini-3-pro",
+  "gemini-3-flash",
+  "gemini-3.1-flash-lite-preview-lite",
+]);
+
+/**
  * The Anthropic wire id for a catalog alias (or short alias such as "claude").
- * A string that already is a wire id is returned unchanged. Returns null when
- * the input is neither, so callers decide whether to fail or pass it through.
+ * A string that already is a wire id is returned unchanged, dated snapshots in
+ * `LEGACY_PASSTHROUGH_IDS` included. Returns null when the input is none of these,
+ * so callers decide whether to fail or pass it through.
  */
 export function anthropicWireId(modelInput: string): string | null {
   const resolved = resolveModelAlias(modelInput.trim());
   const fromAlias = ANTHROPIC_WIRE_IDS[resolved];
   if (fromAlias) return fromAlias;
-  return Object.values(ANTHROPIC_WIRE_IDS).includes(resolved) ? resolved : null;
+  if (Object.values(ANTHROPIC_WIRE_IDS).includes(resolved)) return resolved;
+  return resolved.startsWith("claude-") && LEGACY_PASSTHROUGH_IDS.has(resolved) ? resolved : null;
 }
 
 /**
@@ -896,11 +928,17 @@ function isFreeLookingModel(model: string): boolean {
 
 /**
  * A model this catalog knows by name or by wire id (`ANTHROPIC_WIRE_IDS` values; for openai and
- * gemini the resolver's sdkId equals the catalog name, pinned by anthropicWireIds.test.ts). A provider
+ * gemini the resolver's sdkId equals the catalog name, pinned by anthropicWireIds.test.ts), or an id
+ * main passed through that the resolver still recognises (`LEGACY_PASSTHROUGH_IDS`). A provider
  * prefix (`gpt-`, `claude-`, `gemini-`) is not knowledge: an id that is only prefix-shaped is unknown.
  */
 function isKnownCatalogModel(model: string): boolean {
-  return modelPricing[model] != null || modelEquivalents[model] != null || anthropicWireId(model) !== null;
+  return (
+    modelPricing[model] != null ||
+    modelEquivalents[model] != null ||
+    LEGACY_PASSTHROUGH_IDS.has(model) ||
+    anthropicWireId(model) !== null
+  );
 }
 
 function isFreeCatalogModel(model: string): boolean {

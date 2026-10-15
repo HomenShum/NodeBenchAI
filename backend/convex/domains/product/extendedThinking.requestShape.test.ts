@@ -9,12 +9,16 @@
  *      Opus 4.7+ the thinking block's text is omitted by default, so a charge estimated
  *      from that text is always 0 and the budget would never run out. The charge comes
  *      from usage.output_tokens minus the answer.
+ * Round 4 adds the per-model thinking shape (Haiku 4.5 takes manual thinking and rejects effort) and the
+ * public boundary: requestExtendedRun rejects a model with no Anthropic wire id before it inserts a run.
  * The fetch transport is fake; no network, no spend.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { advanceRun } from "./extendedThinking";
+vi.mock("@convex-dev/auth/server", () => ({ getAuthUserId: vi.fn(async () => "user1") }));
+
+import { advanceRun, requestExtendedRun } from "./extendedThinking";
 
 const answer = JSON.stringify({
   headline: "Funding history found",
@@ -110,5 +114,64 @@ describe("extendedThinking.advanceRun", () => {
   it("with 2,500 thinking tokens left the cap is 4,000 + 2,500: the bound is on total output, not thinking alone", async () => {
     const { requests } = await advance(runRow({ thinkingBudgetTokens: 40_000, thinkingTokensUsed: 37_500 }), 6_500);
     expect(requests[0].max_tokens).toBe(6_500);
+  });
+
+  // Persona: a founder whose run is stored on Haiku 4.5 (requestExtendedRun.modelName is a public argument).
+  // Claude Haiku 4.5 supports only manual thinking and errors on output_config.effort, so the request keeps
+  // the budget_tokens shape main sent. The 400 is documented in the migration guide, not observed live.
+  it.each(["claude-haiku-4-5", "claude-haiku-4.5", "claude-haiku-4-5-20251001"])(
+    "a run stored with %s sends manual thinking with a token budget and no effort",
+    async (modelName) => {
+      const { requests } = await advance(runRow({ modelName }), 5_000);
+      const body = requests[0];
+      expect(body.model).toBe(modelName === "claude-haiku-4.5" ? "claude-haiku-4-5" : modelName);
+      expect(body.thinking).toEqual({ type: "enabled", budget_tokens: 10_000 });
+      expect(body).not.toHaveProperty("output_config");
+      for (const key of ["temperature", "top_p", "top_k"]) expect(body, key).not.toHaveProperty(key);
+      expect(body.max_tokens).toBe(14_000);
+      expect(body.max_tokens).toBeGreaterThan(body.thinking.budget_tokens);
+    },
+  );
+
+  it("a Haiku 4.5 run with less than the 1,024-token API minimum left sends no thinking block at all", async () => {
+    const { requests } = await advance(runRow({ modelName: "claude-haiku-4-5", thinkingBudgetTokens: 40_000, thinkingTokensUsed: 39_500 }), 600);
+    expect(requests[0]).not.toHaveProperty("thinking");
+    expect(requests[0]).not.toHaveProperty("output_config");
+    expect(requests[0].max_tokens).toBe(4_500);
+  });
+
+  it("the adaptive models keep adaptive thinking with effort", async () => {
+    for (const modelName of ["claude-sonnet-4.6", "claude-opus-4.7", "claude-opus-4-7"]) {
+      const { requests } = await advance(runRow({ modelName }), 5_000);
+      expect(requests[0].thinking, modelName).toEqual({ type: "adaptive" });
+      expect(requests[0].output_config, modelName).toEqual({ effort: "medium" });
+    }
+  });
+});
+
+describe("extendedThinking.requestExtendedRun model boundary", () => {
+  const makeCtx = () => ({
+    db: { insert: vi.fn(async () => "run1") },
+    scheduler: { runAfter: vi.fn(async () => null) },
+  });
+  const request = (ctx: ReturnType<typeof makeCtx>, modelName?: string) =>
+    (requestExtendedRun as any)._handler(ctx, { entitySlug: "Anthropic", goal: "Build a brief.", modelName });
+
+  // Persona: a signed-in user (or a script) that types a model name the repo does not know. Before, the run
+  // was inserted and advanceRun scheduled; the rejection came later, in the checkpoint builder.
+  it.each(["claude-not-real", "invented-free", "kimi-k2.6", "gpt-5.4"])("rejects %s before a run is inserted or a job is scheduled", async (modelName) => {
+    const ctx = makeCtx();
+    await expect(request(ctx, modelName)).rejects.toThrow(/no Anthropic wire id/);
+    expect(ctx.db.insert).not.toHaveBeenCalled();
+    expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, "claude-sonnet-4.6", "claude-haiku-4-5", "claude-haiku-4-5-20251001"])("accepts %s and stores the name as given", async (modelName) => {
+    const ctx = makeCtx();
+    await request(ctx, modelName);
+    expect(ctx.db.insert).toHaveBeenCalledTimes(1);
+    const inserted = (ctx.db.insert.mock.calls[0] as unknown as [string, { modelName: string }])[1];
+    expect(inserted.modelName).toBe(modelName ?? "claude-sonnet-4.6");
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledTimes(1);
   });
 });

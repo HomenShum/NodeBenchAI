@@ -148,9 +148,8 @@ const MODEL_PRICING: Record<string, { input: number; output: number }> = {
   "arcee-trinity-large-free": { input: 0, output: 0 },
   "nemotron-3-nano-30b-free": { input: 0, output: 0 },
   "llama-3.3-70b-free": { input: 0, output: 0 },
-  // FREE_LANE_MODEL: without this row calculateCost bills it at the $1/$5 default and the audit
-  // row records a pinned free route as premium paid usage. Prices for the new paid ids land in PR 2.
-  "nemotron-3-super-free": { input: 0, output: 0 },
+  // Free aliases are priced and classified by isFreeAlias (the resolver's cost class), not by a row
+  // here. Prices for the new paid ids land in PR 2.
   "glm-4.7-flash": { input: 0.07, output: 0.07 },
   "gemini-3-flash-preview": { input: 0.50, output: 3.00 },
   "claude-haiku-4.5": { input: 1.00, output: 5.00 },
@@ -182,11 +181,23 @@ const TASK_DEFAULT_TIER: Record<TaskCategory, TaskTier> = {
 // COST CALCULATION
 // ═══════════════════════════════════════════════════════════════════════════
 
+/**
+ * Free is a property of the resolved model, not of this file's partial price table: 15 of the 19
+ * approved free aliases (laguna-s-2.1-free included) have no MODEL_PRICING row and used to be billed
+ * at the $1/$5 default, recorded isFree=false / actualTier "premium", and summed into the agent's
+ * dollar budget by checkAgentBudget.
+ */
+function isFreeAlias(modelId: string): boolean {
+  const alias = resolveModelAlias(modelId);
+  return alias !== null && isFreeModel(alias);
+}
+
 function calculateCost(
   modelId: string,
   inputTokens: number,
   outputTokens: number
 ): number {
+  if (isFreeAlias(modelId)) return 0;
   const pricing = MODEL_PRICING[modelId] ?? { input: 1.0, output: 5.0 };
   return (
     (inputTokens / 1_000_000) * pricing.input +
@@ -306,7 +317,7 @@ export const route = internalAction({
         return {
           text: cached.text,
           modelId: cached.modelId,
-          isFree: MODEL_PRICING[cached.modelId]?.input === 0,
+          isFree: isFreeAlias(cached.modelId),
           inputTokens: cached.inputTokens,
           outputTokens: cached.outputTokens,
           costUsd: 0,
@@ -416,10 +427,7 @@ export const route = internalAction({
       // floor, so a capability requirement (for example requireVision) can put a paid model in it.
       // If no free model qualifies the call fails below instead of billing.
       if (tier === "free") {
-        candidates = candidates.filter((id) => {
-          const alias = resolveModelAlias(id);
-          return alias !== null && isFreeModel(alias);
-        });
+        candidates = candidates.filter(isFreeAlias);
       }
     }
 
@@ -463,7 +471,7 @@ export const route = internalAction({
         const outputTokens = result.usage?.outputTokens ?? 0;
         const costUsd = calculateCost(modelId, inputTokens, outputTokens);
         const latencyMs = Date.now() - startTime;
-        const isFree = MODEL_PRICING[modelId]?.input === 0;
+        const isFree = isFreeAlias(modelId);
 
         // Determine actual tier based on model used
         if (isFree) actualTier = "free";

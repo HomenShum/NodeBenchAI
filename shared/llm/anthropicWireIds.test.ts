@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   ANTHROPIC_WIRE_IDS,
+  LEGACY_PASSTHROUGH_IDS,
   anthropicText,
   anthropicWireId,
   FREE_LANE_CATALOG_ID,
@@ -21,7 +22,7 @@ import {
   llmModelCatalog,
   resolveModelAlias,
 } from "./modelCatalog";
-import { FREE_LANE_MODEL, MODEL_SPECS } from "../../backend/convex/domains/agents/mcp_tools/models/modelResolver";
+import { FREE_LANE_MODEL, LEGACY_ALIASES, MODEL_SPECS } from "../../backend/convex/domains/agents/mcp_tools/models/modelResolver";
 
 describe("ANTHROPIC_WIRE_IDS agrees with the resolver's MODEL_SPECS", () => {
   const anthropicSpecs = Object.values(MODEL_SPECS).filter((spec) => spec.provider === "anthropic");
@@ -50,7 +51,11 @@ describe("anthropicWireId", () => {
 
   it("returns a string that already is a wire id unchanged, and null for anything else", () => {
     expect(anthropicWireId("claude-sonnet-4-6")).toBe("claude-sonnet-4-6");
-    expect(anthropicWireId("claude-haiku-4-5-20251001")).toBeNull();
+    // Round 3 pinned null here; main sent the dated snapshots unchanged and the resolver still
+    // recognises them, so they pass through (round 4, SPEC-v9 A.0.4: PR 1 moves no ids).
+    for (const snapshot of ["claude-haiku-4-5-20251001", "claude-sonnet-4-5-20250929", "claude-opus-4-5-20251101"]) {
+      expect(anthropicWireId(snapshot)).toBe(snapshot);
+    }
     expect(anthropicWireId("gpt-5.4")).toBeNull();
     expect(anthropicWireId("")).toBeNull();
   });
@@ -99,7 +104,43 @@ describe("getModelWithFailover sends wire ids to Anthropic", () => {
     for (const wire of Object.values(ANTHROPIC_WIRE_IDS)) {
       expect(getModelWithFailover(wire), wire).toMatchObject({ model: wire, provider: "anthropic", isFallback: false });
     }
-    expect(() => getModelWithFailover("claude-haiku-4-5-20251001")).toThrow(/Unknown model/);
+    // An unrecognised snapshot-shaped id is still unknown: the prefix alone is not knowledge.
+    expect(() => getModelWithFailover("claude-haiku-4-5-29990101")).toThrow(/Unknown model/);
+  });
+
+  // Round 4 (A.0.4): getModelWithFailover threw for ids the resolver recognises and main sent unchanged.
+  describe("legacy ids the resolver recognises", () => {
+    // Not wire ids, so main's request for them failed at the provider: dotted Claude ids, and the
+    // gpt-oss* OpenRouter free aliases that the `gpt-` prefix used to route to paid OpenAI.
+    const NOT_WIRE_IDS = ["claude-opus-4.6", "claude-opus-4.5", "claude-sonnet-4.5", "gpt-oss-120b", "gpt-oss", "gpt-oss-20b"];
+    const providerOf = (id: string) => (id.startsWith("claude-") ? "anthropic" : id.startsWith("gpt-") ? "openai" : "gemini");
+    beforeEach(() => {
+      vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-test-key-not-real");
+      vi.stubEnv("OPENAI_API_KEY", "sk-test-key-not-real-0000");
+      vi.stubEnv("GEMINI_API_KEY", "gemini-test-key-not-real");
+    });
+
+    it("every LEGACY_PASSTHROUGH_IDS entry is a resolver alias and goes out unchanged", () => {
+      expect(LEGACY_PASSTHROUGH_IDS.size).toBeGreaterThan(0);
+      for (const id of LEGACY_PASSTHROUGH_IDS) {
+        expect(LEGACY_ALIASES, `${id} must stay a resolver alias`).toHaveProperty(id);
+        expect(getModelWithFailover(resolveModelAlias(id)), id).toEqual({ model: id, provider: providerOf(id), isFallback: false });
+      }
+    });
+
+    it("no provider-prefixed LEGACY_ALIASES key is rejected by the catalog (drift guard)", () => {
+      const keys = Object.keys(LEGACY_ALIASES).filter((id) => /^(claude-|gpt-|gemini-)/.test(id) && !NOT_WIRE_IDS.includes(id));
+      expect(keys.length).toBeGreaterThan(20);
+      for (const id of keys) {
+        expect(() => getModelWithFailover(resolveModelAlias(id)), `${id}: add it to LEGACY_PASSTHROUGH_IDS`).not.toThrow();
+      }
+    });
+
+    it("the ids main could not have served still fail closed", () => {
+      for (const id of NOT_WIRE_IDS) {
+        expect(() => getModelWithFailover(resolveModelAlias(id)), id).toThrow(/Unknown model/);
+      }
+    });
   });
 
   it("leaves non-Anthropic providers alone", () => {

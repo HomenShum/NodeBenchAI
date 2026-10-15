@@ -19,6 +19,8 @@ vi.mock("ai", async (importOriginal) => ({ ...(await importOriginal<typeof impor
 vi.mock("./chainResolver", () => ({ resolveChain }));
 
 import { route } from "./modelRouter";
+import { checkAgentBudget } from "./modelRouterQueries";
+import { getFreeModels } from "../../agents/mcp_tools/models";
 
 const baseArgs = {
   taskCategory: "research",
@@ -29,7 +31,7 @@ const makeCtx = () => ({
   runQuery: vi.fn(async () => ({ allowed: true })),
   runMutation: vi.fn(async () => null),
 });
-const call = (ctx: ReturnType<typeof makeCtx>, args: Record<string, unknown>) =>
+const call = (ctx: object, args: Record<string, unknown>) =>
   (route as any)._handler(ctx, { ...baseArgs, ...args });
 
 describe("modelRouter.route request shape and cost class", () => {
@@ -59,6 +61,8 @@ describe("modelRouter.route request shape and cost class", () => {
       sent[pinnedModel] = "temperature" in request;
       dispatched[pinnedModel] = (request.model as { modelId: string }).modelId;
       for (const key of ["top_p", "top_k", "topP", "topK"]) expect(request, `${pinnedModel} ${key}`).not.toHaveProperty(key);
+      // No assistant prefill (400 on Claude 4.7+/5.x, Gemini 3.x): the outgoing conversation ends on a user turn.
+      expect(request.messages.at(-1).role, `${pinnedModel} last turn`).toBe("user");
     }
     // The outgoing model string, so a wrong-model dispatch cannot pass on the temperature check alone.
     expect(dispatched).toEqual({
@@ -85,6 +89,7 @@ describe("modelRouter.route request shape and cost class", () => {
     await expect(call(makeCtx(), { tier: "free" })).rejects.toThrow(/All 3 models failed/);
 
     expect(generateText).toHaveBeenCalledTimes(3);
+    for (const c of generateText.mock.calls) expect(c[0].messages.at(-1).role).toBe("user");
     const tried = generateText.mock.calls.map((c) => (c[0].model as { modelId: string }).modelId);
     expect(tried.every((id) => id.endsWith(":free")), tried.join(", ")).toBe(true);
   });
@@ -126,6 +131,7 @@ describe("modelRouter.route request shape and cost class", () => {
       const ctx = makeCtx();
       const result = await call(ctx, { tier: "free", pinnedModel, cacheKey: `pin-${pinnedModel}` });
       expect((generateText.mock.calls[0][0].model as { modelId: string }).modelId).toBe("nvidia/nemotron-3-super-120b-a12b:free");
+      expect(generateText.mock.calls[0][0].messages.at(-1).role).toBe("user");
       expect(result).toMatchObject({ modelId: "nemotron-3-super-free", isFree: true, costUsd: 0 });
       expect(result.routing.actualTier).toBe("free");
       const logged = (ctx.runMutation.mock.calls[0] as unknown as [unknown, Record<string, unknown>])[1];
@@ -142,5 +148,75 @@ describe("modelRouter.route request shape and cost class", () => {
     resolveChain.mockReturnValue({ chain: [], reason: "no_matches_for_requirement", diagnostics: { primaryOutcome: "not_supplied", candidatePoolSize: 0 } });
     generateText.mockRejectedValue(Object.assign(new Error("provider down"), { status: 400 }));
     await expect(call(makeCtx(), { tier: "cheap" })).rejects.toThrow(/All 4 models failed/);
+  });
+});
+
+// Persona: a background agent with a $0.01 daily dollar budget that makes many free-lane calls.
+// route() writes one audit row per call and checkAgentBudget sums the rows' costUsd, so a free call
+// recorded as paid used the budget up: 7 laguna calls exhausted it and call 8 was refused (round 4).
+// The ctx below runs the real checkAgentBudget handler over the rows route() actually logged.
+describe("modelRouter.route free aliases against the agent's dollar budget", () => {
+  const BUDGET_USD = 0.01;
+  const CALLS = 20;
+
+  function budgetCtx() {
+    const rows: Array<Record<string, unknown>> = [];
+    const db = {
+      query: (table: string) => ({
+        withIndex: () =>
+          table === "agentIdentities"
+            ? { first: async () => ({ budgetDailyCostUsd: BUDGET_USD, budgetDailyTokens: 10_000_000 }) }
+            : { filter: () => ({ collect: async () => rows }) },
+      }),
+    };
+    return {
+      rows,
+      runQuery: vi.fn(async (_ref: unknown, args: { agentId: string }) => (checkAgentBudget as any)._handler({ db }, args)),
+      runMutation: vi.fn(async (_ref: unknown, args: Record<string, unknown>) => {
+        rows.push({ ...args, calledAt: Date.now() });
+        return null;
+      }),
+    };
+  }
+
+  beforeEach(() => {
+    for (const key of ["OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY"]) {
+      vi.stubEnv(key, "test-key-not-real-0000");
+    }
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    generateText.mockReset();
+    resolveChain.mockReset();
+    generateText.mockResolvedValue({ text: "ok", usage: { inputTokens: 1_000, outputTokens: 100 } });
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("covers all 19 approved free aliases", () => {
+    expect(getFreeModels().length).toBeGreaterThanOrEqual(19);
+  });
+
+  it.each(getFreeModels())("%s: free calls cost nothing, are logged free, and never use the dollar budget up", async (alias) => {
+    const ctx = budgetCtx();
+    for (let i = 0; i < CALLS; i++) {
+      const result = await call(ctx, { pinnedModel: alias, agentId: "agent-1" });
+      expect(result).toMatchObject({ modelId: alias, isFree: true, costUsd: 0 });
+      expect(result.routing.actualTier).toBe("free");
+    }
+    expect(ctx.rows).toHaveLength(CALLS);
+    expect(ctx.rows.every((r) => r.costUsd === 0 && r.actualTier === "free")).toBe(true);
+    const budget = await (ctx.runQuery as any)(null, { agentId: "agent-1" });
+    expect(budget).toMatchObject({ allowed: true, dailyCostUsd: 0 });
+  });
+
+  it("control: a paid model does use the dollar budget up, so the check above is not vacuous", async () => {
+    const ctx = budgetCtx();
+    // gpt-5.4 at 1,000 in / 100 out is $0.004 a call: the 4th call finds $0.012 >= $0.01 spent.
+    await call(ctx, { pinnedModel: "gpt-5.4", agentId: "agent-1" });
+    await call(ctx, { pinnedModel: "gpt-5.4", agentId: "agent-1" });
+    await call(ctx, { pinnedModel: "gpt-5.4", agentId: "agent-1" });
+    await expect(call(ctx, { pinnedModel: "gpt-5.4", agentId: "agent-1" })).rejects.toThrow(/budget exceeded/);
   });
 });

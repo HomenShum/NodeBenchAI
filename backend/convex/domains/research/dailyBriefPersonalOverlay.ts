@@ -374,11 +374,13 @@ export const runNextPersonalTask = action({
   handler: async (ctx, args): Promise<any> => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
-    // A.0.10: an unknown model id throws here, before any provider is reached.
-    const model = args.model === undefined ? undefined : normalizeModelInput(args.model);
+    // A.0.10: an unknown model id throws here, before any provider is reached. Validation only:
+    // the caller's string is forwarded as given, because normalizeModelInput returns the resolver's
+    // lossy alias (claude-sonnet-4-5-20250929 -> claude-sonnet-4, retired), which PR 1 must not send.
+    if (args.model !== undefined) normalizeModelInput(args.model);
     return await ctx.runAction(
       internal.domains.research.dailyBriefPersonalOverlay.runNextPersonalTaskInternal,
-      model === undefined ? args : { ...args, model },
+      args,
     );
   },
 });

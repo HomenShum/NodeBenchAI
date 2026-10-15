@@ -96,14 +96,36 @@ export type ParseOutcome =
  * ------------------------------------------------------------------------ */
 
 /**
+ * Ids that take adaptive thinking with `output_config.effort`. Every other id keeps the manual
+ * `{type:"enabled", budget_tokens}` shape main sent: Haiku 4.5 supports only manual thinking and
+ * 400s on `effort` (migration guide, "Choosing an effort level"), and adaptive thinking starts at
+ * the 4.6 generation. Haiku 4.5 and the dated 4.5 snapshots move with their ids in PR 2.
+ */
+const ADAPTIVE_THINKING_WIRE_IDS: ReadonlySet<string> = new Set(["claude-opus-4-7", "claude-sonnet-4-6"]);
+
+/** Smallest `budget_tokens` the Messages API accepts. */
+const MIN_MANUAL_BUDGET_TOKENS = 1_024;
+
+/**
+ * The Anthropic wire id a run's stored `modelName` is sent as. The stored name may be a dotted
+ * catalog alias ("claude-sonnet-4.6"), which api.anthropic.com rejects. A name with no Anthropic
+ * wire id throws; `requestExtendedRun` calls this before it inserts a run, so an unknown id never
+ * becomes a queued run or a scheduled job.
+ */
+export function resolveCheckpointModel(modelName: string): string {
+  const model = anthropicWireId(modelName);
+  if (!model) {
+    throw new Error(`no Anthropic wire id for model "${modelName}"`);
+  }
+  return model;
+}
+
+/**
  * The Messages API body for ONE checkpoint.
- *   - `model` is the Anthropic wire id from the explicit table in
- *     shared/llm/modelCatalog.ts; the run's stored `modelName` may be a dotted
- *     catalog alias ("claude-sonnet-4.6"), which api.anthropic.com rejects.
- *     A name with no Anthropic wire id throws instead of being sent.
- *   - Thinking is adaptive with `output_config.effort`: manual
- *     `{type:"enabled", budget_tokens}` is deprecated on Sonnet/Opus 4.6 and
- *     400s on Claude 5.x. Thinking tokens count toward `max_tokens`, and adaptive
+ *   - `model` comes from `resolveCheckpointModel`.
+ *   - Thinking is chosen per model (`ADAPTIVE_THINKING_WIRE_IDS`). Adaptive models get
+ *     `{type:"adaptive"}` + `output_config.effort`: manual `budget_tokens` is deprecated on
+ *     Sonnet/Opus 4.6 and 400s on 4.7+ and 5.x. Thinking tokens count toward `max_tokens`, and adaptive
  *     thinking has no separate thinking cap, so `max_tokens` bounds thinking PLUS
  *     answer, not thinking alone. What it guarantees: one checkpoint spends at most
  *     MAX_OUTPUT_TOKENS + min(MAX_THINKING_BUDGET_TOKENS, remaining) tokens in total,
@@ -111,25 +133,29 @@ export type ParseOutcome =
  *     `usage.output_tokens`) and stopped by `shouldContinue`, spends at most
  *     `thinkingBudgetTokens + MAX_OUTPUT_TOKENS` on thinking. The budget is a
  *     checkpoint-granular bound with that one-answer overshoot, not an exact cap.
+ *   - Every other model gets `{type:"enabled", budget_tokens}` with the same allowance, below
+ *     `max_tokens`, and no `effort`. Under the API minimum of 1,024 the request carries no
+ *     `thinking` at all: there is nothing left to think with.
  */
 export function buildCheckpointRequestBody(args: {
   modelName: string;
   prompt: Pick<CheckpointPrompt, "system" | "user">;
   remainingThinkingTokens: number;
 }): Record<string, unknown> {
-  const model = anthropicWireId(args.modelName);
-  if (!model) {
-    throw new Error(`no Anthropic wire id for model "${args.modelName}"`);
-  }
+  const model = resolveCheckpointModel(args.modelName);
   const thinkingAllowance = Math.max(
     0,
     Math.min(MAX_THINKING_BUDGET_TOKENS, args.remainingThinkingTokens),
   );
+  const thinkingShape: Record<string, unknown> = ADAPTIVE_THINKING_WIRE_IDS.has(model)
+    ? { thinking: { type: "adaptive" }, output_config: { effort: "medium" } }
+    : thinkingAllowance >= MIN_MANUAL_BUDGET_TOKENS
+      ? { thinking: { type: "enabled", budget_tokens: thinkingAllowance } }
+      : {};
   return {
     model,
     max_tokens: MAX_OUTPUT_TOKENS + thinkingAllowance,
-    thinking: { type: "adaptive" },
-    output_config: { effort: "medium" },
+    ...thinkingShape,
     system: args.prompt.system,
     messages: [{ role: "user", content: args.prompt.user }],
   };
