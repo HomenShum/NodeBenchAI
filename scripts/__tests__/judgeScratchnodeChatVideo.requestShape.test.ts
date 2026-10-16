@@ -41,6 +41,19 @@ describe("judgeScratchnodeChatVideo.mjs Gemini request", () => {
     vi.restoreAllMocks();
   });
 
+  // Persona: a maintainer judges a recording with --model gemini-2.5-flash. thinkingLevel is a Gemini 3 field;
+  // 2.5 documents thinkingBudget, which main sent (PR #662 review round 6, P2). Fake client: not observed at Google.
+  for (const [model, want] of [["gemini-2.5-flash", { thinkingBudget: 0 }], ["gemini-3.8-flash", { thinkingLevel: "low" }]] as const) {
+    it(`--model ${model} sends ${JSON.stringify(want)}`, async () => {
+      vi.spyOn(process, "argv", "get").mockReturnValue(["node", "judge.mjs", "--video", video, "--model", model]);
+      await import("../ui/judgeScratchnodeChatVideo.mjs");
+      await vi.waitFor(() => expect(generateContent).toHaveBeenCalledTimes(1));
+      const request = generateContent.mock.calls[0][0];
+      expect(request.model).toBe(model);
+      expect(request.config.thinkingConfig).toEqual(want);
+    });
+  }
+
   it("sends thinkingLevel low and no sampling keys", async () => {
     await import("../ui/judgeScratchnodeChatVideo.mjs");
     await vi.waitFor(() => expect(generateContent).toHaveBeenCalledTimes(1));

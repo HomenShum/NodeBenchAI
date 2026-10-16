@@ -13,20 +13,28 @@
 
 import { describe, expect, it } from "vitest";
 
-import { identityViolations, nonCanonicalModels, runSingleEpisode } from "../run-comprehensive-eval";
+import { identityViolations, runSingleEpisode, unresolvableModels } from "../run-comprehensive-eval";
 
-describe("nonCanonicalModels (--models must be an approved id exactly, or the run aborts before spending)", () => {
+describe("unresolvableModels (--models aborts only on a value the resolver does not resolve)", () => {
   it("accepts approved ids", () => {
-    expect(nonCanonicalModels(["kimi-k2.6", "claude-sonnet-4.6", "gpt-5.4-mini", "nemotron-3-super-free"])).toEqual([]);
+    expect(unresolvableModels(["kimi-k2.6", "claude-sonnet-4.6", "gpt-5.4-mini", "nemotron-3-super-free"])).toEqual([]);
   });
 
-  it("flags ids the resolver does not know, including the removed minimax-m2.1", () => {
-    expect(nonCanonicalModels(["kimi-k2.6", "minimax-m2.1", "claude-opus-9"])).toEqual(["minimax-m2.1", "claude-opus-9"]);
+  it("flags ids the resolver does not know, including the removed minimax-m2.1 and Object.prototype keys", () => {
+    expect(unresolvableModels(["kimi-k2.6", "minimax-m2.1", "claude-opus-9", "constructor"])).toEqual(["minimax-m2.1", "claude-opus-9", "constructor"]);
   });
 
-  it("flags a legacy alias, which resolves to a different id and would disqualify every row after the paid run", () => {
-    // gpt-4o-mini resolves to gpt-5.4-mini; the previous check (resolveModelAlias(m) === null) accepted it.
-    expect(nonCanonicalModels(["gpt-4o-mini", "GPT-5.4-MINI"])).toEqual(["gpt-4o-mini", "GPT-5.4-MINI"]);
+  // Round 6 (SPEC-v9 PR 1: abort only when a value "does not resolve"; Homen D1: CLI overrides are pass-through).
+  // Round 5 pinned these two as refused because resolveModelAlias(m) !== m. Persona: an operator reruns an old
+  // command line with --models gpt-4o-mini. It resolves, so the run starts; identityViolations (below) still
+  // disqualifies every row that resolved to another id, so the alias can never pass as a receipt.
+  it("lets a known alias through, as the operator typed it", () => {
+    expect(unresolvableModels(["gpt-4o-mini", "claude-sonnet-4-5-20250929", "GPT-5.4-MINI"])).toEqual([]);
+  });
+
+  it("the alias run is still not evidence: its rows resolve to another id and are disqualified", () => {
+    const aliasRow = { model: "gpt-4o-mini", resolvedModelId: "gpt-5.4-mini", fallbackUsed: false, scenarioId: "s1", scenarioName: "s", passed: true, elapsed: 1, failureReasons: [] } as never;
+    expect(identityViolations([aliasRow])).toHaveLength(1);
   });
 });
 

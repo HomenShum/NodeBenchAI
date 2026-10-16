@@ -56,8 +56,19 @@ export const MAX_RERANK_CANDIDATES = 12;
 // below, else it spends the token budget on a reasoning preamble and never emits the bare index
 // array (verified with the since-removed thinkingBudget:0: thinking-on tok=96 → no array;
 // thinking-0 tok=256 → "[0,1,2]" in ~700ms). Gemini 3.x replaced thinkingBudget with
-// thinkingConfig.thinkingLevel (`minimal` is unsupported), so the request now sends "low".
+// thinkingConfig.thinkingLevel (`minimal` is unsupported), so a 3.x model is sent "low"; a 2.5 override
+// still gets thinkingBudget:0 (geminiThinkingConfig).
 const RERANK_MODEL = process.env.TRI_SEARCH_RERANK_MODEL || "gemini-3.5-flash";
+/**
+ * Thinking control keyed by the model actually selected (SPEC-v9 s1.3: request shapes are keyed by
+ * exact model id; A.0.4: a TRI_SEARCH_RERANK_MODEL override keeps working). Gemini 3.x takes
+ * `thinkingLevel` and no longer accepts `thinkingBudget`; every other id, gemini-2.5-* included,
+ * keeps the `thinkingBudget: 0` that main sent, which is the field those models document.
+ */
+export function geminiThinkingConfig(model: string): { thinkingLevel: "low" } | { thinkingBudget: 0 } {
+    return /^(models\/)?gemini-3/i.test(model.trim()) ? { thinkingLevel: "low" } : { thinkingBudget: 0 };
+}
+
 const RERANK_TIMEOUT_MS = Number(process.env.TRI_SEARCH_RERANK_TIMEOUT_MS) || 6000;
 const MAX_TITLE = 120;
 const MAX_SNIPPET = 280;
@@ -141,7 +152,7 @@ export async function rerankWithGemini(
           contents: [{ parts: [{ text: prompt }] }],
           // thinkingLevel "low" keeps thinking models (3.x) from spending the budget on a
           // reasoning preamble so they emit the bare index array; 256 tokens leaves room.
-          generationConfig: { maxOutputTokens: 256, thinkingConfig: { thinkingLevel: "low" } }, // no sampling: deprecated on Gemini 3.x (SPEC-v9 s1.3)
+          generationConfig: { maxOutputTokens: 256, thinkingConfig: geminiThinkingConfig(RERANK_MODEL) }, // no sampling: deprecated on Gemini 3.x (SPEC-v9 s1.3)
         }),
         signal: AbortSignal.timeout(opts.timeoutMs ?? RERANK_TIMEOUT_MS),
       },
@@ -267,7 +278,7 @@ export async function condenseQuery(
           // Same Gemini 3.x model as the reranker: thinkingBudget is removed there (SPEC-v9 s1.3), so
           // thinkingLevel "low" replaces it. Thinking counts toward the cap, so 256 (the rerank sizing)
           // leaves room for a 400-char rewrite; a truncated reply would silently fall back to the raw question.
-          generationConfig: { maxOutputTokens: 256, thinkingConfig: { thinkingLevel: "low" } }, // no sampling: deprecated on Gemini 3.x (SPEC-v9 s1.3)
+          generationConfig: { maxOutputTokens: 256, thinkingConfig: geminiThinkingConfig(RERANK_MODEL) }, // no sampling: deprecated on Gemini 3.x (SPEC-v9 s1.3)
         }),
         signal: AbortSignal.timeout(opts.timeoutMs ?? RERANK_TIMEOUT_MS),
       },

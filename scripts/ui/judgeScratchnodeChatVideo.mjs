@@ -19,7 +19,10 @@ const args = process.argv.slice(2);
 const getArg = (f, d) => { const i = args.indexOf(f); return i >= 0 && args[i + 1] ? args[i + 1] : d; };
 const VIDEO = getArg("--video", "");
 const SURFACE = getArg("--surface", "desktop");
-const MODEL = getArg("--model", "gemini-3.5-flash"); // latest Gemini 3.5 Flash (thinking model → thinkingBudget:0 set below)
+const MODEL = getArg("--model", "gemini-3.5-flash"); // latest Gemini 3.5 Flash (thinking model → thinking control chosen by THINKING below)
+// Keyed by the model selected (SPEC-v9 s1.3): Gemini 3.x takes thinkingLevel; any other --model (gemini-2.5-*)
+// keeps the thinkingBudget:0 main sent. Same rule as geminiThinkingConfig in shared/search/triSearch.ts.
+const THINKING = /^(models\/)?gemini-3/i.test(MODEL.trim()) ? { thinkingLevel: "low" } : { thinkingBudget: 0 };
 if (!VIDEO || !fs.existsSync(VIDEO)) { console.error("ERR: --video <existing path> required"); process.exit(1); }
 
 function loadKey() {
@@ -73,7 +76,7 @@ Return ONLY JSON:
     const result = await ai.models.generateContent({
       model: MODEL,
       contents: [{ role: "user", parts: [{ fileData: { fileUri: file.uri, mimeType: "video/webm" } }, { text: PROMPT }] }],
-      config: { responseMimeType: "application/json", maxOutputTokens: 3500, thinkingConfig: { thinkingLevel: "low" } },
+      config: { responseMimeType: "application/json", maxOutputTokens: 3500, thinkingConfig: THINKING },
     });
     const text = (result.text || "").trim();
     let parsed;

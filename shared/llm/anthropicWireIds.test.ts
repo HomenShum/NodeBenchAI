@@ -23,6 +23,8 @@ import {
   anthropicWireId,
   FREE_LANE_CATALOG_ID,
   FREE_LANE_WIRE_ID,
+  RefusedModelError,
+  SPEC_LIVE_FREE_WIRE_IDS,
   UnknownModelError,
   getEquivalentModel,
   getModelPricing,
@@ -386,6 +388,40 @@ describe("D1: resolver-registry ids the catalog cannot dispatch are refused, nev
   it("dotted Claude ids that were never wire ids stay refused", () => {
     for (const id of ["claude-opus-4.6", "claude-opus-4.5", "claude-sonnet-4.5"]) {
       expect(() => getModelWithFailover(id), id).toThrow(UnknownModelError);
+    }
+  });
+});
+
+// Homen D1 for the 15 live `:free` ids of SPEC-v9 section 1.2 (PR #662 review round 6, P2). This catalog has no
+// OpenRouter branch until PR 2: it serves the free lane's own wire id as asked and refuses the other 14 with a
+// reason. It never answers a request for a known free id with a different model.
+describe("D1: the SPEC-v9 1.2 live :free ids through getModelWithFailover", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubEnv("OPENROUTER_API_KEY", "sk-or-test-key-not-real");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("each is served as itself or refused with a reason, and none comes back as another model", () => {
+    expect(SPEC_LIVE_FREE_WIRE_IDS.size).toBe(15);
+    for (const id of SPEC_LIVE_FREE_WIRE_IDS) {
+      if (id === FREE_LANE_WIRE_ID) {
+        expect(getModelWithFailover(id), id).toEqual({ model: FREE_LANE_WIRE_ID, provider: "openrouter", isFallback: false });
+        expect(() => assertKnownModel(id), id).not.toThrow();
+      } else {
+        expect(() => assertKnownModel(id), id).toThrow(UnknownModelError);
+        expect(() => getModelWithFailover(id), id).toThrow(UnknownModelError);
+        let error: unknown;
+        try { getModelWithFailover(id); } catch (e) { error = e; }
+        expect((error as Error).message, id).toMatch(/until PR 2/);
+      }
+    }
+    // the ones the review named
+    for (const id of ["apodex/apodex-1.1-mini:free", "google/gemma-4-31b-it:free", "nvidia/nemotron-3.5-content-safety:free"]) {
+      expect(() => getModelWithFailover(id), id).toThrow(RefusedModelError);
     }
   });
 });

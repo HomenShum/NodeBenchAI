@@ -153,6 +153,29 @@ describe.skipIf(!convexTestAvailable)("startComposedPipelineRun model boundary",
   }, 20_000);
 });
 
+// Round 6: createSchedule stored an enabled hourly schedule for "constructor". The row counted toward the
+// owner's schedule limit and startPipelineRunInternal then rejected it on every run.
+describe.skipIf(!convexTestAvailable)("createSchedule model boundary", () => {
+  const schedule = { pipelineKind: "research", spec: "Weekly research", cadence: "hourly" };
+  const scheduleCount = (t: any) => t.run(async (ctx: any) => (await ctx.db.query("scheduledPipelineRuns").collect()).length);
+
+  it("rejects an unknown modelId before inserting, and still accepts an omitted or known one", async () => {
+    const t = convexTest(schema, convexModules);
+    const userId = await t.run(async (ctx: any) => ctx.db.insert("users", { email: "schedule@example.com" }));
+    const user = t.withIdentity({ subject: String(userId) });
+
+    for (const modelId of ["constructor", "gpt-9-ultra", "openai:gpt-9"]) {
+      await expect(user.mutation(pipelines.pipelineSchedule.createSchedule, { ...schedule, modelId }), modelId).rejects.toThrow(/Unknown model/);
+    }
+    expect(await scheduleCount(t)).toBe(0);
+
+    await user.mutation(pipelines.pipelineSchedule.createSchedule, schedule);
+    await user.mutation(pipelines.pipelineSchedule.createSchedule, { ...schedule, modelId: "gpt-5.4-mini" });
+    await user.mutation(pipelines.pipelineSchedule.createSchedule, { ...schedule, modelId: "x:free" });
+    expect(await scheduleCount(t)).toBe(3);
+  }, 20_000);
+});
+
 describe("piRuntime.parseModelKey", () => {
   it("throws for an unknown provider:model instead of returning a raw handle", async () => {
     // Before: the catch fell through to parseRawModelKey, which forwarded "gpt-9" to pi-ai.

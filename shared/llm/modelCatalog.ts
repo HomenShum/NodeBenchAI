@@ -73,6 +73,19 @@ export class UnknownModelError extends Error {
   }
 }
 
+/**
+ * A KNOWN id (SPEC-v9 section 1.2 / Homen D1) that a particular transport does not serve yet. It is
+ * refused with its reason instead of being called unknown, and never rerouted to another model.
+ * It extends `UnknownModelError`, so every boundary that already catches that class still catches it.
+ */
+export class RefusedModelError extends UnknownModelError {
+  constructor(input: string, reason: string) {
+    super(input);
+    this.message = `Model "${input}" is a known id, refused here: ${reason}`;
+    this.name = "RefusedModelError";
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // MODEL PRICING (per 1M tokens, USD)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -664,6 +677,36 @@ export const SPEC_NATIVE_WIRE_IDS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * The 15 live `:free` ids of SPEC-v9 section 1.2 (read 2026-10-10), the only free ids Part A may
+ * write. Homen D1: each is known, so a request for one is never rerouted to the free lane. The
+ * resolver sends the unregistered ones unchanged on OpenRouter; this catalog has no OpenRouter
+ * branch until PR 2, so it refuses them with a reason (`FREE_LANE_WIRE_ID` is the one it serves).
+ */
+export const SPEC_LIVE_FREE_WIRE_IDS: ReadonlySet<string> = new Set([
+  "apodex/apodex-1.1-mini:free",
+  "dots-studio/dots-3-note-preview:free",
+  "liquid/lfm-2.5-2.6b:free",
+  "nvidia/nemotron-3.5-lightning:free",
+  "thinkingmachines/inkling-small:free",
+  "poolside/laguna-s-2.1:free",
+  "thinkingmachines/inkling:free",
+  "poolside/laguna-xs-2.1:free",
+  "cohere/north-mini-code:free",
+  "nvidia/nemotron-3.5-content-safety:free",
+  "nvidia/nemotron-3-ultra-550b-a55b:free",
+  "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "google/gemma-4-31b-it:free",
+  "nvidia/nemotron-3-super-120b-a12b:free",
+]);
+
+/** The input, trimmed and lower-cased, when it is one of the 15 live free ids; else null. */
+export function specLiveFreeWireId(input: string): string | null {
+  const normalized = input.trim().toLowerCase();
+  return SPEC_LIVE_FREE_WIRE_IDS.has(normalized) ? normalized : null;
+}
+
+/**
  * Resolver-registry ids (`APPROVED_MODELS`, `LEGACY_ALIASES`, and their wire strings) whose
  * provider is OpenRouter and that this catalog cannot dispatch: it has no OpenRouter branch
  * (PR 2 adds it). Homen D1: a known id is never silently rerouted, so these are REFUSED with this
@@ -1028,6 +1071,10 @@ export function assertKnownModel(model: string): void {
   if (OPENROUTER_ONLY_REGISTRY_IDS.has(model)) {
     throw new UnknownModelError(model, "a registered OpenRouter id this catalog cannot dispatch until PR 2 adds the OpenRouter branch; it is refused, never rerouted to another model");
   }
+  const liveFree = specLiveFreeWireId(model);
+  if (liveFree !== null && liveFree !== FREE_LANE_WIRE_ID) {
+    throw new RefusedModelError(model, "a live free OpenRouter id of SPEC-v9 section 1.2 that this catalog cannot dispatch until PR 2 adds the OpenRouter branch; it is never rerouted to another model");
+  }
   if (!isKnownCatalogModel(model) && !isFreeLookingModel(model)) {
     throw new UnknownModelError(model, "an unrecognised id never fails over to a paid default and is never sent to a provider");
   }
@@ -1052,6 +1099,10 @@ export function getModelWithFailover(preferredModel: string): {
   isFallback: boolean;
 } {
   assertKnownModel(preferredModel);
+  // The free lane's own wire id is known (SPEC-v9 1.2): served as asked, not as a substitution.
+  if (specLiveFreeWireId(preferredModel) === FREE_LANE_WIRE_ID) {
+    return { model: FREE_LANE_WIRE_ID, provider: "openrouter", isFallback: false };
+  }
   const known = isKnownCatalogModel(preferredModel);
   const provider = getProviderForModel(preferredModel);
 

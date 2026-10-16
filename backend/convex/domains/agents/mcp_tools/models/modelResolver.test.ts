@@ -16,11 +16,14 @@ import {
   getPaidFallbackCount,
   isApprovedModel,
   isFreeModel,
+  normalizeFastAgentModel,
   normalizeModelInput,
   normalizeNodeBenchRuntimeModel,
   resolveModelAlias,
   resolvePipelineModelSelection,
 } from "./modelResolver";
+import { ANONYMOUS_FAST_AGENT_MODEL_ID } from "../../../../../../shared/llm/fastAgentRuntimeContract";
+import { RefusedModelError, SPEC_LIVE_FREE_WIRE_IDS, SPEC_NATIVE_WIRE_IDS } from "../../../../../../shared/llm/modelCatalog";
 
 describe("pipeline model route resolution", () => {
   it("maps NodeBench auto routes to approved runtime aliases", () => {
@@ -371,5 +374,142 @@ describe("Object.prototype keys are not models", () => {
     expect(() => getLanguageModelSafe(key)).toThrow(UnknownModelError);
     expect(() => resolvePipelineModelSelection(key)).toThrow(UnknownModelError);
     expect(() => assertKnownPipelineModel(key)).toThrow(UnknownModelError);
+  });
+});
+
+// Persona: a safety engineer asks for the content-safety classifier by its OpenRouter id. It is one of the
+// 15 live `:free` ids SPEC-v9 section 1.2 lists, so Homen D1 makes it known: it must reach OpenRouter as
+// that id, never come back as the general chat model nvidia/nemotron-3-super (PR #662 review round 6, P2).
+describe("D1: the SPEC-v9 1.2 live :free ids are known and are never rerouted", () => {
+  // Typed out here, not read from SPEC_LIVE_FREE_WIRE_IDS, so the set cannot drift from the spec unseen.
+  const SPEC_1_2_FREE = [
+    "apodex/apodex-1.1-mini:free", "dots-studio/dots-3-note-preview:free", "liquid/lfm-2.5-2.6b:free",
+    "nvidia/nemotron-3.5-lightning:free", "thinkingmachines/inkling-small:free", "poolside/laguna-s-2.1:free",
+    "thinkingmachines/inkling:free", "poolside/laguna-xs-2.1:free", "cohere/north-mini-code:free",
+    "nvidia/nemotron-3.5-content-safety:free", "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", "google/gemma-4-26b-a4b-it:free",
+    "google/gemma-4-31b-it:free", "nvidia/nemotron-3-super-120b-a12b:free",
+  ];
+  beforeEach(() => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key-not-real");
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("the set is exactly the 15 ids of the spec", () => {
+    expect([...SPEC_LIVE_FREE_WIRE_IDS].sort()).toEqual([...SPEC_1_2_FREE].sort());
+  });
+
+  it("getLanguageModelSafe sends every one unchanged on OpenRouter", () => {
+    for (const id of SPEC_1_2_FREE) {
+      const model = getLanguageModelSafe(id) as { modelId: string; provider?: string };
+      expect(model.modelId, id).toBe(id);
+      expect(String(model.provider ?? "")).toMatch(/openai|chat/);
+    }
+  });
+
+  it("is case and whitespace tolerant, like the alias lookup", () => {
+    expect((getLanguageModelSafe("  Google/Gemma-4-31B-IT:free ") as { modelId: string }).modelId).toBe("google/gemma-4-31b-it:free");
+  });
+
+  it("an entry point that returns an alias refuses the unregistered ones with a reason; it never returns another model", () => {
+    for (const id of SPEC_1_2_FREE) {
+      const registered = resolveModelAlias(id);
+      for (const call of [
+        () => normalizeModelInput(id),
+        () => resolvePipelineModelSelection(id).resolvedModelId,
+        () => resolvePipelineModelSelection(`openrouter:${id}`).resolvedModelId,
+      ]) {
+        if (registered) {
+          expect(call(), id).toBe(registered); // nemotron-super and laguna s/xs are registered aliases
+        } else {
+          expect(call, id).toThrow(RefusedModelError);
+        }
+      }
+      if (registered) expect(() => assertKnownPipelineModel(id), id).not.toThrow();
+      else expect(() => assertKnownPipelineModel(id), id).toThrow(RefusedModelError);
+    }
+    expect(() => normalizeModelInput("nvidia/nemotron-3.5-content-safety:free")).toThrow(/known id, refused/);
+  });
+
+  it("an id that is merely free-looking still takes the free lane", () => {
+    expect((getLanguageModelSafe("nvidia/nemotron-9-invented:free") as { modelId: string }).modelId).toBe(FREE_LANE_WIRE_ID);
+  });
+});
+
+// The review's sub-note: the native ids D1 calls known were reported as "Unknown model".
+describe("D1: SPEC-v9 1.2 native ids the resolver registers in PR 2 are refused with the reason, not called unknown", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("says why, and is still an UnknownModelError for every boundary that catches that class", () => {
+    for (const id of ["claude-sonnet-5-5", "gemini-3.8-flash"]) {
+      expect(SPEC_NATIVE_WIRE_IDS.has(id)).toBe(true);
+      for (const call of [() => getLanguageModelSafe(id), () => normalizeModelInput(id), () => resolvePipelineModelSelection(id)]) {
+        let error: unknown;
+        try { call(); } catch (e) { error = e; }
+        expect(error, id).toBeInstanceOf(RefusedModelError);
+        expect(error, id).toBeInstanceOf(UnknownModelError);
+        expect((error as Error).message, id).toMatch(/registers in PR 2/);
+        expect((error as Error).message, id).not.toMatch(/^Unknown model/);
+      }
+    }
+  });
+});
+
+// Persona: a visitor who has not signed in opens the FastAgent panel and a script (or a stale client) sends
+// a model field. The anonymous lane is bounded, but what was ASKED for is still validated first: an unknown
+// id throws at the public boundary, and a free request never becomes the paid bounded model
+// (SPEC-v9 A.0.10; PR #662 review round 6, P2). createThread and initiateAsyncStreaming both route here.
+describe("FastAgent anonymous callers: the requested model is validated before the anonymous override", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => vi.restoreAllMocks());
+  const anon = (requestedModel?: string) => normalizeFastAgentModel({ isAnonymous: true, requestedModel }, "executor");
+
+  it("keeps a free request on the free lane, never the paid bounded model", () => {
+    for (const id of ["auto-free", "invented-free", "x:free", FREE_LANE_MODEL, "qwen3-coder-free"]) {
+      const resolved = anon(id);
+      expect(isFreeModel(resolved), id).toBe(true);
+      expect(resolved, id).not.toBe(ANONYMOUS_FAST_AGENT_MODEL_ID);
+    }
+    expect(anon("auto-free")).toBe(FREE_LANE_MODEL);
+  });
+
+  it("throws for an unknown id, including Object.prototype keys, instead of accepting it silently", () => {
+    for (const id of ["constructor", "toString", "gpt-not-real", "freeloader-pro"]) {
+      expect(() => anon(id), id).toThrow(UnknownModelError);
+    }
+  });
+
+  it("refuses a known id the resolver has not registered yet, with the reason", () => {
+    expect(() => anon("claude-sonnet-5-5")).toThrow(RefusedModelError);
+    expect(() => anon("google/gemma-4-31b-it:free")).toThrow(RefusedModelError);
+  });
+
+  it("keeps the anonymous default when no model is passed, and the bounded lane for a known paid request", () => {
+    expect(anon(undefined)).toBe(ANONYMOUS_FAST_AGENT_MODEL_ID);
+    expect(anon("")).toBe(ANONYMOUS_FAST_AGENT_MODEL_ID);
+    expect(anon("claude-opus-4.7")).toBe(ANONYMOUS_FAST_AGENT_MODEL_ID);
+    expect(anon("gpt-5.4-mini")).toBe(ANONYMOUS_FAST_AGENT_MODEL_ID);
+  });
+
+  it("does not change a signed-in caller", () => {
+    for (const id of [undefined, "auto-free", "gpt-5.4-mini", "claude-opus-4.7", "kimi-k2.6"]) {
+      for (const profile of ["advisor", "executor"] as const) {
+        expect(normalizeFastAgentModel({ isAnonymous: false, requestedModel: id }, profile), `${profile}/${id}`).toBe(
+          normalizeNodeBenchRuntimeModel(id, profile),
+        );
+      }
+    }
+    expect(() => normalizeFastAgentModel({ isAnonymous: false, requestedModel: "constructor" }, "advisor")).toThrow(UnknownModelError);
   });
 });

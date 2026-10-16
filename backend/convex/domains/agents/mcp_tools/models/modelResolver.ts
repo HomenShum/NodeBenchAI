@@ -19,11 +19,15 @@ import { createOpenAI, openai } from "@ai-sdk/openai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import type { LanguageModel } from "ai";
+import { resolveFastAgentRequestedModel } from "../../../../../../shared/llm/fastAgentRuntimeContract";
 import {
   FREE_LANE_CATALOG_ID,
   FREE_LANE_WIRE_ID,
+  RefusedModelError,
+  SPEC_NATIVE_WIRE_IDS,
   UnknownModelError,
   ownEntry,
+  specLiveFreeWireId,
 } from "../../../../../../shared/llm/modelCatalog";
 
 export { UnknownModelError };
@@ -286,6 +290,23 @@ export function normalizeNodeBenchRuntimeModel(
   return fallback;
 }
 
+/**
+ * FastAgent public entry points (`createThread`, `initiateAsyncStreaming`). An anonymous caller is
+ * pinned to the bounded lane, but what it ASKED for is validated first (SPEC-v9 A.0.10): an unknown
+ * id throws, and a free request stays on its free model instead of being swapped for the paid lane.
+ * A known paid request still takes the bounded lane, as before. No model passed: the bounded lane.
+ */
+export function normalizeFastAgentModel(
+  { isAnonymous, requestedModel }: { isAnonymous: boolean; requestedModel?: string },
+  profile: NodeBenchRuntimeProfile,
+): ApprovedModel {
+  if (isAnonymous && requestedModel) {
+    const requested = normalizeNodeBenchRuntimeModel(requestedModel, profile);
+    if (isFreeModel(requested)) return requested;
+  }
+  return normalizeNodeBenchRuntimeModel(resolveFastAgentRequestedModel({ isAnonymous, requestedModel }), profile);
+}
+
 export type NodeBenchModelRouteTier = "balanced" | "free" | "frontier" | "fast" | "small";
 
 export interface PipelineModelSelectionResolution {
@@ -388,6 +409,8 @@ export function resolvePipelineModelSelection(
     };
   }
 
+  refuseKnownUnregisteredModel(requestedModelId);
+  refuseKnownUnregisteredModel(stripped);
   // Fail closed (SPEC-v9 A.0.10): a free-looking unknown id stays in the free
   // lane; any other unknown id throws. It never becomes DEFAULT_MODEL, because
   // the pipelines domain holds a launch counter, not a financial reservation.
@@ -932,7 +955,7 @@ export const LEGACY_ALIASES: Record<string, ApprovedModel> = {
 /**
  * Build a LanguageModel instance from a ModelSpec
  */
-function buildLanguageModel(spec: ModelSpec): LanguageModel {
+function buildLanguageModel(spec: { alias: string; provider: Provider; sdkId: string }): LanguageModel {
   switch (spec.provider) {
     case "openai":
       return openai(spec.sdkId);
@@ -1010,6 +1033,24 @@ export function getPaidFallbackCount(): number {
 }
 
 /**
+ * Homen D1: an id SPEC-v9 section 1.2 lists is KNOWN, so it is never reported as unknown and never
+ * rerouted (to the free lane or to a paid default). The ones this resolver has not registered are
+ * the live `:free` ids and the native Claude / Gemini / GPT ids; PR 2 registers them. Until then an
+ * ApprovedModel-returning entry point has nothing to return for them, so it refuses with the reason.
+ * (`getLanguageModelSafe` returns a model, so it serves the unregistered `:free` ids itself.)
+ * Call after the alias lookup missed.
+ */
+function refuseKnownUnregisteredModel(input: string): void {
+  const normalized = input.trim().toLowerCase();
+  if (specLiveFreeWireId(normalized) !== null) {
+    throw new RefusedModelError(input, "a live free OpenRouter id of SPEC-v9 section 1.2 that this entry point registers in PR 2; it is never rerouted to the free lane");
+  }
+  if (SPEC_NATIVE_WIRE_IDS.has(normalized)) {
+    throw new RefusedModelError(input, "a SPEC-v9 section 1.2 id that this resolver registers in PR 2 (PR 1 moves no ids); it is never rerouted to another model");
+  }
+}
+
+/**
  * Resolve untrusted input to an approved alias or fail closed (SPEC-v9 A.0.10):
  *   - empty input                       -> DEFAULT_MODEL
  *   - known alias                       -> that alias
@@ -1025,6 +1066,7 @@ function resolveOrFailClosed(
   if (!input) return DEFAULT_MODEL;
   const resolved = resolveModelAlias(input);
   if (resolved) return resolved;
+  refuseKnownUnregisteredModel(input);
   if (isFreeLookingModelInput(input)) {
     console.warn(`[modelResolver] ${caller}: unknown free-looking model "${input}" -> ${FREE_LANE_MODEL}`);
     return FREE_LANE_MODEL;
@@ -1048,11 +1090,29 @@ export function getLanguageModelSafe(
   input: string | undefined | null,
   opts?: UnknownModelOptions,
 ): LanguageModel {
+  // A live `:free` id (SPEC-v9 1.2) the registry has no alias for is known: send it unchanged on OpenRouter.
+  const liveFree = input ? specLiveFreeWireId(input) : null;
+  if (input && liveFree !== null && resolveModelAlias(input) === null) {
+    const spec = { alias: null, provider: "openrouter" as const, sdkId: liveFree };
+    logModelResolution(input, spec, "getLanguageModelSafe");
+    return buildLanguageModel({ ...spec, alias: liveFree });
+  }
   const resolved = resolveOrFailClosed(input, opts, "getLanguageModelSafe");
   const substituted = Boolean(input) && resolveModelAlias(input as string) === null;
   const spec = MODEL_SPECS[resolved];
   logModelResolution(String(input ?? ""), spec, "getLanguageModelSafe", substituted ? "unknown_input" : undefined);
   return buildLanguageModel(spec);
+}
+
+/**
+ * Public-boundary check for a model id a caller supplied (SPEC-v9 A.0.10): throws exactly when
+ * `getLanguageModelSafe(input)` would throw, builds no model and needs no API key. Use it where an
+ * id is queued or stored and only resolved later, so the caller hears about a bad id now.
+ */
+export function assertKnownModelInput(input: string | undefined | null): void {
+  if (!input) return;
+  if (specLiveFreeWireId(input) !== null && resolveModelAlias(input) === null) return; // served unchanged
+  resolveOrFailClosed(input, undefined, "assertKnownModelInput");
 }
 
 /**
@@ -1090,7 +1150,7 @@ export interface ModelResolutionEvent {
 
 function logModelResolution(
   requestedAlias: string,
-  spec: ModelSpec,
+  spec: { alias: ApprovedModel | null; provider: Provider; sdkId: string },
   caller: string,
   fallback?: "unknown_input",
 ): void {

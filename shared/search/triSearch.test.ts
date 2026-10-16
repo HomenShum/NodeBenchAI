@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { rrfFuse, rerankWithGemini, triSearch, condenseQuery, RRF_K, type TriCandidate } from "./triSearch";
 
 // Scenario-based tests (.claude/rules/scenario_testing.md).
@@ -240,5 +240,51 @@ describe("rerankWithGemini - request shape (Gemini 3.x)", () => {
     expect(JSON.stringify(bodies[0])).not.toContain("thinkingBudget");
     expectNoSampling(bodies[0]);
     expect(bodies[0].contents.at(-1).role).not.toBe("model");
+  });
+});
+
+// Persona: an operator pins TRI_SEARCH_RERANK_MODEL to a gemini-2.5 id (still in the repo's registry) while
+// the default moves to Gemini 3.x. thinkingLevel is a Gemini 3 field; sent to 2.5 it is rejected or ignored,
+// and both calls would quietly fall back to unranked order (PR #662 review round 6, P2). Not observed against
+// Google: the shape follows Google's thinking guide, as the Gemini 3.x cases above do.
+describe("thinking control follows the selected model (SPEC-v9 s1.3: keyed by exact id)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+  const run = async (model: string) => {
+    vi.stubEnv("TRI_SEARCH_RERANK_MODEL", model);
+    vi.resetModules();
+    const mod = await import("./triSearch");
+    const bodies: any[] = [];
+    const urls: string[] = [];
+    const spy = (async (url: string, init: { body: string }) => {
+      urls.push(String(url));
+      bodies.push(JSON.parse(init.body));
+      return { ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: "[1,0]" }] } }] }) } as unknown as Response;
+    }) as unknown as typeof fetch;
+    await mod.rerankWithGemini("entity funding", mod.rrfFuse([leg("linkup", ["a", "b"])]), { topN: 2, apiKey: "test", fetchImpl: spy });
+    await mod.condenseQuery("and the cost?", ["audit tool calls"], { apiKey: "test", fetchImpl: spy });
+    return { bodies, urls };
+  };
+
+  it("a gemini-2.5 override keeps thinkingBudget:0 and never gets thinkingLevel, in both calls", async () => {
+    const { bodies, urls } = await run("gemini-2.5-flash");
+    expect(bodies).toHaveLength(2);
+    for (const [i, body] of bodies.entries()) {
+      expect(urls[i]).toContain("/models/gemini-2.5-flash:generateContent");
+      expect(body.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 0 });
+      expect(JSON.stringify(body)).not.toContain("thinkingLevel");
+    }
+  });
+
+  it("a gemini-3.x override gets thinkingLevel low and never thinkingBudget, in both calls", async () => {
+    const { bodies, urls } = await run("gemini-3.8-flash");
+    expect(bodies).toHaveLength(2);
+    for (const [i, body] of bodies.entries()) {
+      expect(urls[i]).toContain("/models/gemini-3.8-flash:generateContent");
+      expect(body.generationConfig.thinkingConfig).toEqual({ thinkingLevel: "low" });
+      expect(JSON.stringify(body)).not.toContain("thinkingBudget");
+    }
   });
 });

@@ -246,13 +246,14 @@ function percentile(arr: number[], p: number): number {
 }
 
 /**
- * `--models` values that are not a canonical approved id: unknown ids, and legacy
- * aliases such as `gpt-4o-mini` (which resolve to another model, so every row would be
- * disqualified only after the paid run finished). Each one aborts the run before any
- * request is made (SPEC-v9 A.0.10).
+ * `--models` values the resolver does not resolve at all. Each one aborts the run before any
+ * request is made (SPEC-v9 PR 1: abort only when a value "does not resolve"; A.0.10). A known
+ * alias such as `gpt-4o-mini` resolves, so it passes through as the operator typed it (Homen D1:
+ * eval-script CLI overrides are pass-through). If it resolves to another id, `identityViolations`
+ * disqualifies those rows as receipts after the run and exits 1, so no alias can pass as evidence.
  */
-export function nonCanonicalModels(models: readonly string[]): string[] {
-  return models.filter((m) => resolveModelAlias(m) !== m);
+export function unresolvableModels(models: readonly string[]): string[] {
+  return models.filter((m) => resolveModelAlias(m) === null);
 }
 
 /**
@@ -598,9 +599,9 @@ async function main() {
 
   // Fail closed: an unknown --models value used to resolve silently to the default
   // model, so a "candidate" run could measure a different model.
-  const unknown = nonCanonicalModels(modelsToTest);
+  const unknown = unresolvableModels(modelsToTest);
   if (unknown.length > 0) {
-    throw new Error(`Non-canonical --models value(s): ${unknown.join(", ")} (each must be an approved id exactly; aliases and unknown ids are refused)`);
+    throw new Error(`Unresolvable --models value(s): ${unknown.join(", ")} (no approved id or alias resolves them)`);
   }
 
   // Select scenarios based on suite

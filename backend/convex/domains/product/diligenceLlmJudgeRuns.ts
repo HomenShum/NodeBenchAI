@@ -33,7 +33,7 @@ import {
 import { internal } from "../../_generated/api";
 import type { Doc } from "../../_generated/dataModel";
 import { generateText } from "ai";
-import { getLanguageModelSafe } from "../agents/mcp_tools/models";
+import { assertKnownModelInput, getLanguageModelSafe } from "../agents/mcp_tools/models";
 import {
   JUDGE_PROMPT_VERSION,
   buildLlmJudgePrompt,
@@ -502,6 +502,8 @@ export const requestLlmJudge = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await requireAuthenticatedProductIdentity(ctx);
+    // Fail closed at the boundary: scoreVerdictWithLlm would only reject it later (SPEC-v9 A.0.10).
+    assertKnownModelInput(args.modelName);
     // Sanity — verdict must exist.
     const verdict = await ctx.db.get(args.verdictId);
     if (!verdict || verdict.ownerKey !== identity.ownerKey) {

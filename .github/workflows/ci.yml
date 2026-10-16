@@ -101,6 +101,7 @@ jobs:
           backend/convex/domains/mcp/mcpExecutionTraceEndpoints.integration.test.ts
           backend/convex/domains/agents/mcp_tools/models/modelResolver.test.ts
           backend/convex/domains/pipelines/pipelineModelBoundary.test.ts
+          backend/convex/domains/product/queuedModelBoundary.test.ts
           backend/convex/events.requestShape.test.ts
           shared/llm/anthropicWireIds.test.ts
           shared/search/triSearch.test.ts

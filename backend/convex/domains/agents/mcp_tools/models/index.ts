@@ -32,6 +32,7 @@ export {
   // Fail-closed resolution (SPEC-v9 A.0.10)
   UnknownModelError,
   type UnknownModelOptions,
+  assertKnownModelInput,
   assertKnownPipelineModel,
   getPaidFallbackCount,
 
@@ -51,6 +52,7 @@ export {
   // Normalization
   normalizeModelInput,
   normalizeNodeBenchRuntimeModel,
+  normalizeFastAgentModel,
   isApprovedModel,
 
   // Free model helpers
