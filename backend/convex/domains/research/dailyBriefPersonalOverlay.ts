@@ -11,7 +11,6 @@ import { v } from "convex/values";
 import { internalAction, action } from "../../_generated/server";
 import { internal, api } from "../../_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { normalizeModelInput } from "../agents/mcp_tools/models/modelResolver";
 
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
@@ -21,6 +20,7 @@ import {
   getLlmModel,
   resolveModelAlias,
   getModelWithFailover,
+  assertKnownModel,
   anthropicText,
 } from "../../../../shared/llm/modelCatalog";
 
@@ -374,10 +374,10 @@ export const runNextPersonalTask = action({
   handler: async (ctx, args): Promise<any> => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
-    // A.0.10: an unknown model id throws here, before any provider is reached. Validation only:
-    // the caller's string is forwarded as given, because normalizeModelInput returns the resolver's
-    // lossy alias (claude-sonnet-4-5-20250929 -> claude-sonnet-4, retired), which PR 1 must not send.
-    if (args.model !== undefined) normalizeModelInput(args.model);
+    // A.0.10: an unknown model id throws here, before any provider is reached. Validation only,
+    // by the same catalog lookup dispatch uses (resolveModelAlias -> getModelWithFailover), so the
+    // boundary accepts exactly what dispatch accepts. The caller's string is forwarded as given.
+    if (args.model !== undefined) assertKnownModel(resolveModelAlias(args.model));
     return await ctx.runAction(
       internal.domains.research.dailyBriefPersonalOverlay.runNextPersonalTaskInternal,
       args,

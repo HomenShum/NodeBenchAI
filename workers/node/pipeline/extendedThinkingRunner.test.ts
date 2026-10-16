@@ -341,6 +341,14 @@ describe("buildCheckpointRequestBody - Anthropic request shape (SPEC-v9 A.0.6)",
     expect(() => resolveCheckpointModel("claude-not-real")).toThrow(/no Anthropic wire id/);
   });
 
+  it.each(["toString", "valueOf", "hasOwnProperty", "constructor", "__proto__"])(
+    "resolveCheckpointModel rejects Object.prototype key %s instead of returning a function",
+    (key) => {
+      expect(() => resolveCheckpointModel(key)).toThrow(/no Anthropic wire id/);
+      expect(() => buildCheckpointRequestBody({ modelName: key, prompt, remainingThinkingTokens: 5_000 })).toThrow(/no Anthropic wire id/);
+    },
+  );
+
   it("accepts an operator-supplied wire id and refuses a name with no Anthropic id", () => {
     expect(buildCheckpointRequestBody({ modelName: "claude-sonnet-4-6", prompt, remainingThinkingTokens: 1 }).model).toBe(
       "claude-sonnet-4-6",

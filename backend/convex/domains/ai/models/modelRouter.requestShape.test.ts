@@ -21,6 +21,7 @@ vi.mock("./chainResolver", () => ({ resolveChain }));
 import { route } from "./modelRouter";
 import { checkAgentBudget } from "./modelRouterQueries";
 import { getFreeModels } from "../../agents/mcp_tools/models";
+import { expectNoManualThinkingOrForcedToolChoice } from "../../../../../shared/llm/expectClaudeRequestShape";
 
 const baseArgs = {
   taskCategory: "research",
@@ -61,6 +62,7 @@ describe("modelRouter.route request shape and cost class", () => {
       sent[pinnedModel] = "temperature" in request;
       dispatched[pinnedModel] = (request.model as { modelId: string }).modelId;
       for (const key of ["top_p", "top_k", "topP", "topK"]) expect(request, `${pinnedModel} ${key}`).not.toHaveProperty(key);
+      expectNoManualThinkingOrForcedToolChoice(request, pinnedModel);
       // No assistant prefill (400 on Claude 4.7+/5.x, Gemini 3.x): the outgoing conversation ends on a user turn.
       expect(request.messages.at(-1).role, `${pinnedModel} last turn`).toBe("user");
     }

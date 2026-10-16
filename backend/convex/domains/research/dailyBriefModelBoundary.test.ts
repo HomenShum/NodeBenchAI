@@ -17,7 +17,7 @@ vi.mock("@convex-dev/auth/server", () => ({ getAuthUserId: vi.fn(async () => "us
 import { runNextPersonalTask } from "./dailyBriefPersonalOverlay";
 import { runNextTask } from "./dailyBriefWorker";
 import { UnknownModelError } from "../agents/mcp_tools/models";
-import { FREE_LANE_WIRE_ID, LEGACY_PASSTHROUGH_IDS, getModelWithFailover, resolveModelAlias } from "../../../../shared/llm/modelCatalog";
+import { FREE_LANE_WIRE_ID, LEGACY_PASSTHROUGH_IDS, getModelWithFailover, modelAliases, resolveModelAlias } from "../../../../shared/llm/modelCatalog";
 
 const actions = [
   ["dailyBriefWorker.runNextTask", runNextTask],
@@ -75,4 +75,38 @@ describe.each(actions)("%s model boundary", (_name, action) => {
     }
     vi.unstubAllEnvs();
   });
+});
+
+// Persona: a signed-in user picks a short model name from the catalog ("gpt5", "sonnet", "gemini-3").
+// Dispatch resolves it through the catalog (resolveModelAlias -> getModelWithFailover), so the boundary
+// must accept exactly the names dispatch accepts. Round 5: the resolver-based check rejected 33 of them.
+describe.each(actions)("%s boundary agrees with dispatch", (_name, action) => {
+  const run = (model: string) => {
+    const ctx = { runAction: vi.fn(async () => ({ done: true })) };
+    return { ctx, result: (action as any)._handler(ctx, { model }) };
+  };
+
+  it("accepts every alias the catalog resolves, exactly as dispatch does", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const aliases = Object.keys(modelAliases);
+    expect(aliases.length).toBeGreaterThan(30);
+    for (const alias of aliases) {
+      expect(() => getModelWithFailover(resolveModelAlias(alias)), `dispatch ${alias}`).not.toThrow();
+      const { ctx, result } = run(alias);
+      await result;
+      expect(ctx.runAction, alias).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  // Object.prototype keys are not models (A.0.10): before the own-property lookups they counted as known.
+  it.each(["toString", "valueOf", "hasOwnProperty", "constructor", "__proto__", "isPrototypeOf"])(
+    "rejects Object.prototype key %s before any internal action runs",
+    async (model) => {
+      const { ctx, result } = run(model);
+      await expect(result).rejects.toBeInstanceOf(UnknownModelError);
+      expect(ctx.runAction).not.toHaveBeenCalled();
+      expect(() => getModelWithFailover(resolveModelAlias(model))).toThrow(UnknownModelError);
+    },
+  );
 });

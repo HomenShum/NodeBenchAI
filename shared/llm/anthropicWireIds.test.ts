@@ -18,7 +18,12 @@ import {
   anthropicWireId,
   FREE_LANE_CATALOG_ID,
   FREE_LANE_WIRE_ID,
+  UnknownModelError,
+  getEquivalentModel,
+  getModelPricing,
   getModelWithFailover,
+  getNextFallback,
+  getProviderForModel,
   llmModelCatalog,
   resolveModelAlias,
 } from "./modelCatalog";
@@ -252,5 +257,24 @@ describe("getModelWithFailover fails closed", () => {
     expect(getModelWithFailover(FREE_LANE_MODEL)).toEqual({ model: FREE_LANE_WIRE_ID, provider: "openrouter", isFallback: false });
     vi.stubEnv("OPENROUTER_API_KEY", "");
     expect(() => getModelWithFailover(FREE_LANE_MODEL)).toThrow(/never fails over to a paid provider/);
+  });
+});
+
+// Persona: a signed-in user types "toString" into a model field. The alias, pricing, equivalent,
+// fallback and wire-id tables are plain objects, so an inherited property used to count as a model
+// and (with OpenRouter unset) the request went to a paid default (A.0.10, PR #662 round 5).
+describe("Object.prototype keys are not models", () => {
+  const PROTOTYPE_KEYS = ["toString", "valueOf", "hasOwnProperty", "constructor", "__proto__", "isPrototypeOf", "toLocaleString"];
+
+  it.each(PROTOTYPE_KEYS)("%s is unknown in every catalog table and never dispatches", (key) => {
+    vi.stubEnv("OPENROUTER_API_KEY", "");
+    vi.stubEnv("GEMINI_API_KEY", "gemini-test-key-not-real");
+    expect(resolveModelAlias(key)).toBe(key);
+    expect(anthropicWireId(key)).toBeNull();
+    expect(getModelPricing(key)).toBeNull();
+    expect(getProviderForModel(key)).toBeNull();
+    expect(getNextFallback(key, [])).toBeNull();
+    expect(typeof getEquivalentModel(key, "openai")).toBe("string");
+    expect(() => getModelWithFailover(resolveModelAlias(key))).toThrow(UnknownModelError);
   });
 });

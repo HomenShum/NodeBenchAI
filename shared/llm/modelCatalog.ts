@@ -49,6 +49,30 @@ export type LlmTask =
 
 export type UserTier = "anonymous" | "free" | "pro" | "team" | "enterprise";
 
+/**
+ * Own-property lookup for the alias, pricing, equivalent, fallback and wire-id tables below.
+ * These tables are plain objects keyed by untrusted model ids, so `table["toString"]` would
+ * otherwise return `Object.prototype.toString` and a name nobody registered would count as known
+ * (SPEC-v9 A.0.10). `Object.prototype.hasOwnProperty.call` rather than `Object.hasOwn`: backend/convex compiles with lib ES2021.
+ */
+export function ownEntry<T>(table: Readonly<Record<string, T>>, key: string): T | undefined {
+  return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined;
+}
+
+/**
+ * Thrown when an id is not a model this repo knows and is not free-looking. Unknown ids never
+ * become a paid default (SPEC-v9 A.0.10). Defined here, not in modelResolver.ts, so the catalog's
+ * `getModelWithFailover` and the resolver reject with the same class.
+ */
+export class UnknownModelError extends Error {
+  readonly input: string;
+  constructor(input: string, detail?: string) {
+    super(`Unknown model "${input}"${detail ? `. ${detail}` : ""}`);
+    this.name = "UnknownModelError";
+    this.input = input;
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // MODEL PRICING (per 1M tokens, USD)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -332,7 +356,7 @@ export function calculateRequestCost(
   outputTokens: number,
   useCachedInput: boolean = false
 ): number {
-  const pricing = modelPricing[modelName];
+  const pricing = ownEntry(modelPricing, modelName);
   if (!pricing) {
     console.warn(`[calculateRequestCost] No pricing for model "${modelName}", using estimate`);
     // Default to gpt-5.4-nano pricing as fallback
@@ -350,7 +374,7 @@ export function calculateRequestCost(
  * Get pricing info for a model
  */
 export function getModelPricing(modelName: string): ModelPricing | null {
-  return modelPricing[modelName] ?? null;
+  return ownEntry(modelPricing, modelName) ?? null;
 }
 
 /**
@@ -366,7 +390,7 @@ export function getProviderForModel(modelName: string): LlmProvider | null {
   if (modelName.startsWith("gemini-") || modelName.startsWith("deep-research-")) {
     return "gemini";
   }
-  if (modelPricing[modelName] != null) {
+  if (ownEntry(modelPricing, modelName) != null) {
     return "openrouter";
   }
   return null;
@@ -561,7 +585,7 @@ export const modelAliases: Record<string, string> = {
  */
 export function resolveModelAlias(modelInput: string): string {
   const normalized = modelInput.toLowerCase().trim();
-  return modelAliases[normalized] ?? modelInput;
+  return ownEntry(modelAliases, normalized) ?? modelInput;
 }
 
 // -----------------------------------------------------------------------------
@@ -624,7 +648,7 @@ export const LEGACY_PASSTHROUGH_IDS: ReadonlySet<string> = new Set([
  */
 export function anthropicWireId(modelInput: string): string | null {
   const resolved = resolveModelAlias(modelInput.trim());
-  const fromAlias = ANTHROPIC_WIRE_IDS[resolved];
+  const fromAlias = ownEntry(ANTHROPIC_WIRE_IDS, resolved);
   if (fromAlias) return fromAlias;
   if (Object.values(ANTHROPIC_WIRE_IDS).includes(resolved)) return resolved;
   return resolved.startsWith("claude-") && LEGACY_PASSTHROUGH_IDS.has(resolved) ? resolved : null;
@@ -704,7 +728,7 @@ export function validateContextWindow(
   promptText: string, 
   reserveOutputTokens: number = 4000 
 ): { fits: boolean; tokenEstimate: number; contextWindow: number; overflow: number } { 
-  const pricing = modelPricing[modelName];
+  const pricing = ownEntry(modelPricing, modelName);
   const contextWindow = pricing?.contextWindow ?? 128000; // Default to 128K
   
   // Rough token estimation: ~4 chars per token for English
@@ -755,7 +779,7 @@ export const modelFallbackChains: Record<string, string[]> = {
 };
 
 export function getNextFallback(model: string, attempted: string[]): string | null {
-  const chain = modelFallbackChains[model] ?? [];
+  const chain = ownEntry(modelFallbackChains, model) ?? [];
   return chain.find((m) => !attempted.includes(m)) ?? null;
 }
 
@@ -872,7 +896,7 @@ export const modelEquivalents: Record<string, Record<LlmProvider, string>> = {
  * Get equivalent model for a different provider (for failover)
  */
 export function getEquivalentModel(modelName: string, targetProvider: LlmProvider): string {
-  const equivalents = modelEquivalents[modelName];
+  const equivalents = ownEntry(modelEquivalents, modelName);
   if (equivalents?.[targetProvider]) {
     return equivalents[targetProvider];
   }
@@ -890,10 +914,9 @@ export function getEquivalentModel(modelName: string, targetProvider: LlmProvide
 }
 
 /**
- * The verified free lane's OpenRouter wire id. Must equal
- * `MODEL_SPECS[FREE_LANE_MODEL].sdkId` in modelResolver.ts (this file cannot import from
- * backend/convex); anthropicWireIds.test.ts pins the two together. SPEC-v9 A.2.10: the
- * alias `nemotron-3-super-free` never reaches a provider.
+ * The verified free lane's OpenRouter wire id, typed once: modelResolver.ts imports it for
+ * `MODEL_SPECS[FREE_LANE_MODEL].sdkId`. SPEC-v9 A.2.10: the alias `nemotron-3-super-free`
+ * never reaches a provider.
  */
 export const FREE_LANE_WIRE_ID = "nvidia/nemotron-3-super-120b-a12b:free";
 
@@ -911,9 +934,7 @@ function toProviderWireId(model: string, provider: LlmProvider): string {
 }
 
 /**
- * The verified free lane as the catalog names it. Must equal `FREE_LANE_MODEL`
- * in modelResolver.ts (this file cannot import from backend/convex);
- * anthropicWireIds.test.ts pins the two together.
+ * The verified free lane's alias, typed once: modelResolver.ts imports it as `FREE_LANE_MODEL`.
  */
 export const FREE_LANE_CATALOG_ID = "nemotron-3-super-free";
 
@@ -934,15 +955,27 @@ function isFreeLookingModel(model: string): boolean {
  */
 function isKnownCatalogModel(model: string): boolean {
   return (
-    modelPricing[model] != null ||
-    modelEquivalents[model] != null ||
+    ownEntry(modelPricing, model) != null ||
+    ownEntry(modelEquivalents, model) != null ||
     LEGACY_PASSTHROUGH_IDS.has(model) ||
     anthropicWireId(model) !== null
   );
 }
 
+/**
+ * Throws `UnknownModelError` unless `getModelWithFailover` would dispatch `model` (a known model or
+ * a free-looking id). Public actions call it with `resolveModelAlias(input)` before they hand the
+ * caller's string on, so the boundary accepts exactly what dispatch accepts. It reads no
+ * environment: whether a provider is configured is dispatch's concern, not validation's.
+ */
+export function assertKnownModel(model: string): void {
+  if (!isKnownCatalogModel(model) && !isFreeLookingModel(model)) {
+    throw new UnknownModelError(model, "an unrecognised id never fails over to a paid default and is never sent to a provider");
+  }
+}
+
 function isFreeCatalogModel(model: string): boolean {
-  const price = modelPricing[model];
+  const price = ownEntry(modelPricing, model);
   return price != null && price.inputPer1M === 0 && price.outputPer1M === 0;
 }
 
@@ -959,6 +992,7 @@ export function getModelWithFailover(preferredModel: string): {
   provider: LlmProvider;
   isFallback: boolean;
 } {
+  assertKnownModel(preferredModel);
   const known = isKnownCatalogModel(preferredModel);
   const provider = getProviderForModel(preferredModel);
 
@@ -966,9 +1000,7 @@ export function getModelWithFailover(preferredModel: string): {
     // The wire id, not the alias: the caller sends `model` to the provider as is.
     return { model: FREE_LANE_WIRE_ID, provider: "openrouter", isFallback: true };
   }
-  if (!known || !provider) {
-    throw new Error(`[getModelWithFailover] Unknown model "${preferredModel}": an unrecognised id never fails over to a paid default and is never sent to a provider`);
-  }
+  if (!provider) throw new UnknownModelError(preferredModel, "no provider for this id");
 
   // Check if preferred provider is configured
   if (isProviderConfigured(provider)) {

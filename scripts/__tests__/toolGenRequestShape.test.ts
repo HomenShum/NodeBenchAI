@@ -9,6 +9,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { expectNoManualThinkingOrForcedToolChoice } from "../../shared/llm/expectClaudeRequestShape";
 
 // @ts-expect-error - plain .mjs script without types
 import { buildClaudeRequest, callClaude, claudeText } from "../tool-gen/analyze-gap.mjs";
@@ -29,6 +30,7 @@ describe("analyze-gap.mjs Anthropic request", () => {
     // PR 1 moves no ids; PR 2 changes this literal to claude-haiku-5-5 with its own update.
     expect(body.model).toBe("claude-haiku-4-5-20251001");
     for (const key of ["temperature", "top_p", "top_k"]) expect(body).not.toHaveProperty(key);
+    expectNoManualThinkingOrForcedToolChoice(body, "tool-gen");
     expect(body.max_tokens).toBeGreaterThanOrEqual(1024);
     expect(body.system).toBe("system text");
     expect(body.messages).toEqual([{ role: "user", content: "user text" }]);
@@ -85,6 +87,7 @@ describe("generate-tool.mjs Anthropic request", () => {
     // PR 1 moves no ids; PR 2 changes this literal to claude-sonnet-5-5 with its own update.
     expect(body.model).toBe("claude-sonnet-4-6");
     for (const key of ["temperature", "top_p", "top_k"]) expect(body).not.toHaveProperty(key);
+    expectNoManualThinkingOrForcedToolChoice(body, "tool-gen");
     expect(body.max_tokens).toBe(4096);
     expect(body.messages).toEqual([{ role: "user", content: "user text" }]);
   });

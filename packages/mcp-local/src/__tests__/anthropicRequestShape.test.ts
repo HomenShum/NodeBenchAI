@@ -19,6 +19,7 @@ vi.mock("@anthropic-ai/sdk", () => ({
 
 import { llmTools } from "../tools/llmTools.js";
 import { researchWritingTools } from "../tools/researchWritingTools.js";
+import { expectNoManualThinkingOrForcedToolChoice } from "../../../../shared/llm/expectClaudeRequestShape";
 
 const thinkingThenText = (text: string) => ({
   content: [
@@ -51,6 +52,7 @@ describe("mcp-local Anthropic provider request shape", () => {
     const body = create.mock.calls[0][0];
     expect(body.model).toBe("claude-haiku-4-5-20251001"); // PR 1 moves no ids
     for (const key of ["temperature", "top_p", "top_k"]) expect(body, key).not.toHaveProperty(key);
+    expectNoManualThinkingOrForcedToolChoice(body, "mcp-local");
     expect(body.max_tokens).toBe(777);
     expect(body.messages).toEqual([{ role: "user", content: "hi" }]);
     expect(body.messages.at(-1).role).toBe("user"); // no assistant prefill (400 on Claude 4.7+/5.x)
@@ -64,6 +66,7 @@ describe("mcp-local Anthropic provider request shape", () => {
     const body = create.mock.calls[0][0];
     expect(body.model).toBe("claude-haiku-4-5-20251001"); // PR 1 moves no ids
     for (const key of ["temperature", "top_p", "top_k"]) expect(body, key).not.toHaveProperty(key);
+    expectNoManualThinkingOrForcedToolChoice(body, "mcp-local");
     expect(body.max_tokens).toBe(4096);
     expect(body.messages.at(-1).role).toBe("user"); // no assistant prefill (400 on Claude 4.7+/5.x)
     expect(result.polishedText).toBe("the answer");

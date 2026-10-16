@@ -359,3 +359,17 @@ describe("normalizeNodeBenchRuntimeModel is the first resolver and fails closed"
     expect(normalizeNodeBenchRuntimeModel("gpt-9-ultra", "advisor", { allowPaidFallback: true })).toBe(DEFAULT_MODEL);
   });
 });
+
+// Persona: a signed-in user types "toString" into a model field. LEGACY_ALIASES is a plain object, so the
+// inherited property used to resolve to a function and pass every boundary (A.0.10, PR #662 round 5).
+describe("Object.prototype keys are not models", () => {
+  const PROTOTYPE_KEYS = ["toString", "valueOf", "hasOwnProperty", "constructor", "__proto__", "isPrototypeOf", "toLocaleString"];
+
+  it.each(PROTOTYPE_KEYS)("%s resolves to nothing and every entry point rejects it", (key) => {
+    expect(resolveModelAlias(key)).toBeNull();
+    expect(() => normalizeModelInput(key)).toThrow(UnknownModelError);
+    expect(() => getLanguageModelSafe(key)).toThrow(UnknownModelError);
+    expect(() => resolvePipelineModelSelection(key)).toThrow(UnknownModelError);
+    expect(() => assertKnownPipelineModel(key)).toThrow(UnknownModelError);
+  });
+});

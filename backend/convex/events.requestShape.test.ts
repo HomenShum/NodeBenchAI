@@ -12,6 +12,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { expectNoManualThinkingOrForcedToolChoice } from "../../shared/llm/expectClaudeRequestShape";
 
 import { generateBouncerAdvisory, generateProviderAnswer, runJoinBouncer } from "./events";
 
@@ -47,6 +48,7 @@ function expectMessagesRequestShape(captured: Captured[], model: string) {
   expect(url).toBe("https://api.anthropic.com/v1/messages");
   expect(body.model).toBe(model);
   for (const key of SAMPLING_KEYS) expect(body, `${key} must be absent`).not.toHaveProperty(key);
+  expectNoManualThinkingOrForcedToolChoice(body, "events.ts");
   expect(body.max_tokens).toBeGreaterThanOrEqual(1024);
   // no prefill: the last turn is the user's
   expect(body.messages.at(-1).role).toBe("user");

@@ -19,6 +19,14 @@ import { createOpenAI, openai } from "@ai-sdk/openai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import type { LanguageModel } from "ai";
+import {
+  FREE_LANE_CATALOG_ID,
+  FREE_LANE_WIRE_ID,
+  UnknownModelError,
+  ownEntry,
+} from "../../../../../../shared/llm/modelCatalog";
+
+export { UnknownModelError };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // OPENROUTER PROVIDER SETUP
@@ -142,26 +150,17 @@ export const FALLBACK_MODEL: ApprovedModel = "gpt-5.4-mini";
 
 /**
  * The one verified free lane. This is the typed resolver boundary (an approved
- * alias): code that hands a value to the resolver writes this constant. The
- * provider wire string is read from `MODEL_SPECS[FREE_LANE_MODEL].sdkId` and is
- * never typed a second time. Evidence: NodeVideo's measured free-model benchmark
+ * alias): code that hands a value to the resolver writes this constant. Both the
+ * alias and its provider wire string (`MODEL_SPECS[FREE_LANE_MODEL].sdkId`) are typed once,
+ * in shared/llm/modelCatalog.ts (`FREE_LANE_CATALOG_ID`, `FREE_LANE_WIRE_ID`), and imported here.
+ * Evidence: NodeVideo's measured free-model benchmark
  * (config/openrouter-free-routing.json), the only measured free pick in the portfolio.
  * SPEC-v9 A.2.10 PR 1 (Codex v3 N2).
  */
-export const FREE_LANE_MODEL: ApprovedModel = "nemotron-3-super-free";
+export const FREE_LANE_MODEL: ApprovedModel = FREE_LANE_CATALOG_ID;
 
-/**
- * Thrown when an id is not an approved model, not a legacy alias, and not
- * free-looking. Unknown ids never become a paid default (SPEC-v9 A.0.10).
- */
-export class UnknownModelError extends Error {
-  readonly input: string;
-  constructor(input: string) {
-    super(`Unknown model "${input}". Allowed models: ${APPROVED_MODELS.join(", ")}`);
-    this.name = "UnknownModelError";
-    this.input = input;
-  }
-}
+const unknownModelError = (input: string) =>
+  new UnknownModelError(input, `Allowed models: ${APPROVED_MODELS.join(", ")}`);
 
 /**
  * Opt-in for the single kind of caller allowed to turn an unknown id into
@@ -401,7 +400,7 @@ export function resolvePipelineModelSelection(
       usedDefault: false,
     };
   }
-  throw new UnknownModelError(requestedModelId);
+  throw unknownModelError(requestedModelId);
 }
 
 /**
@@ -649,7 +648,7 @@ export const MODEL_SPECS: Record<ApprovedModel, ModelSpec> = {
   "nemotron-3-super-free": {
     alias: "nemotron-3-super-free",
     provider: "openrouter",
-    sdkId: "nvidia/nemotron-3-super-120b-a12b:free",
+    sdkId: FREE_LANE_WIRE_ID,
     capabilities: { vision: false, toolUse: true, streaming: true, structuredOutputs: true, maxContext: 262_144 },
     pricing: { inputPerMillion: 0.00, outputPerMillion: 0.00 },
   },
@@ -985,7 +984,7 @@ export function resolveModelAlias(input: string): ApprovedModel | null {
   }
 
   // Check legacy aliases
-  return LEGACY_ALIASES[input] ?? LEGACY_ALIASES[normalized] ?? null;
+  return ownEntry(LEGACY_ALIASES, input) ?? ownEntry(LEGACY_ALIASES, normalized) ?? null;
 }
 
 /**
@@ -1037,7 +1036,7 @@ function resolveOrFailClosed(
     );
     return DEFAULT_MODEL;
   }
-  throw new UnknownModelError(input);
+  throw unknownModelError(input);
 }
 
 /**

@@ -9,6 +9,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { expectNoManualThinkingOrForcedToolChoice } from "../../../../../shared/llm/expectClaudeRequestShape";
 
 import { evaluateSearch } from "./benchmark";
 
@@ -59,6 +60,7 @@ describe("benchmark.evaluateSearch judge request shape", () => {
     expect(captured[0].url).toBe("https://api.anthropic.com/v1/messages");
     expect(captured[0].body.model).toBe("claude-sonnet-4-6");
     for (const key of ["temperature", "top_p", "top_k"]) expect(captured[0].body, key).not.toHaveProperty(key);
+    expectNoManualThinkingOrForcedToolChoice(captured[0].body, "benchmark judge");
     expect(captured[0].body.max_tokens).toBeGreaterThanOrEqual(1024);
     // Claude 4.7+/5.x answer 400 to an assistant prefill: the conversation must end on a user turn (round 4).
     expect(captured[0].body.messages.at(-1).role).toBe("user");

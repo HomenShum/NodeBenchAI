@@ -50,6 +50,7 @@ import { judgeClaimAgainstSource } from "./domains/verification/claimVerificatio
 import { handleChatResponse } from "./domains/agents/fastAgentChat";
 import { generateResponse } from "./domains/ai/ai";
 import { generateForDocument } from "./tags_actions";
+import { expectNoManualThinkingOrForcedToolChoice } from "../../shared/llm/expectClaudeRequestShape";
 
 const ANSWER = "the answer";
 const thinkingThen = (text: string) => ({
@@ -66,6 +67,7 @@ function expectAnthropicRequest(maxTokens?: number) {
   expect(body.model).toBe("claude-sonnet-4-6"); // the wire id, never "claude-sonnet-4.6"
   for (const key of ["temperature", "top_p", "top_k"]) expect(body, key).not.toHaveProperty(key);
   expect(body.messages.at(-1).role).toBe("user"); // no prefill
+  expectNoManualThinkingOrForcedToolChoice(body, "providerCopy");
   if (maxTokens !== undefined) expect(body.max_tokens).toBe(maxTokens);
   return body;
 }
