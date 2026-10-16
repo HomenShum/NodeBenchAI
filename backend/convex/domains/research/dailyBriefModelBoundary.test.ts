@@ -17,7 +17,7 @@ vi.mock("@convex-dev/auth/server", () => ({ getAuthUserId: vi.fn(async () => "us
 import { runNextPersonalTask } from "./dailyBriefPersonalOverlay";
 import { runNextTask } from "./dailyBriefWorker";
 import { UnknownModelError } from "../agents/mcp_tools/models";
-import { FREE_LANE_WIRE_ID, LEGACY_PASSTHROUGH_IDS, getModelWithFailover, modelAliases, resolveModelAlias } from "../../../../shared/llm/modelCatalog";
+import { FREE_LANE_WIRE_ID, LEGACY_PASSTHROUGH_IDS, OPENROUTER_ONLY_REGISTRY_IDS, SPEC_NATIVE_WIRE_IDS, getModelWithFailover, modelAliases, resolveModelAlias } from "../../../../shared/llm/modelCatalog";
 
 const actions = [
   ["dailyBriefWorker.runNextTask", runNextTask],
@@ -109,4 +109,39 @@ describe.each(actions)("%s boundary agrees with dispatch", (_name, action) => {
       expect(() => getModelWithFailover(resolveModelAlias(model))).toThrow(UnknownModelError);
     },
   );
+});
+
+// Homen D1 / PR #662 round 4: both public actions accepted every 1.2 native id on main (it sent them on their
+// prefix) and must still forward each byte-for-byte; the registry's OpenRouter-only ids are refused up front.
+describe.each(actions)("%s D1 boundary", (_name, action) => {
+  const run = (model: string) => {
+    const ctx = { runAction: vi.fn(async () => ({ done: true })) };
+    return { ctx, result: (action as any)._handler(ctx, { model, taskId: "t1" }) };
+  };
+
+  it("forwards every SPEC-v9 1.2 native id exactly as given, and dispatch sends that same string to its provider", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-test-key-not-real");
+    vi.stubEnv("OPENAI_API_KEY", "sk-test-key-not-real-0000");
+    vi.stubEnv("GEMINI_API_KEY", "gemini-test-key-not-real");
+    expect(SPEC_NATIVE_WIRE_IDS.size).toBeGreaterThan(8);
+    for (const model of SPEC_NATIVE_WIRE_IDS) {
+      const { ctx, result } = run(model);
+      await result;
+      expect(ctx.runAction, model).toHaveBeenCalledWith(expect.anything(), { model, taskId: "t1" });
+      expect(getModelWithFailover(resolveModelAlias(model)), model).toMatchObject({ model, isFallback: false });
+    }
+    vi.unstubAllEnvs();
+  });
+
+  it("refuses every OpenRouter-only registry id before any internal action runs, with every provider key set", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubEnv("OPENROUTER_API_KEY", "sk-or-test-key-not-real");
+    vi.stubEnv("OPENAI_API_KEY", "sk-test-key-not-real-0000");
+    for (const model of OPENROUTER_ONLY_REGISTRY_IDS) {
+      const { ctx, result } = run(model);
+      await expect(result, model).rejects.toBeInstanceOf(UnknownModelError);
+      expect(ctx.runAction, model).not.toHaveBeenCalled();
+    }
+    vi.unstubAllEnvs();
+  });
 });

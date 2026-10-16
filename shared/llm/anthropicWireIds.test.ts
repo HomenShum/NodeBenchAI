@@ -14,6 +14,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ANTHROPIC_WIRE_IDS,
   LEGACY_PASSTHROUGH_IDS,
+  OPENROUTER_ONLY_REGISTRY_IDS,
+  SPEC_NATIVE_WIRE_IDS,
+  assertKnownModel,
+  modelEquivalents,
+  modelPricing,
   anthropicText,
   anthropicWireId,
   FREE_LANE_CATALOG_ID,
@@ -27,7 +32,7 @@ import {
   llmModelCatalog,
   resolveModelAlias,
 } from "./modelCatalog";
-import { FREE_LANE_MODEL, LEGACY_ALIASES, MODEL_SPECS } from "../../backend/convex/domains/agents/mcp_tools/models/modelResolver";
+import { APPROVED_MODELS, FREE_LANE_MODEL, LEGACY_ALIASES, MODEL_SPECS } from "../../backend/convex/domains/agents/mcp_tools/models/modelResolver";
 
 describe("ANTHROPIC_WIRE_IDS agrees with the resolver's MODEL_SPECS", () => {
   const anthropicSpecs = Object.values(MODEL_SPECS).filter((spec) => spec.provider === "anthropic");
@@ -276,5 +281,111 @@ describe("Object.prototype keys are not models", () => {
     expect(getNextFallback(key, [])).toBeNull();
     expect(typeof getEquivalentModel(key, "openai")).toBe("string");
     expect(() => getModelWithFailover(resolveModelAlias(key))).toThrow(UnknownModelError);
+  });
+});
+
+// Homen D1 (2026-10-16): "known" = SPEC-v9 section 1.2 plus the repo's own registries, and a known id is
+// never silently rerouted. PR 1 moves no ids (A.0.4), so every 1.2 native id that main sent unchanged to
+// its own provider is still sent unchanged (PR #662 review round 4, P1).
+describe("D1: SPEC-v9 1.2 native wire ids are known and go out unchanged", () => {
+  const providerOf = (id: string) => (id.startsWith("claude-") ? "anthropic" : id.startsWith("gemini-") ? "gemini" : "openai");
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-test-key-not-real");
+    vi.stubEnv("OPENAI_API_KEY", "sk-test-key-not-real-0000");
+    vi.stubEnv("GEMINI_API_KEY", "gemini-test-key-not-real");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("names the 1.2 anthropic, google and openai columns, including the ids the review listed", () => {
+    for (const id of ["claude-sonnet-5-5", "claude-haiku-5-5", "claude-opus-5-5", "gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gpt-6.1-sol", "gpt-6-luna"]) {
+      expect(SPEC_NATIVE_WIRE_IDS.has(id), id).toBe(true);
+    }
+    for (const id of SPEC_NATIVE_WIRE_IDS) expect(id).not.toContain("/");
+  });
+
+  it("every one is accepted by the boundary check and dispatched to its own provider as written", () => {
+    for (const id of SPEC_NATIVE_WIRE_IDS) {
+      expect(() => assertKnownModel(resolveModelAlias(id)), id).not.toThrow();
+      expect(getModelWithFailover(resolveModelAlias(id)), id).toEqual({ model: id, provider: providerOf(id), isFallback: false });
+    }
+  });
+
+  it("the Claude ones have an Anthropic wire id, themselves", () => {
+    for (const id of SPEC_NATIVE_WIRE_IDS) {
+      if (id.startsWith("claude-")) expect(anthropicWireId(id), id).toBe(id);
+    }
+  });
+});
+
+// D1 for the resolver-registry ids the catalog cannot dispatch: it has no OpenRouter branch until PR 2.
+// Disposition: REFUSED with a reason. Before this change they either threw as "unknown" (paid-looking) or,
+// when free-looking, were silently rerouted to the free lane; on main they went to the paid gpt-5.4-mini.
+describe("D1: resolver-registry ids the catalog cannot dispatch are refused, never rerouted", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-test-key-not-real");
+    vi.stubEnv("OPENAI_API_KEY", "sk-test-key-not-real-0000");
+    vi.stubEnv("GEMINI_API_KEY", "gemini-test-key-not-real");
+    vi.stubEnv("OPENROUTER_API_KEY", "sk-or-test-key-not-real");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  // The set the resolver registers on OpenRouter (its ids, its legacy-alias keys and its wire strings),
+  // less what the catalog already dispatches and the free lane itself.
+  const derived = (): Set<string> => {
+    const catalogKnows = (name: string) => {
+      const id = resolveModelAlias(name); // the boundary resolves catalog aliases first ("kimi" -> kimi-k2.6)
+      return Object.hasOwn(modelPricing, id) || Object.hasOwn(modelEquivalents, id);
+    };
+    const out = new Set<string>();
+    for (const id of new Set<string>([...APPROVED_MODELS, ...Object.keys(LEGACY_ALIASES)])) {
+      const target = (LEGACY_ALIASES as Record<string, string>)[id] ?? id;
+      const spec = (MODEL_SPECS as Record<string, { provider: string; sdkId: string }>)[target];
+      if (spec?.provider !== "openrouter" || target === FREE_LANE_MODEL) continue;
+      for (const name of [id, target, spec.sdkId]) if (!catalogKnows(name) && name !== FREE_LANE_WIRE_ID) out.add(name);
+    }
+    return out;
+  };
+
+  it("OPENROUTER_ONLY_REGISTRY_IDS is exactly the registry's OpenRouter ids (no stale entry, none missing)", () => {
+    const want = derived();
+    expect(want.size).toBeGreaterThan(50);
+    expect([...OPENROUTER_ONLY_REGISTRY_IDS].sort()).toEqual([...want].sort());
+  });
+
+  it("every one is refused with its reason by the boundary check and by dispatch, with every provider configured", () => {
+    for (const id of OPENROUTER_ONLY_REGISTRY_IDS) {
+      expect(() => assertKnownModel(id), id).toThrow(UnknownModelError);
+      expect(() => getModelWithFailover(id), id).toThrow(/OpenRouter branch/);
+    }
+  });
+
+  it("the named examples are among them, free-looking ones included (no silent reroute to nemotron)", () => {
+    for (const id of ["z-ai/glm-4.7", "z-ai/glm-4.7-flash", "qwen3-coder", "llama-3.3-70b", "laguna-s-2.1-free", "poolside/laguna-s-2.1:free", "poolside/laguna-xs-2.1:free"]) {
+      expect(OPENROUTER_ONLY_REGISTRY_IDS.has(id), id).toBe(true);
+      expect(() => getModelWithFailover(id), id).toThrow(UnknownModelError);
+    }
+  });
+
+  it("the free lane itself is not refused, and an id the registry does not know still takes the free lane (logged)", () => {
+    expect(getModelWithFailover(FREE_LANE_MODEL)).toEqual({ model: FREE_LANE_WIRE_ID, provider: "openrouter", isFallback: false });
+    expect(getModelWithFailover("brand-new-model:free")).toEqual({ model: FREE_LANE_WIRE_ID, provider: "openrouter", isFallback: true });
+    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("brand-new-model:free"));
+  });
+
+  // Not wire ids: main sent them to api.anthropic.com, which 404s on a dotted Claude id. They stay refused.
+  it("dotted Claude ids that were never wire ids stay refused", () => {
+    for (const id of ["claude-opus-4.6", "claude-opus-4.5", "claude-sonnet-4.5"]) {
+      expect(() => getModelWithFailover(id), id).toThrow(UnknownModelError);
+    }
   });
 });

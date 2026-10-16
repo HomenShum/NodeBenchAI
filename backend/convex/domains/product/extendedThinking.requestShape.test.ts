@@ -91,6 +91,22 @@ describe("extendedThinking.advanceRun", () => {
     expect(body.thinking).not.toHaveProperty("budget_tokens");
     for (const key of ["temperature", "top_p", "top_k"]) expect(body, key).not.toHaveProperty(key);
     expect(body.max_tokens).toBe(14_000);
+    // A.0.6: no forced tool choice (400 on Sonnet/Opus 5.5) and no prefill: the last message is the user's.
+    expect(body).not.toHaveProperty("tool_choice");
+    expect(body).not.toHaveProperty("tools");
+    expect((body.messages as Array<{ role: string }>).at(-1)?.role).toBe("user");
+  });
+
+  // Persona: a founder whose run is stored on a 5.5 id (requestExtendedRun.modelName is a public argument).
+  // main sent the id unchanged; the wire id is already the stored string.
+  it.each(["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"])("a run stored with %s sends adaptive thinking with effort, the id as written and no forced tool_choice", async (modelName) => {
+    const { requests } = await advance(runRow({ modelName }), 5_000);
+    const body = requests[0];
+    expect(body.model).toBe(modelName);
+    expect(body.thinking).toEqual({ type: "adaptive" });
+    expect(body.output_config).toEqual({ effort: "medium" });
+    for (const key of ["temperature", "top_p", "top_k", "tool_choice"]) expect(body, key).not.toHaveProperty(key);
+    expect((body.messages as Array<{ role: string }>).at(-1)?.role).toBe("user");
   });
 
   it("charges thinking from usage.output_tokens even though the thinking text is omitted", async () => {
@@ -166,7 +182,7 @@ describe("extendedThinking.requestExtendedRun model boundary", () => {
     expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
   });
 
-  it.each([undefined, "claude-sonnet-4.6", "claude-haiku-4-5", "claude-haiku-4-5-20251001"])("accepts %s and stores the name as given", async (modelName) => {
+  it.each([undefined, "claude-sonnet-4.6", "claude-haiku-4-5", "claude-haiku-4-5-20251001", "claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"])("accepts %s and stores the name as given", async (modelName) => {
     const ctx = makeCtx();
     await request(ctx, modelName);
     expect(ctx.db.insert).toHaveBeenCalledTimes(1);

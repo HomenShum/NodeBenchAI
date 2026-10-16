@@ -271,6 +271,8 @@ export const startComposedPipelineRun = mutation({
   returns: v.object({ workflowId: v.string() }),
   handler: async (ctx, args): Promise<{ workflowId: string }> => {
     const ownerKey = await requireAuthenticatedPipelineOwnerKey(ctx);
+    // Fail closed before admission, as startPipelineRun does (SPEC-v9 A.0.10).
+    assertKnownPipelineModel(args.modelId);
     await reservePipelineLaunchAdmission(ctx, ownerKey, { units: 2 });
     const launchArgs = normalizePipelineLaunchText(args);
     const attemptKey = launchArgs.forceFresh
@@ -306,6 +308,7 @@ export const startComposedPipelineRunInternal = internalMutation({
   handler: async (ctx, args): Promise<{ workflowId: string }> => {
     const ownerKey = normalizePipelineOwnerKey(args.ownerKey);
     const { ownerKey: _ownerKey, ...rawLaunchArgs } = args;
+    assertKnownPipelineModel(args.modelId);
     if (ownerKey.startsWith("user:")) {
       await reservePipelineLaunchAdmission(ctx, ownerKey, { units: 2 });
     }

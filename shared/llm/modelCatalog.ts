@@ -641,6 +641,61 @@ export const LEGACY_PASSTHROUGH_IDS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * The ids SPEC-v9 section 1.2 lists as their own wire string on the `anthropic`, `google` and
+ * `openai` transports. Each is already what the provider accepts, so `main` sent every one
+ * unchanged (it routed on the `claude-` / `gemini-` / `gpt-` prefix); PR 1 moves no ids
+ * (A.0.4) and Homen D1 makes them known. They are dispatched as written. The resolver registers
+ * them in PR 2; `anthropicWireIds.test.ts` iterates this set through every public boundary.
+ */
+export const SPEC_NATIVE_WIRE_IDS: ReadonlySet<string> = new Set([
+  "claude-haiku-5-5",
+  "claude-sonnet-5-5",
+  "claude-opus-5-5",
+  "claude-fable-5-1",
+  "gemini-3.8-flash",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-3.1-pro-preview",
+  "gemini-3.8-flash-tts",
+  "gemini-3.8-live",
+  "gpt-6.1-sol",
+  "gpt-6-luna",
+  "gpt-5.4-mini",
+]);
+
+/**
+ * Resolver-registry ids (`APPROVED_MODELS`, `LEGACY_ALIASES`, and their wire strings) whose
+ * provider is OpenRouter and that this catalog cannot dispatch: it has no OpenRouter branch
+ * (PR 2 adds it). Homen D1: a known id is never silently rerouted, so these are REFUSED with this
+ * reason instead of falling to the paid default (`main`: gpt-5.4-mini) or to the free lane
+ * (head, for the free-looking ones). `anthropicWireIds.test.ts` derives the same set from the
+ * resolver and pins this one to it in both directions.
+ */
+export const OPENROUTER_ONLY_REGISTRY_IDS: ReadonlySet<string> = new Set([
+  "arcee-ai/trinity-large-preview:free", "arcee-ai/trinity-mini:free", "chimera",
+  "cognitivecomputations/dolphin-mistral-24b-venice-edition:free", "deepseek-chimera",
+  "deepseek/deepseek-r1-0528:free", "deepseek/deepseek-r1:free", "deepseek/deepseek-v3.2",
+  "deepseek/deepseek-v3.2-speciale", "devstral", "devstral-2", "devstral-2-free", "dolphin-mistral", "gemma",
+  "gemma-3-27b", "glm", "glm-4.5-air", "google/gemma-3-27b-it:free", "gpt-oss", "gpt-oss-120b", "gpt-oss-20b",
+  "grok", "grok-4-fast", "grok-4-fast-free", "kat-coder", "kat-coder-pro", "kat-coder-pro-free",
+  "kwaipilot/kat-coder-pro:free", "laguna-s-2.1", "laguna-s-2.1-free", "laguna-xs-2.1", "laguna-xs-2.1-free",
+  "llama-3.3", "llama-3.3-70b", "llama-4", "llama-4-maverick", "llama-4-maverick-free", "llama-4-scout",
+  "llama-4-scout-free", "meta-llama/llama-3.3-70b-instruct:free", "meta-llama/llama-4-maverick:free",
+  "meta-llama/llama-4-scout:free", "mimo", "mimo-v2", "mimo-v2-flash-free", "mistral-small",
+  "mistral-small-3.1", "mistralai/devstral-2:free", "mistralai/mistral-large-2411",
+  "mistralai/mistral-small-3.1-24b-instruct:free", "nemotron", "nemotron-3-nano", "nemotron-70b",
+  "nemotron-free", "nemotron-nano-12b", "nvidia/llama-3.1-nemotron-70b-instruct:free",
+  "nvidia/nemotron-3-nano-30b-a3b:free", "nvidia/nemotron-nano-12b-v2-vl:free", "openai/gpt-oss-120b:free",
+  "openai/gpt-oss-20b:free", "poolside/laguna-s-2.1", "poolside/laguna-s-2.1:free", "poolside/laguna-xs-2.1",
+  "poolside/laguna-xs-2.1:free", "qwen/qwen3-235b-a22b", "qwen/qwen3-coder:free",
+  "qwen/qwen3-next-80b-a3b-instruct:free", "qwen3-coder", "qwen3-next", "step-3.5-flash",
+  "stepfun/step-3.5-flash:free", "tngtech/deepseek-r1t2-chimera:free", "trinity", "trinity-large",
+  "trinity-mini", "venice-dolphin", "x-ai/grok-4-fast:free", "xiaomi/mimo-v2-flash",
+  "xiaomi/mimo-v2-flash:free", "z-ai/glm-4.5-air:free", "z-ai/glm-4.7", "z-ai/glm-4.7-20251222",
+  "z-ai/glm-4.7-flash", "z-ai/glm-4.7-flash-20260119", "zhipu/glm-4.5-air:free",
+]);
+
+/**
  * The Anthropic wire id for a catalog alias (or short alias such as "claude").
  * A string that already is a wire id is returned unchanged, dated snapshots in
  * `LEGACY_PASSTHROUGH_IDS` included. Returns null when the input is none of these,
@@ -651,7 +706,7 @@ export function anthropicWireId(modelInput: string): string | null {
   const fromAlias = ownEntry(ANTHROPIC_WIRE_IDS, resolved);
   if (fromAlias) return fromAlias;
   if (Object.values(ANTHROPIC_WIRE_IDS).includes(resolved)) return resolved;
-  return resolved.startsWith("claude-") && LEGACY_PASSTHROUGH_IDS.has(resolved) ? resolved : null;
+  return resolved.startsWith("claude-") && (LEGACY_PASSTHROUGH_IDS.has(resolved) || SPEC_NATIVE_WIRE_IDS.has(resolved)) ? resolved : null;
 }
 
 /**
@@ -958,6 +1013,7 @@ function isKnownCatalogModel(model: string): boolean {
     ownEntry(modelPricing, model) != null ||
     ownEntry(modelEquivalents, model) != null ||
     LEGACY_PASSTHROUGH_IDS.has(model) ||
+    SPEC_NATIVE_WIRE_IDS.has(model) ||
     anthropicWireId(model) !== null
   );
 }
@@ -969,6 +1025,9 @@ function isKnownCatalogModel(model: string): boolean {
  * environment: whether a provider is configured is dispatch's concern, not validation's.
  */
 export function assertKnownModel(model: string): void {
+  if (OPENROUTER_ONLY_REGISTRY_IDS.has(model)) {
+    throw new UnknownModelError(model, "a registered OpenRouter id this catalog cannot dispatch until PR 2 adds the OpenRouter branch; it is refused, never rerouted to another model");
+  }
   if (!isKnownCatalogModel(model) && !isFreeLookingModel(model)) {
     throw new UnknownModelError(model, "an unrecognised id never fails over to a paid default and is never sent to a provider");
   }
@@ -998,6 +1057,7 @@ export function getModelWithFailover(preferredModel: string): {
 
   if (!known && isFreeLookingModel(preferredModel)) {
     // The wire id, not the alias: the caller sends `model` to the provider as is.
+    console.warn(`[getModelWithFailover] unrecognised free-looking id "${preferredModel}" -> the verified free lane ${FREE_LANE_WIRE_ID}`);
     return { model: FREE_LANE_WIRE_ID, provider: "openrouter", isFallback: true };
   }
   if (!provider) throw new UnknownModelError(preferredModel, "no provider for this id");

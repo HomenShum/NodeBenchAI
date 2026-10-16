@@ -111,6 +111,48 @@ describe.skipIf(!convexTestAvailable)("startPipelineRun model boundary", () => {
   }, 20_000);
 });
 
+// Round 4: the composed entry points reserved two admission units and started a workflow for any modelId
+// ("constructor" included). Same-domain pair, same rule: validate first.
+describe.skipIf(!convexTestAvailable)("startComposedPipelineRun model boundary", () => {
+  const composed = { composition: "research_then_code", spec: "Research then build" };
+
+  it("rejects an unknown modelId before admission: with the launch window full it still says UnknownModel", async () => {
+    const t = convexTest(schema, convexModules);
+    const userId = await t.run(async (ctx: any) => ctx.db.insert("users", { email: "composed@example.com" }));
+    const user = t.withIdentity({ subject: String(userId) });
+    await fillLaunchWindow(t, `user:${String(userId)}`);
+    const before = await admissionCounts(t);
+
+    // Control: a launch with an omitted model hits the full window, so the window really is full.
+    await expect(user.mutation(pipelines.pipelineWorkflow.startComposedPipelineRun, composed)).rejects.toThrow(/Pipeline launch limit reached/);
+
+    for (const modelId of ["gpt-9-ultra", "constructor"]) {
+      await expect(
+        user.mutation(pipelines.pipelineWorkflow.startComposedPipelineRun, { ...composed, modelId }),
+        modelId,
+      ).rejects.toThrow(/Unknown model/);
+    }
+    expect(await admissionCounts(t)).toEqual(before);
+  }, 20_000);
+
+  it("rejects an unknown modelId on the trusted internal composed entry point before admission too", async () => {
+    const t = convexTest(schema, convexModules);
+    await fillLaunchWindow(t, "user:cron-owner");
+    const before = await admissionCounts(t);
+    await expect(
+      t.mutation(pipelines.pipelineWorkflow.startComposedPipelineRunInternal, { ...composed, ownerKey: "user:cron-owner" }),
+    ).rejects.toThrow(/Pipeline launch limit reached/); // control: the window is full
+
+    for (const modelId of ["openai:gpt-9", "constructor"]) {
+      await expect(
+        t.mutation(pipelines.pipelineWorkflow.startComposedPipelineRunInternal, { ...composed, modelId, ownerKey: "user:cron-owner" }),
+        modelId,
+      ).rejects.toThrow(/Unknown model/);
+    }
+    expect(await admissionCounts(t)).toEqual(before);
+  }, 20_000);
+});
+
 describe("piRuntime.parseModelKey", () => {
   it("throws for an unknown provider:model instead of returning a raw handle", async () => {
     // Before: the catch fell through to parseRawModelKey, which forwarded "gpt-9" to pi-ai.

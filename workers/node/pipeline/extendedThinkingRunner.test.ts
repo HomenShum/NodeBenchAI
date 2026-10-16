@@ -291,6 +291,30 @@ describe("buildCheckpointRequestBody - Anthropic request shape (SPEC-v9 A.0.6)",
     expect(body.system).toBe("sys");
   });
 
+  // Sonnet/Opus 5.5 reject a forced tool_choice and any prefill (400, SPEC-v9 1.3), and Haiku 5.5 drops
+  // thinking when one is forced. The checkpoint is a plain user turn for every id it can send.
+  it.each([
+    "claude-sonnet-4.6", "claude-opus-4.7", "claude-haiku-4-5", "claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5", "claude-fable-5-1",
+  ])("%s: no forced tool_choice, no tools, and the last message is the user's (no prefill)", (modelName) => {
+    const body = buildCheckpointRequestBody({ modelName, prompt, remainingThinkingTokens: 40_000 }) as any;
+    expect(body).not.toHaveProperty("tool_choice");
+    expect(body).not.toHaveProperty("tools");
+    expect((body.messages as Array<{ role: string }>).at(-1)?.role).toBe("user");
+  });
+
+  it.each(["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5", "claude-fable-5-1"])(
+    "%s (SPEC-v9 1.2 wire id, sent as written) takes adaptive thinking with effort, never budget_tokens",
+    (modelName) => {
+      const body = buildCheckpointRequestBody({ modelName, prompt, remainingThinkingTokens: 40_000 }) as any;
+      expect(body.model).toBe(modelName);
+      expect(body.thinking).toEqual({ type: "adaptive" });
+      expect(body.output_config).toEqual({ effort: "medium" });
+      for (const key of ["temperature", "top_p", "top_k"]) expect(body).not.toHaveProperty(key);
+      // and under the 1,024 allowance the adaptive shape is unchanged: there is no manual budget to drop
+      expect((buildCheckpointRequestBody({ modelName, prompt, remainingThinkingTokens: 0 }) as any).thinking).toEqual({ type: "adaptive" });
+    },
+  );
+
   it("caps total output per checkpoint: max_tokens = answer cap + min(allowance, remaining)", () => {
     // This bounds thinking PLUS answer. Adaptive thinking has no separate thinking cap, so with 2,500
     // tokens left a checkpoint may still think for up to 6,500 (the 4,000 answer room is not reserved).

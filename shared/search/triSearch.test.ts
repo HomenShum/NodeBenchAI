@@ -217,6 +217,8 @@ describe("rerankWithGemini - request shape (Gemini 3.x)", () => {
     expect(thinking).toEqual({ thinkingLevel: "low" });
     expect(thinking).not.toHaveProperty("thinkingBudget");
     expectNoSampling(bodies[0]);
+    // Gemini 3.x rejects a model-turn prefill (400, SPEC-v9 1.3): the last content is the user's.
+    expect(bodies[0].contents.at(-1).role).not.toBe("model");
   });
 
   it("condenseQuery sends the same thinking shape to the same model (thinkingBudget is removed on 3.6+)", async () => {
@@ -237,5 +239,6 @@ describe("rerankWithGemini - request shape (Gemini 3.x)", () => {
     expect(thinking).not.toHaveProperty("thinkingBudget");
     expect(JSON.stringify(bodies[0])).not.toContain("thinkingBudget");
     expectNoSampling(bodies[0]);
+    expect(bodies[0].contents.at(-1).role).not.toBe("model");
   });
 });

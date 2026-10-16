@@ -99,9 +99,17 @@ export type ParseOutcome =
  * Ids that take adaptive thinking with `output_config.effort`. Every other id keeps the manual
  * `{type:"enabled", budget_tokens}` shape main sent: Haiku 4.5 supports only manual thinking and
  * 400s on `effort` (migration guide, "Choosing an effort level"), and adaptive thinking starts at
- * the 4.6 generation. Haiku 4.5 and the dated 4.5 snapshots move with their ids in PR 2.
+ * the 4.6 generation; the 5.5 ids (SPEC-v9 1.3: `budget_tokens` 400s on them) take adaptive.
+ * Haiku 4.5 and the dated 4.5 snapshots move with their ids in PR 2.
  */
-const ADAPTIVE_THINKING_WIRE_IDS: ReadonlySet<string> = new Set(["claude-opus-4-7", "claude-sonnet-4-6"]);
+const ADAPTIVE_THINKING_WIRE_IDS: ReadonlySet<string> = new Set([
+  "claude-opus-4-7",
+  "claude-sonnet-4-6",
+  "claude-haiku-5-5",
+  "claude-sonnet-5-5",
+  "claude-opus-5-5",
+  "claude-fable-5-1",
+]);
 
 /** Smallest `budget_tokens` the Messages API accepts. */
 const MIN_MANUAL_BUDGET_TOKENS = 1_024;
