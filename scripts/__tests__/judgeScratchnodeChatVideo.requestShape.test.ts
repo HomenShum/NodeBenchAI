@@ -1,8 +1,8 @@
 // @vitest-environment node
 /**
  * Request-shape test for the ScratchNode video judge (SPEC-v9 A.0.6, s1.3). The judge talks to
- * a Gemini 3.x model, where sampling (`temperature`/`topP`/`topK`) is deprecated: ignored today,
- * a 400 later. Persona: a maintainer running the judge on a recording; what the script sends is
+ * a Gemini 3.x model; sampling (`temperature`/`topP`/`topK`) is deprecated on gemini-3.8-flash / 3.6-flash /
+ * 3.5-flash-lite (s1.3): ignored today, a 400 later. Persona: a maintainer running the judge on a recording; what the script sends is
  * what Google accepts. The script runs on import, so this drives it for real with a fake
  * `@google/genai` client and asserts the outgoing `generateContent` request. No network, no spend.
  */
@@ -41,28 +41,41 @@ describe("judgeScratchnodeChatVideo.mjs Gemini request", () => {
     vi.restoreAllMocks();
   });
 
-  // Persona: a maintainer judges a recording with --model gemini-2.5-flash. thinkingLevel is a Gemini 3 field;
-  // 2.5 documents thinkingBudget, which main sent (PR #662 review round 6, P2). Fake client: not observed at Google.
-  for (const [model, want] of [["gemini-2.5-flash", { thinkingBudget: 0 }], ["gemini-3.8-flash", { thinkingLevel: "low" }]] as const) {
-    it(`--model ${model} sends ${JSON.stringify(want)}`, async () => {
+  // Persona: a maintainer judges a recording with --model <id>. Request shapes are keyed by the EXACT id
+  // (s1.3): thinkingLevel is a Gemini 3 field (2.5 documents thinkingBudget, which main sent; PR #662 round 6, P2),
+  // and temperature is dropped only for the three ids s1.3 lists as deprecated. The default gemini-3.5-flash and
+  // gemini-3.1-pro-preview keep the 0.2 main sent (PR #662 round 8, P2: a gemini-3* prefix rule had dropped it).
+  // Fake client: not observed at Google.
+  const NO_TEMPERATURE = new Set(["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"]);
+  for (const [model, want] of [
+    ["gemini-2.5-flash", { thinkingBudget: 0 }],
+    ["gemini-3.5-flash", { thinkingLevel: "low" }],
+    ["gemini-3.1-pro-preview", { thinkingLevel: "low" }],
+    ["gemini-3.8-flash", { thinkingLevel: "low" }],
+    ["gemini-3.6-flash", { thinkingLevel: "low" }],
+    ["gemini-3.5-flash-lite", { thinkingLevel: "low" }],
+  ] as const) {
+    it(`--model ${model} sends ${JSON.stringify(want)} and ${NO_TEMPERATURE.has(model) ? "no temperature" : "temperature 0.2"}`, async () => {
       vi.spyOn(process, "argv", "get").mockReturnValue(["node", "judge.mjs", "--video", video, "--model", model]);
       await import("../ui/judgeScratchnodeChatVideo.mjs");
       await vi.waitFor(() => expect(generateContent).toHaveBeenCalledTimes(1));
       const request = generateContent.mock.calls[0][0];
       expect(request.model).toBe(model);
       expect(request.config.thinkingConfig).toEqual(want);
-      // Sampling is deprecated on Gemini 3.x only (s1.3): a 2.5 --model keeps the temperature 0.2 main sent.
-      if (model.startsWith("gemini-2.5")) expect(request.config.temperature).toBe(0.2);
-      else expect(request.config).not.toHaveProperty("temperature");
+      if (NO_TEMPERATURE.has(model)) expect(request.config).not.toHaveProperty("temperature");
+      else expect(request.config.temperature).toBe(0.2);
+      for (const key of ["topP", "topK", "top_p", "top_k"]) expect(request.config, key).not.toHaveProperty(key);
     });
   }
 
-  it("sends thinkingLevel low and no sampling keys", async () => {
+  it("the default model sends thinkingLevel low and temperature 0.2", async () => {
     await import("../ui/judgeScratchnodeChatVideo.mjs");
     await vi.waitFor(() => expect(generateContent).toHaveBeenCalledTimes(1));
     const request = generateContent.mock.calls[0][0];
     expect(request.model).toBe("gemini-3.5-flash");
-    for (const key of ["temperature", "topP", "topK", "top_p", "top_k"]) {
+    // was: no `temperature` at all, from a gemini-3* prefix rule; s1.3 deprecates it only for 3.8-flash / 3.6-flash / 3.5-flash-lite
+    expect(request.config.temperature).toBe(0.2);
+    for (const key of ["topP", "topK", "top_p", "top_k"]) {
       expect(request.config, key).not.toHaveProperty(key);
     }
     expect(request.config.thinkingConfig).toEqual({ thinkingLevel: "low" });

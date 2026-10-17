@@ -399,6 +399,7 @@ export function resolvePipelineModelSelection(
   }
 
   const stripped = stripProviderPrefix(normalized);
+  refuseReroutedKnownId(requestedModelId, normalized, stripped);
   const resolved =
     resolveModelAlias(requestedModelId) ??
     resolveModelAlias(normalized) ??
@@ -1036,6 +1037,7 @@ export function resolveModelAlias(input: string): ApprovedModel | null {
  * Convenience function for untrusted input that throws on invalid
  */
 export function getLanguageModelOrThrow(input: string): LanguageModel {
+  refuseReroutedKnownId(input);
   const resolved = resolveModelAlias(input);
   if (!resolved) {
     throw new Error(
@@ -1086,13 +1088,56 @@ function refuseKnownUnregisteredModel(input: string): void {
 }
 
 /**
- * The two ids whose `LEGACY_ALIASES` row is lossy: `claude-sonnet-4-5-20250929` -> `claude-sonnet-4` and
- * `claude-opus-4-5-20251101` -> `claude-opus-4` (wire ids `...-4-20250514`, retired 2026-06-15). The shared
- * catalog already sends both unchanged (`LEGACY_PASSTHROUGH_IDS`). `resolveModelAlias` keeps the rows
- * for persisted data; every fail-closed entry point refuses these ids instead. PR 2 (SPEC-v9 modelResolver.ts:710,
- * A.1 deadline 2026-11-30) maps them to `claude-sonnet-5-5` / `claude-opus-5-5` and deletes this set.
+ * Homen D1: a known id is never silently rerouted to another model. These `LEGACY_ALIASES` keys are
+ * specific vendor model ids (the shared catalog already sends 15 of them to the provider unchanged,
+ * `LEGACY_PASSTHROUGH_IDS`; the dotted Claude names and `gpt-5` are versions callers type) whose row
+ * points at a DIFFERENT model: `gpt-4o` -> `gpt-5.4`, `claude-sonnet-4-5-20250929` -> the retired
+ * `claude-sonnet-4` (wire id `...-4-20250514`), `gemini-3-pro` -> `gemini-3.1-pro-preview`, and so on.
+ * `resolveModelAlias` keeps the rows for persisted data and display; every entry point that picks a model
+ * to RUN refuses these ids instead (`refuseReroutedKnownId`). PR 2 (A.1: `claude-sonnet-4-5-20250929` stops
+ * 2026-11-30) registers each as itself or maps it to its vendor-named successor, then deletes this set.
+ * Not here, by design: family shorthands (`claude`, `claude-sonnet`, `gemini`, `kimi`, `glm`, ...), the
+ * same-model rows (`claude-haiku-4-5-20251001`, the hyphenated 4.x names) and the retired free-lane
+ * redirects (free to free, cost class kept).
  */
-const LOSSY_SNAPSHOT_IDS: ReadonlySet<string> = new Set(["claude-sonnet-4-5-20250929", "claude-opus-4-5-20251101"]);
+const REROUTED_KNOWN_IDS: ReadonlySet<string> = new Set([
+  "claude-sonnet-4-5-20250929",
+  "claude-opus-4-5-20251101",
+  "claude-opus-4.6",
+  "claude-opus-4.5",
+  "claude-sonnet-4.5",
+  "gpt-5.2",
+  "gpt-5.1",
+  "gpt-5.1-codex",
+  "gpt-5",
+  "gpt-5-mini",
+  "gpt-5-nano",
+  "gpt-5-chat-latest",
+  "gpt-4.1-mini",
+  "gpt-4.1-nano",
+  "gpt-4o",
+  "gpt-4o-mini",
+  "gemini-3-pro",
+  "gemini-3-flash",
+  "gemini-3.1-flash-lite-preview-lite",
+]);
+
+/** The ids `refuseReroutedKnownId` refuses; exported so the drift test can pin them to `LEGACY_ALIASES`. */
+export const REROUTED_KNOWN_MODEL_IDS = REROUTED_KNOWN_IDS;
+
+/**
+ * Throws `RefusedModelError` when any given form of the input (as written, and without a `provider:`
+ * prefix) is one of `REROUTED_KNOWN_IDS`. Call before `resolveModelAlias` at every entry point that
+ * dispatches, queues or stores the resolved model.
+ */
+export function refuseReroutedKnownId(...forms: string[]): void {
+  for (const form of forms) {
+    const key = stripProviderPrefix(form.trim().toLowerCase());
+    if (REROUTED_KNOWN_IDS.has(key)) {
+      throw new RefusedModelError(form, "a specific vendor model id whose only alias here is a different model (see LEGACY_ALIASES); it is never rerouted, PR 2 registers it as itself or maps it to its vendor-named successor");
+    }
+  }
+}
 
 /**
  * Resolve untrusted input to an approved alias or fail closed (SPEC-v9 A.0.10):
@@ -1108,10 +1153,7 @@ function resolveOrFailClosed(
   caller: string,
 ): ApprovedModel {
   if (!input) return DEFAULT_MODEL;
-  // Homen D1: a snapshot LEGACY_ALIASES maps to an older, retired family is refused, not run as that family.
-  if (LOSSY_SNAPSHOT_IDS.has(input.trim().toLowerCase())) {
-    throw new RefusedModelError(input, "a dated snapshot whose only alias here is a different, retired model (see LEGACY_ALIASES); PR 2 registers it as itself, so it is never rerouted to that model");
-  }
+  refuseReroutedKnownId(input); // Homen D1: a known id is refused, not run as a different model
   const resolved = resolveModelAlias(input);
   if (resolved) return resolved;
   refuseKnownUnregisteredModel(input);

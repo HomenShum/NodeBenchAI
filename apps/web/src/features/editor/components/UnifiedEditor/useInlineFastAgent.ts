@@ -245,7 +245,7 @@ export function useInlineFastAgent({ editor, userId, documentId }: InlineFastAge
         if (!threadId) {
           threadId = await createStreamingThread({
             title: `Inline AI: ${question.substring(0, 50)}`,
-            model: "gpt-5-chat-latest",
+            model: "gpt-5.4-mini", // SPEC-v9 A.2.10: gpt-5-chat-latest retired 2026-07-23; the resolver now refuses it (Homen D1) instead of running gpt-5.4
           });
           setStreamingState((prev) => ({ ...prev, threadId }));
         }
@@ -290,7 +290,7 @@ export function useInlineFastAgent({ editor, userId, documentId }: InlineFastAge
         const result = await sendStreamingMessage({
           threadId: threadId as Id<"chatThreadsStream">,
           prompt: message,
-          model: "gpt-5-chat-latest",
+          model: "gpt-5.4-mini", // SPEC-v9 A.2.10: gpt-5-chat-latest retired 2026-07-23; the resolver now refuses it (Homen D1) instead of running gpt-5.4
           clientContext,
         });
 

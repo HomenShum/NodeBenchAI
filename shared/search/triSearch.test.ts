@@ -182,7 +182,7 @@ describe("condenseQuery — multi-turn query rewrite", () => {
   });
 });
 
-// Sampling is deprecated on Gemini 3.x (ignored today, a 400 later; SPEC-v9 s1.3). Both calls used to
+// Sampling is deprecated on gemini-3.8-flash / 3.6-flash / 3.5-flash-lite (ignored today, a 400 later; SPEC-v9 s1.3). Both calls used to
 // send generationConfig.temperature 0.
 const expectNoSampling = (body: any) => {
   for (const key of ["temperature", "topP", "topK", "top_p", "top_k"]) {
@@ -287,7 +287,7 @@ describe("thinking control follows the selected model (SPEC-v9 s1.3: keyed by ex
       expect(urls[i]).toContain("/models/gemini-2.5-flash:generateContent");
       expect(body.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 0 });
       expect(JSON.stringify(body)).not.toContain("thinkingLevel");
-      // Sampling is deprecated on Gemini 3.x only (SPEC-v9 s1.3): a 2.5 override keeps the temperature 0 main sent.
+      // Sampling is deprecated only on the exact ids s1.3 lists: a 2.5 override keeps the temperature 0 main sent.
       expect(body.generationConfig.temperature).toBe(0);
     }
   });

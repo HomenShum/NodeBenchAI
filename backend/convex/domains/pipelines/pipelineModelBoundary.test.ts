@@ -185,7 +185,8 @@ describe("piRuntime.parseModelKey", () => {
 
   it("still resolves approved aliases, route aliases and free-looking ids", async () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
-    expect(await parseModelKey("openai:gpt-4o-mini")).toMatchObject({
+    // was "openai:gpt-4o-mini" -> gpt-5.4-mini; a known id is refused, not rerouted, since Homen D1 (PR #662 round 8)
+    expect(await parseModelKey("openai:gpt-5.4-mini")).toMatchObject({
       provider: "openai",
       modelId: "gpt-5.4-mini",
       resolvedAlias: "gpt-5.4-mini",

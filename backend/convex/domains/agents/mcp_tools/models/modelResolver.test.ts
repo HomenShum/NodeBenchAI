@@ -4,14 +4,17 @@ import {
   APPROVED_MODELS,
   DEFAULT_MODEL,
   FREE_LANE_MODEL,
+  LEGACY_ALIASES,
   MODEL_SPECS,
   MODEL_PRIORITY_ORDER,
+  REROUTED_KNOWN_MODEL_IDS,
   UnknownModelError,
   assertKnownModelInput,
   assertKnownPipelineModel,
   executeWithModelFallback,
   getFallbackChain,
   getLanguageModel,
+  getLanguageModelOrThrow,
   getLanguageModelWithFallback,
   getLanguageModelSafe,
   getPaidFallbackCount,
@@ -24,7 +27,9 @@ import {
   resolvePipelineModelSelection,
 } from "./modelResolver";
 import { ANONYMOUS_FAST_AGENT_MODEL_ID } from "../../../../../../shared/llm/fastAgentRuntimeContract";
-import { RefusedModelError, SPEC_BEDROCK_WIRE_IDS, SPEC_LIVE_FREE_WIRE_IDS, SPEC_NATIVE_WIRE_IDS, SPEC_OPENROUTER_WIRE_IDS, modelAliases, modelEquivalents, modelPricing } from "../../../../../../shared/llm/modelCatalog";
+import { chooseNodeBenchRuntimeRoute } from "../../runtimeRouting";
+import { parseModelKey } from "../../../pipelines/piRuntime";
+import { LEGACY_PASSTHROUGH_IDS, RefusedModelError, SPEC_BEDROCK_WIRE_IDS, SPEC_LIVE_FREE_WIRE_IDS, SPEC_NATIVE_WIRE_IDS, SPEC_OPENROUTER_WIRE_IDS, modelAliases, modelEquivalents, modelPricing } from "../../../../../../shared/llm/modelCatalog";
 
 describe("pipeline model route resolution", () => {
   it("maps NodeBench auto routes to approved runtime aliases", () => {
@@ -53,7 +58,8 @@ describe("pipeline model route resolution", () => {
     expect(resolvePipelineModelSelection("anthropic:claude-haiku-4.5").resolvedModelId).toBe(
       "claude-haiku-4.5",
     );
-    expect(resolvePipelineModelSelection("openai:gpt-4o-mini").resolvedModelId).toBe(
+    // was "openai:gpt-4o-mini" -> gpt-5.4-mini: a known id rerouted to another model, refused since Homen D1 (PR #662 round 8)
+    expect(resolvePipelineModelSelection("openai:gpt-5.4-mini").resolvedModelId).toBe(
       "gpt-5.4-mini",
     );
   });
@@ -131,7 +137,7 @@ describe("unknown model ids fail closed", () => {
   it("keeps empty input on the default and known aliases on themselves", () => {
     expect(normalizeModelInput(undefined)).toBe(DEFAULT_MODEL);
     expect(normalizeModelInput("")).toBe(DEFAULT_MODEL);
-    expect(normalizeModelInput("gpt-4o-mini")).toBe("gpt-5.4-mini");
+    expect(normalizeModelInput("gpt-5.4-mini")).toBe("gpt-5.4-mini"); // was "gpt-4o-mini" -> gpt-5.4-mini, refused since Homen D1 (PR #662 round 8)
   });
 
   it("allowPaidFallback falls back to DEFAULT_MODEL and is counted", () => {
@@ -545,41 +551,83 @@ describe("D1: SPEC-v9 1.2 OpenRouter and Bedrock wire ids are refused with the r
   });
 });
 
-// Persona: an operator pins a dated Claude snapshot that is still served (claude-sonnet-4-5-20250929 until
-// 2026-11-30; claude-opus-4-5-20251101 is active). LEGACY_ALIASES maps them to claude-sonnet-4 / claude-opus-4
-// (wire ids ...-4-20250514, retired 2026-06-15), so the fallback helpers called a retired model first and
-// reported "no fallback used" (PR #662 review round 7 P1 -> round 10). The id is refused instead; PR 2 maps it.
-describe("D1: a dated snapshot whose only alias is a retired family is refused, not run as that family (PR #662 round 10)", () => {
+// Persona: an operator pins a specific model version, `gpt-4o`, or a dated Claude snapshot that is still served
+// (claude-sonnet-4-5-20250929 until 2026-11-30; claude-opus-4-5-20251101 is active). LEGACY_ALIASES maps each to a
+// DIFFERENT model (gpt-4o -> gpt-5.4; the snapshots -> the retired claude-sonnet-4 / claude-opus-4, wire ids
+// ...-4-20250514), so the run silently used another model (PR #662 review round 7 P1, then round 8 P1/P2).
+// Homen D1: a known id is never rerouted, so EVERY entry point that picks a model to run refuses it, the
+// pipelines domain (resolvePipelineModelSelection, assertKnownPipelineModel, parseModelKey) included.
+describe("D1: a known id whose only alias is a different model is refused at every entry point, never run as that model (PR #662 round 8)", () => {
   beforeEach(() => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(console, "warn").mockImplementation(() => {});
   });
   afterEach(() => vi.restoreAllMocks());
 
-  const snapshots = ["claude-sonnet-4-5-20250929", "claude-opus-4-5-20251101", " Claude-Sonnet-4-5-20250929 "];
+  const ids = [...REROUTED_KNOWN_MODEL_IDS];
 
-  it("every fail-closed entry point refuses it, and the fallback callback is never invoked", async () => {
-    for (const id of snapshots) {
-      for (const call of [
-        () => getLanguageModelSafe(id),
-        () => getLanguageModelSafe(id, { allowPaidFallback: true }),
-        () => normalizeModelInput(id),
-        () => normalizeNodeBenchRuntimeModel(id),
-        () => assertKnownModelInput(id),
-        () => getFallbackChain(id as never),
-        () => getLanguageModelWithFallback(id as never),
-      ]) {
-        expect(call, id).toThrow(RefusedModelError);
+  it("the set is LEGACY_ALIASES keys that name another model, and every catalog pass-through id is in it or is a same-model row", () => {
+    expect(ids.length).toBe(19);
+    for (const id of ids) {
+      const target = LEGACY_ALIASES[id];
+      expect(target, `${id}: must be a LEGACY_ALIASES key`).toBeDefined();
+      expect(MODEL_SPECS[target].sdkId, `${id}: its row points at the same wire id, so it is not a reroute`).not.toBe(id);
+    }
+    // The shared catalog already sends these to the provider unchanged; a new one must be sorted into the set or named here.
+    const sameModelRows = new Set(["claude-haiku-4-5-20251001"]);
+    for (const id of LEGACY_PASSTHROUGH_IDS) expect(REROUTED_KNOWN_MODEL_IDS.has(id) || sameModelRows.has(id), id).toBe(true);
+  });
+
+  it("resolveModelAlias keeps the rows for persisted data", () => {
+    expect(resolveModelAlias("claude-sonnet-4-5-20250929")).toBe("claude-sonnet-4");
+    expect(resolveModelAlias("claude-opus-4-5-20251101")).toBe("claude-opus-4");
+    expect(resolveModelAlias("gpt-4o")).toBe("gpt-5.4");
+  });
+
+  it("every entry point that picks a model to run refuses each one, in every written form, and the fallback callback is never invoked", async () => {
+    for (const id of ids) {
+      for (const form of [id, ` ${id.toUpperCase()} `]) {
+        for (const call of [
+          () => getLanguageModelSafe(form),
+          () => getLanguageModelSafe(form, { allowPaidFallback: true }),
+          () => getLanguageModelOrThrow(form),
+          () => normalizeModelInput(form),
+          () => normalizeNodeBenchRuntimeModel(form),
+          () => normalizeFastAgentModel({ isAnonymous: true, requestedModel: form }, "executor"),
+          () => assertKnownModelInput(form),
+          () => getFallbackChain(form as never),
+          () => getLanguageModelWithFallback(form as never),
+          // the pipelines domain: requested, normalized and provider-stripped forms (A.2.10 PR 1)
+          () => resolvePipelineModelSelection(form),
+          () => resolvePipelineModelSelection(`openai:${form}`),
+          () => resolvePipelineModelSelection(`anthropic:${form}`),
+          () => assertKnownPipelineModel(form),
+          () => assertKnownPipelineModel(`google:${form}`),
+          // runtimeRouting alias-looked-up the id before the guard
+          () => chooseNodeBenchRuntimeRoute({ prompt: "hi", requestedModel: form, useCoordinator: true, availableModels: null } as never),
+        ]) {
+          expect(call, form).toThrow(RefusedModelError);
+        }
+        await expect(parseModelKey(form), form).rejects.toBeInstanceOf(RefusedModelError);
+        await expect(parseModelKey(`openai:${form}`), form).rejects.toBeInstanceOf(RefusedModelError);
+        const tried: string[] = [];
+        await expect(executeWithModelFallback(async (_m, alias) => { tried.push(alias); return "ok"; }, { startModel: form as never })).rejects.toBeInstanceOf(RefusedModelError);
+        expect(tried, form).toEqual([]);
       }
-      const tried: string[] = [];
-      await expect(executeWithModelFallback(async (_m, alias) => { tried.push(alias); return "ok"; }, { startModel: id as never })).rejects.toBeInstanceOf(RefusedModelError);
-      expect(tried, id).toEqual([]);
     }
   });
 
-  it("the alias rows stay for persisted data (resolveModelAlias unchanged; PR 2 repoints them)", () => {
-    expect(resolveModelAlias("claude-sonnet-4-5-20250929")).toBe("claude-sonnet-4");
-    expect(resolveModelAlias("claude-opus-4-5-20251101")).toBe("claude-opus-4");
+  // Codex ran runPiOrAiSdkCompletion with fake transports: head dispatched the retired claude-sonnet-4-20250514
+  // with fallbacksUsed 0 for a pipeline launched on the snapshot. parseModelKey is the dispatch's model lookup.
+  it("a pipeline launched on a dated snapshot no longer resolves to the retired Claude 4 wire id", async () => {
+    await expect(parseModelKey("claude-sonnet-4-5-20250929")).rejects.toThrow(/never rerouted/);
+    await expect(parseModelKey("claude-opus-4-5-20251101")).rejects.toThrow(/never rerouted/);
+  });
+
+  it("family shorthands and same-model rows are not refused", () => {
+    expect(normalizeModelInput("claude-haiku-4-5-20251001")).toBe("claude-haiku-4.5");
+    expect(resolvePipelineModelSelection("claude-haiku-4-5-20251001").resolvedModelId).toBe("claude-haiku-4.5");
+    for (const id of ["claude", "claude-sonnet", "gemini", "kimi", "claude-opus-4-7"]) expect(() => assertKnownPipelineModel(id), id).not.toThrow();
   });
 });
 

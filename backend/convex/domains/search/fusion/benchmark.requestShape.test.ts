@@ -123,7 +123,7 @@ describe("benchmark.evaluateSearch judge request shape", () => {
     expect(captured[0].body.contents.at(-1).role ?? "user").toBe("user");
   });
 
-  // Round 5, P3: sampling is deprecated on Gemini 3.x only. A gemini-2.5 SEARCH_JUDGE_MODEL keeps the
+  // Round 5, P3: sampling is deprecated only on the ids s1.3 lists (3.8-flash, 3.6-flash, 3.5-flash-lite). A gemini-2.5 SEARCH_JUDGE_MODEL keeps the
   // temperature 0 that makes the judge deterministic; dropping it there changed calibration for nothing.
   it("Gemini 2.5 judge keeps temperature pinned to 0", async () => {
     const { captured } = await run("gemini-2.5-flash");

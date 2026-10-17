@@ -5,6 +5,7 @@ import {
   NODEBENCH_EXECUTOR_MODELS,
   isFreeModel,
   normalizeNodeBenchRuntimeModel,
+  refuseReroutedKnownId,
   resolveModelAlias,
   type ApprovedModel,
   type NodeBenchRuntimeProfile,
@@ -108,7 +109,9 @@ function resolveRequestedModel(requestedModel?: string | null): ApprovedModel | 
     return null;
   }
   // An unknown id throws (or becomes the free lane when free-looking); it must
-  // not fall through to the paid executor default (SPEC-v9 A.0.10).
+  // not fall through to the paid executor default (SPEC-v9 A.0.10). A known id that
+  // LEGACY_ALIASES points at a different model is refused before the alias lookup (Homen D1).
+  refuseReroutedKnownId(requestedModel);
   return (
     resolveModelAlias(requestedModel) ??
     normalizeNodeBenchRuntimeModel(requestedModel, "executor")

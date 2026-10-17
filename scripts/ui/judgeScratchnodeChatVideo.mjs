@@ -14,18 +14,20 @@
 import { GoogleGenAI } from "@google/genai";
 import fs from "node:fs";
 import path from "node:path";
+import { geminiSamplingConfig, geminiThinkingConfig } from "../../shared/search/triSearch.ts";
 
 const args = process.argv.slice(2);
 const getArg = (f, d) => { const i = args.indexOf(f); return i >= 0 && args[i + 1] ? args[i + 1] : d; };
 const VIDEO = getArg("--video", "");
 const SURFACE = getArg("--surface", "desktop");
 const MODEL = getArg("--model", "gemini-3.5-flash"); // latest Gemini 3.5 Flash (thinking model → thinking control chosen by THINKING below)
-// Keyed by the model selected (SPEC-v9 s1.3): Gemini 3.x takes thinkingLevel; any other --model (gemini-2.5-*)
-// keeps the thinkingBudget:0 main sent. Same rule as geminiThinkingConfig in shared/search/triSearch.ts.
-const IS_GEMINI_3 = /^(models\/)?gemini-3/i.test(MODEL.trim());
-const THINKING = IS_GEMINI_3 ? { thinkingLevel: "low" } : { thinkingBudget: 0 };
-// Sampling is deprecated on Gemini 3.x only (SPEC-v9 s1.3); any other --model keeps the temperature main sent.
-const SAMPLING = IS_GEMINI_3 ? {} : { temperature: 0.2 };
+// Request shape keyed by the exact model selected (SPEC-v9 s1.3), the same helpers the tri-search reranker uses:
+// Gemini 3.x takes thinkingLevel (any other --model, gemini-2.5-* included, keeps the thinkingBudget:0 main sent),
+// and temperature is dropped only for the ids s1.3 lists as deprecated (gemini-3.8-flash, 3.6-flash, 3.5-flash-lite);
+// every other --model, the default gemini-3.5-flash and gemini-3.1-pro-preview included, keeps the 0.2 main sent.
+// Imports the .ts source directly: Node 22.18+ (the repo's .nvmrc line) strips the types; there are no other imports.
+const THINKING = geminiThinkingConfig(MODEL);
+const SAMPLING = geminiSamplingConfig(MODEL, 0.2);
 if (!VIDEO || !fs.existsSync(VIDEO)) { console.error("ERR: --video <existing path> required"); process.exit(1); }
 
 function loadKey() {

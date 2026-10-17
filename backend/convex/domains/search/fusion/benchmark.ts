@@ -616,7 +616,7 @@ export const evaluateSearch = action({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contents: [{ parts: [{ text: `You are an expert search quality evaluator. Respond only with valid JSON.\n\n${prompt}` }] }],
-            generationConfig: { ...sampling, maxOutputTokens: 1500 }, // pinned to 0 for determinism except on Gemini 3.x, where sampling is deprecated (SPEC-v9 s1.3)
+            generationConfig: { ...sampling, maxOutputTokens: 1500 }, // pinned to 0 for determinism; geminiSamplingConfig leaves temperature out only on the ids SPEC-v9 s1.3 lists as deprecated (3.8-flash, 3.6-flash, 3.5-flash-lite)
           }),
         }
       );
