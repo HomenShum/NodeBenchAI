@@ -754,7 +754,7 @@ export function specLiveFreeWireId(input: string): string | null {
 export const OPENROUTER_ONLY_REGISTRY_IDS: ReadonlySet<string> = new Set([
   "arcee-ai/trinity-large-preview:free", "arcee-ai/trinity-mini:free", "chimera",
   "cognitivecomputations/dolphin-mistral-24b-venice-edition:free", "deepseek-chimera",
-  "deepseek/deepseek-r1-0528:free", "deepseek/deepseek-r1:free", "deepseek/deepseek-v3.2",
+  "deepseek/deepseek-r1", "deepseek/deepseek-r1-0528:free", "deepseek/deepseek-r1:free", "deepseek/deepseek-v3.2",
   "deepseek/deepseek-v3.2-speciale", "devstral", "devstral-2", "devstral-2-free", "dolphin-mistral", "gemma",
   "gemma-3-27b", "glm", "glm-4.5-air", "google/gemma-3-27b-it:free", "gpt-oss", "gpt-oss-120b", "gpt-oss-20b",
   "grok", "grok-4-fast", "grok-4-fast-free", "kat-coder", "kat-coder-pro", "kat-coder-pro-free",
@@ -1104,7 +1104,10 @@ function isKnownCatalogModel(model: string): boolean {
  * caller's string on, so the boundary accepts exactly what dispatch accepts. It reads no
  * environment: whether a provider is configured is dispatch's concern, not validation's.
  */
-export function assertKnownModel(model: string): void {
+export function assertKnownModel(input: string): void {
+  // The catalog's own short aliases ("kimi", "moonshotai/kimi-k2.6", "gpt5", ...) are known ids
+  // (Homen D1), so they are resolved here instead of relying on every caller to do it first.
+  const model = resolveModelAlias(input);
   if (OPENROUTER_ONLY_REGISTRY_IDS.has(model)) {
     throw new RefusedModelError(model, "a registered OpenRouter id this catalog cannot dispatch until PR 2 adds the OpenRouter branch; it is refused, never rerouted to another model");
   }
@@ -1133,12 +1136,13 @@ function isFreeCatalogModel(model: string): boolean {
  * Tries the preferred model's provider first, then falls back to alternatives.
  * The returned `model` is the provider wire id (see `toProviderWireId`).
  */
-export function getModelWithFailover(preferredModel: string): {
+export function getModelWithFailover(requestedModel: string): {
   model: string;
   provider: LlmProvider;
   isFallback: boolean;
 } {
-  assertKnownModel(preferredModel);
+  assertKnownModel(requestedModel);
+  const preferredModel = resolveModelAlias(requestedModel);
   // The free lane's own wire id is known (SPEC-v9 1.2): served as asked, not as a substitution.
   if (specLiveFreeWireId(preferredModel) === FREE_LANE_WIRE_ID) {
     return { model: FREE_LANE_WIRE_ID, provider: "openrouter", isFallback: false };

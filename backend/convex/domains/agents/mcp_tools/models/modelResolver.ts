@@ -26,6 +26,9 @@ import {
   RefusedModelError,
   SPEC_NATIVE_WIRE_IDS,
   UnknownModelError,
+  modelAliases as catalogAliases,
+  modelEquivalents,
+  modelPricing,
   ownEntry,
   specLiveFreeWireId,
   specOtherTransportWireId,
@@ -995,6 +998,16 @@ export function getLanguageModel(model: ApprovedModel): LanguageModel {
   return buildLanguageModel(spec);
 }
 
+/** Provider wire id -> approved alias, derived from MODEL_SPECS (first alias wins on a shared id). */
+const APPROVED_BY_SDK_ID: Readonly<Record<string, ApprovedModel>> = (() => {
+  const byWire: Record<string, ApprovedModel> = {};
+  for (const model of APPROVED_MODELS) {
+    const wire = MODEL_SPECS[model].sdkId.toLowerCase();
+    if (ownEntry(byWire, wire) === undefined) byWire[wire] = model;
+  }
+  return byWire;
+})();
+
 /**
  * Resolve untrusted string input to an ApprovedModel
  * Returns null if the input is not a valid alias
@@ -1008,7 +1021,15 @@ export function resolveModelAlias(input: string): ApprovedModel | null {
   }
 
   // Check legacy aliases
-  return ownEntry(LEGACY_ALIASES, input) ?? ownEntry(LEGACY_ALIASES, normalized) ?? null;
+  const legacy = ownEntry(LEGACY_ALIASES, input) ?? ownEntry(LEGACY_ALIASES, normalized);
+  if (legacy) return legacy;
+
+  // The repo's own registries (Homen D1: a known id is never rerouted): the shared catalog's short
+  // aliases ("sonnet", "gpt5", "minimax/minimax-m2.7", ...) map to the approved model they name, and a
+  // model's provider wire id ("deepseek/deepseek-r1") maps back to its own alias.
+  const catalogTarget = ownEntry(catalogAliases, normalized);
+  if (catalogTarget && (APPROVED_MODELS as readonly string[]).includes(catalogTarget)) return catalogTarget as ApprovedModel;
+  return ownEntry(APPROVED_BY_SDK_ID, normalized) ?? null;
 }
 
 /**
@@ -1052,6 +1073,15 @@ function refuseKnownUnregisteredModel(input: string): void {
   }
   if (specOtherTransportWireId(normalized) !== null) {
     throw new RefusedModelError(input, "a SPEC-v9 section 1.2 OpenRouter or Bedrock id that this resolver registers in PR 2 (PR 1 moves no ids); it is never rerouted to another model");
+  }
+  // Listed in the shared catalog's registries (grok-*, deep-research-*, ...) but with no approved entry
+  // here: known, so it is refused with that reason, not called unknown and not rerouted.
+  if (
+    ownEntry(modelPricing, normalized) != null ||
+    ownEntry(modelEquivalents, normalized) != null ||
+    ownEntry(catalogAliases, normalized) != null
+  ) {
+    throw new RefusedModelError(input, "listed in the shared model catalog but has no approved entry in this resolver; it is never rerouted to another model");
   }
 }
 
@@ -1308,18 +1338,22 @@ export function getFreeModels(): ApprovedModel[] {
 }
 
 /**
- * Index of `model` in MODEL_PRIORITY_ORDER, or -1 for an approved model that is
- * not listed (callers then keep main's behaviour: the chain starts at the head).
- * A free start model that is not listed throws: restarting it at index 0 (a paid
- * model) would turn a free request into a paid one (SPEC-v9 A.0.10). Known paid
- * ids are untouched until the listed-order decision (PR body, C item c).
+ * The chain a fallback helper walks for `model`: the requested model first, then every later
+ * move. A listed model starts at its own place in MODEL_PRIORITY_ORDER. An approved PAID model
+ * that is not listed (glm-4.7-flash, deepseek-r1, claude-opus-4, ...) is tried first and then
+ * falls back through the whole order, so it is never silently replaced by the head (SPEC-v9 D1:
+ * "a known id is never silently rerouted to another model"; main restarted it at kimi-k2.6 and
+ * reported fallbacksUsed 0). An unlisted FREE model throws: its fallbacks would have to be
+ * free, and restarting it at index 0 (a paid model) would turn a free request into a paid one
+ * (SPEC-v9 A.0.10).
  */
-function priorityIndexOrThrow(model: ApprovedModel, caller: string): number {
+function fallbackChainFrom(model: ApprovedModel, caller: string): ApprovedModel[] {
   const index = MODEL_PRIORITY_ORDER.indexOf(model);
-  if (index === -1 && isFreeModel(model)) {
+  if (index !== -1) return MODEL_PRIORITY_ORDER.slice(index);
+  if (isFreeModel(model)) {
     throw new Error(`[modelResolver] ${caller}: free model "${model}" is not in MODEL_PRIORITY_ORDER; refusing to restart at the head of the paid chain`);
   }
-  return index;
+  return [model, ...MODEL_PRIORITY_ORDER];
 }
 
 /**
@@ -1348,13 +1382,13 @@ export function getLanguageModelWithFallback(preferredModel?: ApprovedModel): {
   // first, so an unknown id throws UnknownModelError / a free-looking one takes the free lane.
   const modelId = resolveOrFailClosed(preferredModel, undefined, "getLanguageModelWithFallback");
   const spec = MODEL_SPECS[modelId];
-  const index = priorityIndexOrThrow(modelId, "getLanguageModelWithFallback");
+  const chain = fallbackChainFrom(modelId, "getLanguageModelWithFallback");
 
   return {
     model: buildLanguageModel(spec),
     modelId,
     isFree: isFreeModel(modelId),
-    fallbackChain: MODEL_PRIORITY_ORDER.slice(index + 1),
+    fallbackChain: chain.slice(1),
   };
 }
 
@@ -1380,12 +1414,11 @@ export async function executeWithModelFallback<T>(
   let fallbacksUsed = 0;
   let lastError: Error | null = null;
 
-  // Starting index in priority order; an unlisted paid model starts at the head (as on main),
-  // an unlisted free model throws.
-  let modelIndex = Math.max(0, priorityIndexOrThrow(currentModel, "executeWithModelFallback"));
+  // The requested model first; every later move is a fallback and is counted.
+  const chain = fallbackChainFrom(currentModel, "executeWithModelFallback");
 
-  while (modelIndex < MODEL_PRIORITY_ORDER.length) {
-    currentModel = MODEL_PRIORITY_ORDER[modelIndex];
+  for (let modelIndex = 0; modelIndex < chain.length; modelIndex++) {
+    currentModel = chain[modelIndex];
     const spec = MODEL_SPECS[currentModel];
 
     // Try with retries for transient errors
@@ -1426,8 +1459,8 @@ export async function executeWithModelFallback<T>(
 
     // Move to next model in fallback chain
     const nextIndex = modelIndex + 1;
-    if (nextIndex < MODEL_PRIORITY_ORDER.length) {
-      const nextModel = MODEL_PRIORITY_ORDER[nextIndex];
+    if (nextIndex < chain.length) {
+      const nextModel = chain[nextIndex];
       console.log(`[modelResolver] ${currentModel} failed, falling back to ${nextModel}`);
 
       if (onFallback) {
@@ -1436,8 +1469,6 @@ export async function executeWithModelFallback<T>(
 
       fallbacksUsed++;
     }
-
-    modelIndex++;
   }
 
   throw new Error(
@@ -1460,5 +1491,5 @@ export function getBestFreeModel(): ApprovedModel {
  */
 export function getFallbackChain(startModel: ApprovedModel = DEFAULT_MODEL): ApprovedModel[] {
   const start = resolveOrFailClosed(startModel, undefined, "getFallbackChain");
-  return MODEL_PRIORITY_ORDER.slice(Math.max(0, priorityIndexOrThrow(start, "getFallbackChain")));
+  return fallbackChainFrom(start, "getFallbackChain");
 }

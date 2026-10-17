@@ -19,6 +19,7 @@ import {
   SPEC_NATIVE_WIRE_IDS,
   SPEC_OPENROUTER_WIRE_IDS,
   assertKnownModel,
+  modelAliases,
   modelEquivalents,
   modelPricing,
   anthropicText,
@@ -355,7 +356,9 @@ describe("D1: resolver-registry ids the catalog cannot dispatch are refused, nev
     };
     const out = new Set<string>();
     for (const id of new Set<string>([...APPROVED_MODELS, ...Object.keys(LEGACY_ALIASES)])) {
-      const target = (LEGACY_ALIASES as Record<string, string>)[id] ?? id;
+      // The resolver checks APPROVED_MODELS before LEGACY_ALIASES, so "deepseek-r1" is itself, not the
+      // legacy row that points it at deepseek-r1-free (that row hid its own wire id "deepseek/deepseek-r1").
+      const target = (APPROVED_MODELS as readonly string[]).includes(id) ? id : ((LEGACY_ALIASES as Record<string, string>)[id] ?? id);
       const spec = (MODEL_SPECS as Record<string, { provider: string; sdkId: string }>)[target];
       if (spec?.provider !== "openrouter" || target === FREE_LANE_MODEL) continue;
       for (const name of [id, target, spec.sdkId]) if (!catalogKnows(name) && name !== FREE_LANE_WIRE_ID) out.add(name);
@@ -462,5 +465,53 @@ describe("D1: the SPEC-v9 1.2 live :free ids through getModelWithFailover", () =
     for (const id of ["apodex/apodex-1.1-mini:free", "google/gemma-4-31b-it:free", "nvidia/nemotron-3.5-content-safety:free"]) {
       expect(() => getModelWithFailover(id), id).toThrow(RefusedModelError);
     }
+  });
+});
+
+// Homen D1 (PR #662 round 7): the catalog's own short aliases are known ids. The public actions resolve them
+// before they call in, but the functions themselves threw "Unknown model" for "moonshotai/kimi-k2.6", "kimi",
+// "sonnet" and the rest when called with the alias as written.
+describe("D1: the catalog's own aliases are known at assertKnownModel and getModelWithFailover as written", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-test-key-not-real");
+    vi.stubEnv("OPENAI_API_KEY", "sk-test-key-not-real-0000");
+    vi.stubEnv("GEMINI_API_KEY", "gemini-test-key-not-real");
+    vi.stubEnv("OPENROUTER_API_KEY", "sk-or-test-key-not-real");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    ["moonshotai/kimi-k2.6", "kimi-k2.6"],
+    ["kimi", "kimi-k2.6"],
+    ["openrouter", "kimi-k2.6"],
+    ["minimax/minimax-m2.7", "minimax-m2.7"],
+    ["gpt5", "gpt-5.4"],
+    ["sonnet", "claude-sonnet-4.6"],
+    ["flash", "gemini-3-flash-preview"],
+    ["deep research", "deep-research-preview-04-2026"],
+  ])("%s dispatches exactly as %s does", (alias, target) => {
+    expect(() => assertKnownModel(alias)).not.toThrow();
+    expect(getModelWithFailover(alias)).toEqual(getModelWithFailover(target));
+  });
+
+  it("no key of modelAliases is called 'Unknown model' by either function", () => {
+    for (const alias of Object.keys(modelAliases)) {
+      for (const call of [() => assertKnownModel(alias), () => getModelWithFailover(alias)]) {
+        try {
+          call();
+        } catch (error) {
+          expect(error instanceof UnknownModelError && !(error instanceof RefusedModelError), alias).toBe(false);
+        }
+      }
+    }
+  });
+
+  it("the resolver's own OpenRouter wire id 'deepseek/deepseek-r1' is refused as a known id here (no OpenRouter branch until PR 2)", () => {
+    expect(() => assertKnownModel("deepseek/deepseek-r1")).toThrow(RefusedModelError);
+    expect(() => getModelWithFailover("deepseek/deepseek-r1")).toThrow(RefusedModelError);
   });
 });

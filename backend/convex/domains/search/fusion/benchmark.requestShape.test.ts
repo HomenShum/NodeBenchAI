@@ -35,9 +35,14 @@ function run(judgeEnv: string) {
   );
   const ctx = {
     runAction: vi.fn(async () => searchPayload),
-    runMutation: vi.fn(async () => null),
+    runMutation: vi.fn(async (_ref: unknown, _args: { judgeResult: string }) => null),
   };
-  return (evaluateSearch as any)._handler(ctx, { query: "q" }).then((result: any) => ({ result, captured }));
+  return (evaluateSearch as any)._handler(ctx, { query: "q" }).then((result: any) => ({
+    result,
+    captured,
+    // the artifact saveEvaluation persists, parsed the way a reader of the table would
+    saved: JSON.parse(ctx.runMutation.mock.calls[0][1].judgeResult),
+  }));
 }
 
 describe("benchmark.evaluateSearch judge request shape", () => {
@@ -66,6 +71,34 @@ describe("benchmark.evaluateSearch judge request shape", () => {
     expect(captured[0].body.messages.at(-1).role).toBe("user");
     expect(result.judgeModel).toBe("claude-sonnet-4.6");
     expect(result.judgeResult.reasoning).toBe("r");
+  });
+
+  // Round 7, P2: the metadata used to say temperature 0 whatever was sent. A saved evaluation must
+  // describe the request it came from: omitted sampling is recorded as absent (provider default).
+  it.each(["claude-sonnet-4.6", "gemini-3.1-pro-preview", "gemini-3-flash-preview"])(
+    "%s judge omits temperature and records it as omitted in the result, the return value and the saved artifact",
+    async (judge) => {
+      const { result, captured, saved } = await run(judge);
+      const sent = captured[0].body.generationConfig ?? captured[0].body;
+      expect(sent.temperature).toBeUndefined();
+      expect(result.temperature).toBeUndefined();
+      expect(result.judgeResult.temperature).toBeUndefined();
+      expect(saved).not.toHaveProperty("temperature");
+      const logged = (console.log as any).mock.calls.map((c: unknown[]) => String(c[0])).find((l: string) => l.includes("Determinism"));
+      expect(logged).toContain("provider-default");
+      expect(logged).not.toContain("temp=0");
+    },
+  );
+
+  it.each(["gpt-5.4", "gemini-2.5-flash"])("%s judge records the temperature it sent (0)", async (judge) => {
+    const { result, captured, saved } = await run(judge);
+    const sent = captured[0].body.generationConfig ?? captured[0].body;
+    expect(sent.temperature).toBe(0);
+    expect(result.temperature).toBe(0);
+    expect(result.judgeResult.temperature).toBe(0);
+    expect(saved.temperature).toBe(0);
+    const logged = (console.log as any).mock.calls.map((c: unknown[]) => String(c[0])).find((l: string) => l.includes("Determinism"));
+    expect(logged).toContain("temp=0");
   });
 
   it("OpenAI judge keeps temperature pinned to 0", async () => {

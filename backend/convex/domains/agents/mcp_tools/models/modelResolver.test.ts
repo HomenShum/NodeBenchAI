@@ -24,7 +24,7 @@ import {
   resolvePipelineModelSelection,
 } from "./modelResolver";
 import { ANONYMOUS_FAST_AGENT_MODEL_ID } from "../../../../../../shared/llm/fastAgentRuntimeContract";
-import { RefusedModelError, SPEC_BEDROCK_WIRE_IDS, SPEC_LIVE_FREE_WIRE_IDS, SPEC_NATIVE_WIRE_IDS, SPEC_OPENROUTER_WIRE_IDS } from "../../../../../../shared/llm/modelCatalog";
+import { RefusedModelError, SPEC_BEDROCK_WIRE_IDS, SPEC_LIVE_FREE_WIRE_IDS, SPEC_NATIVE_WIRE_IDS, SPEC_OPENROUTER_WIRE_IDS, modelAliases, modelEquivalents, modelPricing } from "../../../../../../shared/llm/modelCatalog";
 
 describe("pipeline model route resolution", () => {
   it("maps NodeBench auto routes to approved runtime aliases", () => {
@@ -254,22 +254,60 @@ describe("fallback helpers keep a free request on free models", () => {
   });
 });
 
-describe("an approved PAID model outside the priority order keeps main's behaviour", () => {
-  // Main restarts such a start model at the head of the order (kimi-k2.6) and lists the whole chain.
-  // Changing that is a caller-argument decision (PR body, C item c), not part of A.0.10.
+describe("an approved PAID model outside the priority order is tried first (SPEC-v9 D1, PR #662 round 7)", () => {
+  // Persona: the public-research route resolves to glm-4.7-flash and a missing pi-ai key sends the run to
+  // the AI-SDK fallback; a signed-in user posts args.model = "deepseek-r1" to pdfInsights. Before: both were
+  // restarted at kimi-k2.6 (the pricier head), the requested model was never called and fallbacksUsed was 0.
+  // Main did the same, but D1 says "a known id is never silently rerouted to another model", so the
+  // requested id runs first and every later move is counted and reported through onFallback.
   const paidUnlisted = ["glm-4.7-flash", "deepseek-r1", "gemini-2.5-flash", "mistral-large", "claude-opus-4"];
-  it.each(paidUnlisted)("%s does not throw and starts at the head", async (id) => {
-    // buildLanguageModel needs a key to construct the head model and the requested model.
+  beforeEach(() => {
+    // buildLanguageModel needs a key to construct the requested model and the fallbacks.
     vi.stubEnv("OPENROUTER_API_KEY", "test-key-not-real");
     vi.stubEnv("GEMINI_API_KEY", "test-key-not-real");
+    vi.stubEnv("ANTHROPIC_API_KEY", "test-key-not-real");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it.each(paidUnlisted)("%s runs first with fallbacksUsed 0", async (id) => {
     expect(APPROVED_MODELS as readonly string[]).toContain(id);
     expect(MODEL_PRIORITY_ORDER as readonly string[]).not.toContain(id);
     expect(isFreeModel(id as never)).toBe(false);
     const r = await executeWithModelFallback(async (_m, used) => used, { startModel: id as never });
+    expect(r.modelUsed).toBe(id);
+    expect(r.fallbacksUsed).toBe(0);
+  });
+
+  it.each(paidUnlisted)("%s failing moves to the head of the order and counts the move", async (id) => {
+    const tried: string[] = [];
+    const moves: string[] = [];
+    const r = await executeWithModelFallback(
+      async (_m, used) => {
+        tried.push(used);
+        if (used === id) throw new Error("provider down");
+        return used;
+      },
+      { startModel: id as never, maxRetries: 0, onFallback: (from, to) => moves.push(`${from}>${to}`) },
+    );
+    expect(tried).toEqual([id, MODEL_PRIORITY_ORDER[0]]);
     expect(r.modelUsed).toBe(MODEL_PRIORITY_ORDER[0]);
-    expect(getFallbackChain(id as never)).toEqual(MODEL_PRIORITY_ORDER);
-    expect(getLanguageModelWithFallback(id as never).fallbackChain).toEqual(MODEL_PRIORITY_ORDER);
-    vi.unstubAllEnvs();
+    expect(r.fallbacksUsed).toBe(1);
+    expect(moves).toEqual([`${id}>${MODEL_PRIORITY_ORDER[0]}`]);
+  });
+
+  it.each(paidUnlisted)("%s leads the chains the other two helpers return", (id) => {
+    expect(getFallbackChain(id as never)).toEqual([id, ...MODEL_PRIORITY_ORDER]);
+    const wf = getLanguageModelWithFallback(id as never);
+    expect(wf.modelId).toBe(id);
+    expect(wf.fallbackChain).toEqual(MODEL_PRIORITY_ORDER);
+  });
+
+  it("a listed model still starts at its own place", async () => {
+    const listed = MODEL_PRIORITY_ORDER[2];
+    expect(getFallbackChain(listed)).toEqual(MODEL_PRIORITY_ORDER.slice(2));
+    const r = await executeWithModelFallback(async (_m, used) => used, { startModel: listed });
+    expect(r.modelUsed).toBe(listed);
+    expect(r.fallbacksUsed).toBe(0);
   });
 });
 
@@ -554,5 +592,85 @@ describe("FastAgent anonymous callers: the requested model is validated before t
       }
     }
     expect(() => normalizeFastAgentModel({ isAnonymous: false, requestedModel: "constructor" }, "advisor")).toThrow(UnknownModelError);
+  });
+});
+
+// Homen D1: "known" includes the repo's own registries, and a known id is never silently rerouted.
+// Persona: a caller passes a short alias the shared catalog documents ("sonnet", "gpt5", "minimax"), the
+// OpenRouter wire id of an approved model ("minimax/minimax-m2.7") or a catalog-priced model this resolver
+// has no entry for ("grok-4", "deep-research-preview-04-2026"). On main each silently became kimi-k2.6 or
+// gpt-5.4-mini; PR #662 round 7 first reported them as "Unknown model" (plain, as if nothing knew them).
+describe("D1: ids the repo's own registries list are mapped or refused, never 'Unknown model' (PR #662 round 7)", () => {
+  beforeEach(() => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key-not-real");
+    vi.stubEnv("OPENAI_API_KEY", "test-key-not-real");
+    vi.stubEnv("ANTHROPIC_API_KEY", "test-key-not-real");
+    vi.stubEnv("GEMINI_API_KEY", "test-key-not-real");
+    vi.stubEnv("GOOGLE_GENERATIVE_AI_API_KEY", "test-key-not-real");
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  // Typed out from the catalog's alias table and the resolver's MODEL_SPECS, not read from them.
+  const mapped: Array<[string, string]> = [
+    ["gpt5", "gpt-5.4"], ["gpt5.4", "gpt-5.4"], ["gpt", "gpt-5.4"], ["openai", "gpt-5.4"],
+    ["claude-4", "claude-sonnet-4.6"], ["sonnet", "claude-sonnet-4.6"], ["anthropic", "claude-sonnet-4.6"],
+    ["opus", "claude-opus-4.7"], ["haiku", "claude-haiku-4.5"],
+    ["gemini-3", "gemini-3-flash-preview"], ["flash", "gemini-3-flash-preview"], ["google", "gemini-3-flash-preview"],
+    ["gemini-2.5", "gemini-2.5-flash"],
+    ["openrouter", "kimi-k2.6"], ["moonshotai/kimi-k2.6", "kimi-k2.6"],
+    ["minimax", "minimax-m2.7"], ["minimax/minimax-m2.7", "minimax-m2.7"],
+    ["deepseek/deepseek-r1", "deepseek-r1"], ["deepseek/deepseek-v3.2", "deepseek-v3.2"],
+    ["qwen/qwen3-235b-a22b", "qwen3-235b"], ["mistralai/mistral-large-2411", "mistral-large"],
+  ];
+  it.each(mapped)("%s is the registered %s in every entry point", (input, target) => {
+    expect(normalizeModelInput(input)).toBe(target);
+    expect(resolveModelAlias(input)).toBe(target);
+    expect(resolvePipelineModelSelection(input).resolvedModelId).toBe(target);
+    expect(() => assertKnownModelInput(input)).not.toThrow();
+    expect(() => getLanguageModelSafe(input)).not.toThrow();
+  });
+
+  const unregistered = [
+    "deep research", "deep-research", "deep research max", "deep-research-preview-04-2026",
+    "deep-research-max-preview-04-2026", "deep-research-pro-preview-12-2025",
+    "grok-4-1-fast-reasoning", "grok-4-1-fast-non-reasoning", "grok-4-fast-reasoning", "grok-4-fast-non-reasoning",
+    "grok-3", "grok-3-mini", "grok-code-fast-1", "grok-2-vision-1212", "grok-2",
+  ];
+  it.each(unregistered)("%s is listed by the shared catalog and refused as a known id, even with allowPaidFallback", (input) => {
+    for (const call of [
+      () => getLanguageModelSafe(input),
+      () => getLanguageModelSafe(input, { allowPaidFallback: true }),
+      () => normalizeModelInput(input),
+      () => normalizeModelInput(input, { allowPaidFallback: true }),
+      () => resolvePipelineModelSelection(input),
+      () => assertKnownModelInput(input),
+    ]) {
+      expect(call, input).toThrow(RefusedModelError);
+      expect(call, input).toThrow(/known id, refused/);
+    }
+  });
+
+  it("no key of the catalog's alias, pricing or equivalents table, and no MODEL_SPECS wire id, is called 'Unknown model'", () => {
+    const ids = new Set<string>([
+      ...Object.keys(modelAliases), ...Object.keys(modelPricing), ...Object.keys(modelEquivalents),
+      ...Object.values(MODEL_SPECS).map((spec) => spec.sdkId),
+    ]);
+    expect(ids.size).toBeGreaterThan(100);
+    const plain: string[] = [];
+    for (const id of ids) {
+      for (const call of [() => getLanguageModelSafe(id), () => normalizeModelInput(id), () => resolvePipelineModelSelection(id)]) {
+        try {
+          call();
+        } catch (error) {
+          if (error instanceof UnknownModelError && !(error instanceof RefusedModelError)) plain.push(id);
+        }
+      }
+    }
+    expect([...new Set(plain)]).toEqual([]);
   });
 });
