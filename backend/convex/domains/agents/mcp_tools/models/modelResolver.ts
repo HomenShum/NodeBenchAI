@@ -28,6 +28,7 @@ import {
   UnknownModelError,
   ownEntry,
   specLiveFreeWireId,
+  specOtherTransportWireId,
 } from "../../../../../../shared/llm/modelCatalog";
 
 export { UnknownModelError };
@@ -1035,7 +1036,8 @@ export function getPaidFallbackCount(): number {
 /**
  * Homen D1: an id SPEC-v9 section 1.2 lists is KNOWN, so it is never reported as unknown and never
  * rerouted (to the free lane or to a paid default). The ones this resolver has not registered are
- * the live `:free` ids and the native Claude / Gemini / GPT ids; PR 2 registers them. Until then an
+ * the live `:free` ids, the native Claude / Gemini / GPT ids and the paid OpenRouter and Bedrock
+ * wire ids; PR 2 registers them. Until then an
  * ApprovedModel-returning entry point has nothing to return for them, so it refuses with the reason.
  * (`getLanguageModelSafe` returns a model, so it serves the unregistered `:free` ids itself.)
  * Call after the alias lookup missed.
@@ -1047,6 +1049,9 @@ function refuseKnownUnregisteredModel(input: string): void {
   }
   if (SPEC_NATIVE_WIRE_IDS.has(normalized)) {
     throw new RefusedModelError(input, "a SPEC-v9 section 1.2 id that this resolver registers in PR 2 (PR 1 moves no ids); it is never rerouted to another model");
+  }
+  if (specOtherTransportWireId(normalized) !== null) {
+    throw new RefusedModelError(input, "a SPEC-v9 section 1.2 OpenRouter or Bedrock id that this resolver registers in PR 2 (PR 1 moves no ids); it is never rerouted to another model");
   }
 }
 

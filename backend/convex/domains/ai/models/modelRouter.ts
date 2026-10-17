@@ -192,6 +192,14 @@ function isFreeAlias(modelId: string): boolean {
   return alias !== null && isFreeModel(alias);
 }
 
+/** The tier a model actually serves: free is a property of the resolved model, never of the requested tier. */
+function classifyTier(modelId: string): TaskTier {
+  if (isFreeAlias(modelId)) return "free";
+  if (TIER_MODELS.cheap.includes(modelId)) return "cheap";
+  if (TIER_MODELS.standard.includes(modelId)) return "standard";
+  return "premium";
+}
+
 function calculateCost(
   modelId: string,
   inputTokens: number,
@@ -325,7 +333,7 @@ export const route = internalAction({
           fromCache: true,
           routing: {
             requestedTier: tier,
-            actualTier: tier,
+            actualTier: classifyTier(cached.modelId), // the cached answer's own tier, as a fresh dispatch reports it
             taskCategory: args.taskCategory,
             fallbacksUsed: 0,
             pinnedModel: args.pinnedModel ?? null,
@@ -473,11 +481,7 @@ export const route = internalAction({
         const latencyMs = Date.now() - startTime;
         const isFree = isFreeAlias(modelId);
 
-        // Determine actual tier based on model used
-        if (isFree) actualTier = "free";
-        else if (TIER_MODELS.cheap.includes(modelId)) actualTier = "cheap";
-        else if (TIER_MODELS.standard.includes(modelId)) actualTier = "standard";
-        else actualTier = "premium";
+        actualTier = classifyTier(modelId);
 
         // ─── Cache result ──────────────────────────────────────────
         if (args.cacheKey) {

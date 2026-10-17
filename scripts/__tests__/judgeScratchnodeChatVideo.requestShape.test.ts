@@ -51,6 +51,9 @@ describe("judgeScratchnodeChatVideo.mjs Gemini request", () => {
       const request = generateContent.mock.calls[0][0];
       expect(request.model).toBe(model);
       expect(request.config.thinkingConfig).toEqual(want);
+      // Sampling is deprecated on Gemini 3.x only (s1.3): a 2.5 --model keeps the temperature 0.2 main sent.
+      if (model.startsWith("gemini-2.5")) expect(request.config.temperature).toBe(0.2);
+      else expect(request.config).not.toHaveProperty("temperature");
     });
   }
 

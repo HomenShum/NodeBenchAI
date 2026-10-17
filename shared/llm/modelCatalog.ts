@@ -677,6 +677,43 @@ export const SPEC_NATIVE_WIRE_IDS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * The ids SPEC-v9 section 1.2 lists as their wire string on the `openrouter` and `bedrock` transports
+ * (the paid OpenRouter slugs; the `:free` column is `SPEC_LIVE_FREE_WIRE_IDS`). Homen D1: each is
+ * known. Neither transport has a branch in this catalog or in the resolver until PR 2, so a request
+ * for one is REFUSED with its reason (`RefusedModelError`), never called "unknown" and never
+ * rerouted to another model, `allowPaidFallback` included.
+ */
+export const SPEC_OPENROUTER_WIRE_IDS: ReadonlySet<string> = new Set([
+  "anthropic/claude-haiku-5.5",
+  "anthropic/claude-sonnet-5.5",
+  "anthropic/claude-opus-5.5",
+  "anthropic/claude-fable-5.1",
+  "google/gemini-3.8-flash",
+  "google/gemini-3.6-flash",
+  "google/gemini-3.5-flash-lite",
+  "google/gemini-3.1-pro-preview",
+  "openai/gpt-6.1-sol",
+  "openai/gpt-6-luna",
+  "openai/gpt-5.4-mini",
+  "moonshotai/kimi-k3",
+  "z-ai/glm-5.3",
+  "minimax/minimax-m3",
+]);
+
+export const SPEC_BEDROCK_WIRE_IDS: ReadonlySet<string> = new Set([
+  "anthropic.claude-haiku-5-5",
+  "anthropic.claude-sonnet-5-5",
+  "anthropic.claude-opus-5-5",
+  "anthropic.claude-fable-5-1",
+]);
+
+/** The input, trimmed and lower-cased, when it is a section 1.2 OpenRouter or Bedrock wire id; else null. */
+export function specOtherTransportWireId(input: string): string | null {
+  const normalized = input.trim().toLowerCase();
+  return SPEC_OPENROUTER_WIRE_IDS.has(normalized) || SPEC_BEDROCK_WIRE_IDS.has(normalized) ? normalized : null;
+}
+
+/**
  * The 15 live `:free` ids of SPEC-v9 section 1.2 (read 2026-10-10), the only free ids Part A may
  * write. Homen D1: each is known, so a request for one is never rerouted to the free lane. The
  * resolver sends the unregistered ones unchanged on OpenRouter; this catalog has no OpenRouter
@@ -1069,7 +1106,10 @@ function isKnownCatalogModel(model: string): boolean {
  */
 export function assertKnownModel(model: string): void {
   if (OPENROUTER_ONLY_REGISTRY_IDS.has(model)) {
-    throw new UnknownModelError(model, "a registered OpenRouter id this catalog cannot dispatch until PR 2 adds the OpenRouter branch; it is refused, never rerouted to another model");
+    throw new RefusedModelError(model, "a registered OpenRouter id this catalog cannot dispatch until PR 2 adds the OpenRouter branch; it is refused, never rerouted to another model");
+  }
+  if (specOtherTransportWireId(model) !== null) {
+    throw new RefusedModelError(model, "a SPEC-v9 section 1.2 OpenRouter or Bedrock id that this catalog cannot dispatch until PR 2 adds those branches (PR 1 moves no ids); it is refused, never rerouted to another model");
   }
   const liveFree = specLiveFreeWireId(model);
   if (liveFree !== null && liveFree !== FREE_LANE_WIRE_ID) {

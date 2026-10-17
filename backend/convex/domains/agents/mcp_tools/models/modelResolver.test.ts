@@ -7,6 +7,7 @@ import {
   MODEL_SPECS,
   MODEL_PRIORITY_ORDER,
   UnknownModelError,
+  assertKnownModelInput,
   assertKnownPipelineModel,
   executeWithModelFallback,
   getFallbackChain,
@@ -23,7 +24,7 @@ import {
   resolvePipelineModelSelection,
 } from "./modelResolver";
 import { ANONYMOUS_FAST_AGENT_MODEL_ID } from "../../../../../../shared/llm/fastAgentRuntimeContract";
-import { RefusedModelError, SPEC_LIVE_FREE_WIRE_IDS, SPEC_NATIVE_WIRE_IDS } from "../../../../../../shared/llm/modelCatalog";
+import { RefusedModelError, SPEC_BEDROCK_WIRE_IDS, SPEC_LIVE_FREE_WIRE_IDS, SPEC_NATIVE_WIRE_IDS, SPEC_OPENROUTER_WIRE_IDS } from "../../../../../../shared/llm/modelCatalog";
 
 describe("pipeline model route resolution", () => {
   it("maps NodeBench auto routes to approved runtime aliases", () => {
@@ -458,6 +459,48 @@ describe("D1: SPEC-v9 1.2 native ids the resolver registers in PR 2 are refused 
         expect(error, id).toBeInstanceOf(RefusedModelError);
         expect(error, id).toBeInstanceOf(UnknownModelError);
         expect((error as Error).message, id).toMatch(/registers in PR 2/);
+        expect((error as Error).message, id).not.toMatch(/^Unknown model/);
+      }
+    }
+  });
+});
+
+// PR #662 review round 5, P2: the section 1.2 OpenRouter and Bedrock columns are known too (Homen D1).
+// Persona: an operator pastes `anthropic/claude-sonnet-5.5` or `moonshotai/kimi-k3` into a model field.
+// It must be refused with the reason by every entry point, and must not become kimi-k2.6 under
+// `allowPaidFallback: true` (a known id is never rerouted).
+describe("D1: SPEC-v9 1.2 OpenRouter and Bedrock wire ids are refused with the reason, never rerouted", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("names every id of both columns", () => {
+    expect([...SPEC_OPENROUTER_WIRE_IDS].sort()).toEqual([
+      "anthropic/claude-fable-5.1", "anthropic/claude-haiku-5.5", "anthropic/claude-opus-5.5", "anthropic/claude-sonnet-5.5",
+      "google/gemini-3.1-pro-preview", "google/gemini-3.5-flash-lite", "google/gemini-3.6-flash", "google/gemini-3.8-flash",
+      "minimax/minimax-m3", "moonshotai/kimi-k3", "openai/gpt-5.4-mini", "openai/gpt-6-luna", "openai/gpt-6.1-sol", "z-ai/glm-5.3",
+    ]);
+    expect([...SPEC_BEDROCK_WIRE_IDS].sort()).toEqual([
+      "anthropic.claude-fable-5-1", "anthropic.claude-haiku-5-5", "anthropic.claude-opus-5-5", "anthropic.claude-sonnet-5-5",
+    ]);
+  });
+
+  it("every entry point refuses each one with RefusedModelError, with and without allowPaidFallback", () => {
+    for (const id of [...SPEC_OPENROUTER_WIRE_IDS, ...SPEC_BEDROCK_WIRE_IDS]) {
+      for (const call of [
+        () => getLanguageModelSafe(id),
+        () => getLanguageModelSafe(id, { allowPaidFallback: true }),
+        () => normalizeModelInput(id),
+        () => normalizeModelInput(id, { allowPaidFallback: true }),
+        () => resolvePipelineModelSelection(id),
+        () => assertKnownModelInput(id),
+      ]) {
+        let error: unknown;
+        try { call(); } catch (e) { error = e; }
+        expect(error, id).toBeInstanceOf(RefusedModelError);
+        expect((error as Error).message, id).toMatch(/known id, refused/);
         expect((error as Error).message, id).not.toMatch(/^Unknown model/);
       }
     }

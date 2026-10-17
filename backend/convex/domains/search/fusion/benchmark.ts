@@ -44,6 +44,7 @@ import { action, internalMutation, internalQuery } from "../../../_generated/ser
 import { internal, api } from "../../../_generated/api";
 import type { SearchResponse, SearchSource, FusionSearchPayload } from "./types";
 import { anthropicText } from "../../../../../shared/llm/modelCatalog";
+import { geminiSamplingConfig } from "../../../../../shared/search/triSearch";
 import {
   normalizeModelInput,
   getModelSpec,
@@ -610,7 +611,7 @@ export const evaluateSearch = action({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contents: [{ parts: [{ text: `You are an expert search quality evaluator. Respond only with valid JSON.\n\n${prompt}` }] }],
-            generationConfig: { maxOutputTokens: 1500 }, // no sampling: deprecated on Gemini 3.x (SPEC-v9 s1.3); was temperature 0
+            generationConfig: { ...geminiSamplingConfig(modelSpec.sdkId, JUDGE_TEMPERATURE), maxOutputTokens: 1500 }, // pinned to 0 for determinism except on Gemini 3.x, where sampling is deprecated (SPEC-v9 s1.3)
           }),
         }
       );

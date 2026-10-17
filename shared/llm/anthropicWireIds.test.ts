@@ -15,7 +15,9 @@ import {
   ANTHROPIC_WIRE_IDS,
   LEGACY_PASSTHROUGH_IDS,
   OPENROUTER_ONLY_REGISTRY_IDS,
+  SPEC_BEDROCK_WIRE_IDS,
   SPEC_NATIVE_WIRE_IDS,
+  SPEC_OPENROUTER_WIRE_IDS,
   assertKnownModel,
   modelEquivalents,
   modelPricing,
@@ -150,7 +152,10 @@ describe("getModelWithFailover sends wire ids to Anthropic", () => {
 
     it("the ids main could not have served still fail closed", () => {
       for (const id of NOT_WIRE_IDS) {
-        expect(() => getModelWithFailover(resolveModelAlias(id)), id).toThrow(/Unknown model/);
+        // Round 5 (Homen D1): a registry-known OpenRouter id (gpt-oss-120b) is a known id, refused with
+        // its reason; it was "Unknown model" before. Every other id here is still unknown.
+        const label = OPENROUTER_ONLY_REGISTRY_IDS.has(resolveModelAlias(id)) ? /known id, refused/ : /Unknown model/;
+        expect(() => getModelWithFailover(resolveModelAlias(id)), id).toThrow(label);
       }
     });
   });
@@ -388,6 +393,40 @@ describe("D1: resolver-registry ids the catalog cannot dispatch are refused, nev
   it("dotted Claude ids that were never wire ids stay refused", () => {
     for (const id of ["claude-opus-4.6", "claude-opus-4.5", "claude-sonnet-4.5"]) {
       expect(() => getModelWithFailover(id), id).toThrow(UnknownModelError);
+    }
+  });
+});
+
+// PR #662 review round 5, P2: the section 1.2 OpenRouter and Bedrock columns are known ids too. They were
+// reported as "Unknown model"; the registry-known OpenRouter ids were mislabelled the same way.
+describe("D1: SPEC-v9 1.2 OpenRouter and Bedrock wire ids, and registry OpenRouter ids, are refused as known", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-test-key-not-real");
+    vi.stubEnv("OPENAI_API_KEY", "sk-test-key-not-real-0000");
+    vi.stubEnv("GEMINI_API_KEY", "gemini-test-key-not-real");
+    vi.stubEnv("OPENROUTER_API_KEY", "sk-or-test-key-not-real");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("each one is a RefusedModelError at the boundary check and at dispatch, never 'Unknown model'", () => {
+    expect(SPEC_OPENROUTER_WIRE_IDS.size).toBe(14);
+    expect(SPEC_BEDROCK_WIRE_IDS.size).toBe(4);
+    for (const id of [...SPEC_OPENROUTER_WIRE_IDS, ...SPEC_BEDROCK_WIRE_IDS]) {
+      for (const call of [() => assertKnownModel(id), () => getModelWithFailover(id)]) {
+        expect(call, id).toThrow(RefusedModelError);
+        expect(call, id).toThrow(/known id, refused/);
+      }
+    }
+  });
+
+  it("registry-known OpenRouter ids carry the same label", () => {
+    for (const id of ["z-ai/glm-4.7", "qwen3-coder", "llama-3.3-70b"]) {
+      expect(() => assertKnownModel(id), id).toThrow(RefusedModelError);
+      expect(() => assertKnownModel(id), id).not.toThrow(/^Unknown model/);
     }
   });
 });

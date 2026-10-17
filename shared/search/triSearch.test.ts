@@ -275,6 +275,8 @@ describe("thinking control follows the selected model (SPEC-v9 s1.3: keyed by ex
       expect(urls[i]).toContain("/models/gemini-2.5-flash:generateContent");
       expect(body.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 0 });
       expect(JSON.stringify(body)).not.toContain("thinkingLevel");
+      // Sampling is deprecated on Gemini 3.x only (SPEC-v9 s1.3): a 2.5 override keeps the temperature 0 main sent.
+      expect(body.generationConfig.temperature).toBe(0);
     }
   });
 
@@ -285,6 +287,7 @@ describe("thinking control follows the selected model (SPEC-v9 s1.3: keyed by ex
       expect(urls[i]).toContain("/models/gemini-3.8-flash:generateContent");
       expect(body.generationConfig.thinkingConfig).toEqual({ thinkingLevel: "low" });
       expect(JSON.stringify(body)).not.toContain("thinkingBudget");
+      expectNoSampling(body);
     }
   });
 });

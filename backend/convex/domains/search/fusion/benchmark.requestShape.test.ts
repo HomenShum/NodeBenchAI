@@ -86,4 +86,13 @@ describe("benchmark.evaluateSearch judge request shape", () => {
     // A model-turn prefill is a 400 on Gemini 3.x; a content with no role is a user turn.
     expect(captured[0].body.contents.at(-1).role ?? "user").toBe("user");
   });
+
+  // Round 5, P3: sampling is deprecated on Gemini 3.x only. A gemini-2.5 SEARCH_JUDGE_MODEL keeps the
+  // temperature 0 that makes the judge deterministic; dropping it there changed calibration for nothing.
+  it("Gemini 2.5 judge keeps temperature pinned to 0", async () => {
+    const { captured } = await run("gemini-2.5-flash");
+    expect(captured[0].url).toContain("/models/gemini-2.5-flash:generateContent");
+    expect(captured[0].body.generationConfig.temperature).toBe(0);
+    expect(captured[0].body.generationConfig.maxOutputTokens).toBe(1500);
+  });
 });

@@ -146,6 +146,19 @@ describe("modelRouter.route request shape and cost class", () => {
     },
   );
 
+  // Round 5: a cache hit reported the requested tier ("standard") for a free answer the fresh dispatch
+  // reported as "free". The cached model's own tier is reported either way.
+  it("a cache hit reports the cached model's own tier, as the fresh dispatch did", async () => {
+    const args = { tier: "standard" as const, pinnedModel: "nemotron-3-super-free", cacheKey: "tier-on-cache-hit" };
+    const fresh = await call(makeCtx(), args);
+    expect(fresh.routing).toMatchObject({ requestedTier: "standard", actualTier: "free" });
+    generateText.mockClear();
+    const cached = await call(makeCtx(), args);
+    expect(generateText).not.toHaveBeenCalled();
+    expect(cached).toMatchObject({ fromCache: true, isFree: true, costUsd: 0 });
+    expect(cached.routing).toMatchObject({ requestedTier: "standard", actualTier: "free" });
+  });
+
   it("a cheap-tier outage still falls through the cheap list (the paid list is only for paid tiers)", async () => {
     resolveChain.mockReturnValue({ chain: [], reason: "no_matches_for_requirement", diagnostics: { primaryOutcome: "not_supplied", candidatePoolSize: 0 } });
     generateText.mockRejectedValue(Object.assign(new Error("provider down"), { status: 400 }));
