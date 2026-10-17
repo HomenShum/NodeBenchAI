@@ -65,8 +65,7 @@ export type AgentMode = "bare" | "mcp_lite" | "mcp_core" | "mcp_full";
 export interface RunConfig {
   taskId: string;
   agentMode: AgentMode;
-  model: string;
-  modelVersion: string;
+  model: string;          // candidate id: EVAL_MODEL (detectBackend().model), never hard-coded
   seed: number;           // trial seed (run 3-5 per config)
   toolsetPreset?: string; // lite/core/full for MCP modes
   timeout: number;        // max ms per run
@@ -80,12 +79,22 @@ export interface RunTelemetry {
   startedAt: string;
   completedAt: string;
   scorecard: Scorecard;
+  /** Tools that actually ran and returned a result. This harness runs none, so it stays empty. */
   toolCalls: ToolCallRecord[];
+  /** Tools the model asked for (tool_use blocks). A request is not an execution and earns no score. */
+  requestedTools?: ToolRequestRecord[];
   verificationCycles: VerificationCycleRecord[];
   /** Raw agent output for audit */
   outputHash: string;
+  /** The `model` string the provider returned (not the one requested) - SPEC-v9 A.0.3. */
+  echoedModel?: string;
   /** Error if run failed */
   error?: string;
+}
+
+export interface ToolRequestRecord {
+  toolName: string;
+  inputHash: string;
 }
 
 export interface ToolCallRecord {

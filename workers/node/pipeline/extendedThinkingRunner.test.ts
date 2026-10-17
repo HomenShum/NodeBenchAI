@@ -14,10 +14,15 @@
 import { describe, it, expect } from "vitest";
 import {
   buildCheckpointPrompt,
+  buildCheckpointRequestBody,
+  resolveCheckpointModel,
+  estimateThinkingTokens,
   parseCheckpointResponse,
   shouldContinue,
   EXTENDED_PROMPT_VERSION,
   MAX_CHECKPOINTS,
+  MAX_OUTPUT_TOKENS,
+  MAX_THINKING_BUDGET_TOKENS,
   type CheckpointPromptInput,
 } from "./extendedThinkingRunner";
 
@@ -263,5 +268,130 @@ describe("shouldContinue — chain termination rules", () => {
       thinkingBudgetTokens: 40_000,
     });
     expect(v.continue).toBe(false);
+  });
+});
+
+describe("buildCheckpointRequestBody - Anthropic request shape (SPEC-v9 A.0.6)", () => {
+  const prompt = { system: "sys", user: "usr" };
+
+  it("sends the hyphenated wire id for a stored dotted alias", () => {
+    // run.modelName defaults to the catalog alias "claude-sonnet-4.6"; api.anthropic.com
+    // rejects that string, so the body must carry the resolver's wire id.
+    const body = buildCheckpointRequestBody({ modelName: "claude-sonnet-4.6", prompt, remainingThinkingTokens: 40_000 });
+    expect(body.model).toBe("claude-sonnet-4-6");
+  });
+
+  it("uses adaptive thinking with output_config.effort, never budget_tokens", () => {
+    const body = buildCheckpointRequestBody({ modelName: "claude-sonnet-4.6", prompt, remainingThinkingTokens: 40_000 }) as any;
+    expect(body.thinking).toEqual({ type: "adaptive" });
+    expect(body.thinking).not.toHaveProperty("budget_tokens");
+    expect(body.output_config).toEqual({ effort: "medium" });
+    for (const key of ["temperature", "top_p", "top_k"]) expect(body).not.toHaveProperty(key);
+    expect(body.messages).toEqual([{ role: "user", content: "usr" }]);
+    expect(body.system).toBe("sys");
+  });
+
+  // Sonnet/Opus 5.5 reject a forced tool_choice and any prefill (400, SPEC-v9 1.3), and Haiku 5.5 drops
+  // thinking when one is forced. The checkpoint is a plain user turn for every id it can send.
+  it.each([
+    "claude-sonnet-4.6", "claude-opus-4.7", "claude-haiku-4-5", "claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5", "claude-fable-5-1",
+  ])("%s: no forced tool_choice, no tools, and the last message is the user's (no prefill)", (modelName) => {
+    const body = buildCheckpointRequestBody({ modelName, prompt, remainingThinkingTokens: 40_000 }) as any;
+    expect(body).not.toHaveProperty("tool_choice");
+    expect(body).not.toHaveProperty("tools");
+    expect((body.messages as Array<{ role: string }>).at(-1)?.role).toBe("user");
+  });
+
+  it.each(["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5", "claude-fable-5-1"])(
+    "%s (SPEC-v9 1.2 wire id, sent as written) takes adaptive thinking with effort, never budget_tokens",
+    (modelName) => {
+      const body = buildCheckpointRequestBody({ modelName, prompt, remainingThinkingTokens: 40_000 }) as any;
+      expect(body.model).toBe(modelName);
+      expect(body.thinking).toEqual({ type: "adaptive" });
+      expect(body.output_config).toEqual({ effort: "medium" });
+      for (const key of ["temperature", "top_p", "top_k"]) expect(body).not.toHaveProperty(key);
+      // and under the 1,024 allowance the adaptive shape is unchanged: there is no manual budget to drop
+      expect((buildCheckpointRequestBody({ modelName, prompt, remainingThinkingTokens: 0 }) as any).thinking).toEqual({ type: "adaptive" });
+    },
+  );
+
+  it("caps total output per checkpoint: max_tokens = answer cap + min(allowance, remaining)", () => {
+    // This bounds thinking PLUS answer. Adaptive thinking has no separate thinking cap, so with 2,500
+    // tokens left a checkpoint may still think for up to 6,500 (the 4,000 answer room is not reserved).
+    // The run-level bound is the next test.
+    const at = (remaining: number) =>
+      (buildCheckpointRequestBody({ modelName: "claude-sonnet-4.6", prompt, remainingThinkingTokens: remaining }) as any).max_tokens;
+    expect(at(40_000)).toBe(MAX_OUTPUT_TOKENS + MAX_THINKING_BUDGET_TOKENS);
+    expect(at(2_500)).toBe(MAX_OUTPUT_TOKENS + 2_500);
+    expect(at(0)).toBe(MAX_OUTPUT_TOKENS);
+    expect(at(-50)).toBe(MAX_OUTPUT_TOKENS);
+  });
+
+  it("a run spends at most thinkingBudgetTokens + MAX_OUTPUT_TOKENS on thinking when every checkpoint thinks to its cap", () => {
+    // Worst case: each checkpoint uses all of max_tokens, answers with 1 token of text, and the run
+    // charges thinking from usage exactly as extendedThinking.advanceRun does. The thinking block's text is
+    // omitted (Sonnet 5.x), so nothing but usage.output_tokens can drive the charge.
+    const budget = 15_000;
+    let charged = 0;
+    let actuallySpent = 0;
+    for (let checkpoint = 1; checkpoint <= MAX_CHECKPOINTS; checkpoint++) {
+      const maxTokens = (buildCheckpointRequestBody({ modelName: "claude-sonnet-4.6", prompt, remainingThinkingTokens: budget - charged }) as any).max_tokens;
+      const answer = "x".repeat(4); // 1 token
+      actuallySpent += maxTokens - 1;
+      charged += estimateThinkingTokens(maxTokens, answer);
+      const verdict = shouldContinue({ currentCheckpoint: checkpoint, totalCheckpoints: MAX_CHECKPOINTS, researchComplete: false, thinkingTokensUsed: charged, thinkingBudgetTokens: budget });
+      if (!verdict.continue) break;
+    }
+    expect(charged).toBeGreaterThanOrEqual(budget);
+    expect(actuallySpent).toBeLessThanOrEqual(budget + MAX_OUTPUT_TOKENS);
+    // and the charge never undercounts what was spent
+    expect(charged).toBeGreaterThanOrEqual(actuallySpent);
+  });
+
+  it("Haiku 4.5 keeps manual thinking with budget_tokens and gets no effort; an allowance under 1,024 sends no thinking", () => {
+    const body = (modelName: string, remaining: number) => buildCheckpointRequestBody({ modelName, prompt, remainingThinkingTokens: remaining }) as any;
+    for (const modelName of ["claude-haiku-4-5", "claude-haiku-4-5-20251001", "claude-sonnet-4-5-20250929", "claude-opus-4-5-20251101"]) {
+      expect(body(modelName, 40_000).thinking, modelName).toEqual({ type: "enabled", budget_tokens: MAX_THINKING_BUDGET_TOKENS });
+      expect(body(modelName, 40_000), modelName).not.toHaveProperty("output_config");
+      expect(body(modelName, 3_000).thinking, modelName).toEqual({ type: "enabled", budget_tokens: 3_000 });
+      expect(body(modelName, 1_023), modelName).not.toHaveProperty("thinking");
+      expect(body(modelName, 0), modelName).not.toHaveProperty("thinking");
+    }
+  });
+
+  it("resolveCheckpointModel returns the wire id and throws for a name with no Anthropic id", () => {
+    expect(resolveCheckpointModel("claude-sonnet-4.6")).toBe("claude-sonnet-4-6");
+    expect(resolveCheckpointModel("claude-haiku-4-5-20251001")).toBe("claude-haiku-4-5-20251001");
+    expect(() => resolveCheckpointModel("claude-not-real")).toThrow(/no Anthropic wire id/);
+  });
+
+  it.each(["toString", "valueOf", "hasOwnProperty", "constructor", "__proto__"])(
+    "resolveCheckpointModel rejects Object.prototype key %s instead of returning a function",
+    (key) => {
+      expect(() => resolveCheckpointModel(key)).toThrow(/no Anthropic wire id/);
+      expect(() => buildCheckpointRequestBody({ modelName: key, prompt, remainingThinkingTokens: 5_000 })).toThrow(/no Anthropic wire id/);
+    },
+  );
+
+  it("accepts an operator-supplied wire id and refuses a name with no Anthropic id", () => {
+    expect(buildCheckpointRequestBody({ modelName: "claude-sonnet-4-6", prompt, remainingThinkingTokens: 1 }).model).toBe(
+      "claude-sonnet-4-6",
+    );
+    expect(() => buildCheckpointRequestBody({ modelName: "kimi-k2.6", prompt, remainingThinkingTokens: 1 })).toThrow(
+      /no Anthropic wire id/,
+    );
+  });
+});
+
+describe("estimateThinkingTokens", () => {
+  it("is output_tokens minus the answer's estimated tokens, never negative", () => {
+    expect(estimateThinkingTokens(5_000, "x".repeat(400))).toBe(4_900);
+    expect(estimateThinkingTokens(50, "x".repeat(4_000))).toBe(0);
+    expect(estimateThinkingTokens(0, "")).toBe(0);
+  });
+
+  it("does not depend on the thinking block text (it is omitted by default on Sonnet 5.x / Opus 4.7+)", () => {
+    // The function has no thinking-text input at all: a run that omits display still pays.
+    expect(estimateThinkingTokens(3_000, "answer")).toBeGreaterThan(2_900);
   });
 });

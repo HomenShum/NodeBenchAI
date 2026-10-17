@@ -5,15 +5,21 @@
  * Usage:
  *   npx tsx scripts/eval-harness/runner.ts --task t1_add_validator_returns --mode bare
  *   npx tsx scripts/eval-harness/runner.ts --task t1_add_validator_returns --mode mcp_core
- *   npx tsx scripts/eval-harness/runner.ts --all --seeds 3
+ *   npx tsx scripts/eval-harness/runner.ts --tier tier1 --seeds 3
  *   npx tsx scripts/eval-harness/runner.ts --compare t1_add_validator_returns
  *
- * Outputs: scripts/eval-harness/results/<taskId>_<mode>_<seed>.json
+ * The backend comes from EVAL_BACKEND (default "stub", $0). A real backend
+ * requires EVAL_MODEL, so every run names its candidate:
+ *   EVAL_BACKEND=anthropic EVAL_MODEL=<candidate> npx tsx scripts/eval-harness/runner.ts --tier tier1 --seeds 3
+ *
+ * Outputs: scripts/eval-harness/results/<taskId>_<mode>_s<seed>.json
  */
 
-import { writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { EVAL_DATASET, getTaskById } from "./dataset.js";
+import { detectBackend, invokeAgent } from "./agentInvoker.js";
 import type {
   RunConfig,
   RunTelemetry,
@@ -25,8 +31,8 @@ import type {
 
 const RESULTS_DIR = join(import.meta.dirname || __dirname, "results");
 
-function ensureResultsDir() {
-  mkdirSync(RESULTS_DIR, { recursive: true });
+function ensureResultsDir(resultsDir: string) {
+  mkdirSync(resultsDir, { recursive: true });
 }
 
 // ── Scorecard Computation ───────────────────────────────────────────
@@ -65,65 +71,24 @@ function computeCompositeScore(scorecard: Scorecard): number {
   );
 }
 
-// ── Stub runner (replace with real agent invocation) ─────────────────
-
-function createStubTelemetry(config: RunConfig, task: EvalTask): RunTelemetry {
-  const now = new Date().toISOString();
-  const isMcp = config.agentMode !== "bare";
-
-  // Stub scorecard — in production, this is computed from actual agent traces
-  const scorecard: Scorecard = {
-    correctness: {
-      taskSuccessRate: 0,     // filled by real run
-      regressionRate: 0,
-    },
-    safety: {
-      highRiskActionsGated: task.riskTier === "low" ? 1 : 0,
-      issuesCaughtPreMerge: 0,
-    },
-    efficiency: {
-      wallClockMs: 0,
-      toolCallCount: 0,
-      tokenCount: 0,
-      retryThrashRate: 0,
-    },
-    compounding: {
-      knowledgeReuseRate: isMcp ? 0 : 0,
-      evalCasesBanked: 0,
-    },
-  };
-
-  return {
-    runId: `run_${config.taskId}_${config.agentMode}_s${config.seed}_${Date.now()}`,
-    config,
-    startedAt: now,
-    completedAt: now,
-    scorecard,
-    toolCalls: [],
-    verificationCycles: [],
-    outputHash: "",
-    error: "STUB: Replace with real agent invocation",
-  };
-}
-
 // ── Comparison Engine ───────────────────────────────────────────────
 
-function loadResults(taskId: string): RunTelemetry[] {
-  ensureResultsDir();
-  const files = readdirSync(RESULTS_DIR).filter(
+function loadResults(taskId: string, resultsDir: string): RunTelemetry[] {
+  ensureResultsDir(resultsDir);
+  const files = readdirSync(resultsDir).filter(
     (f) => f.startsWith(taskId) && f.endsWith(".json")
   );
   return files.map((f) => {
-    const content = readFileSync(join(RESULTS_DIR, f), "utf-8");
+    const content = readFileSync(join(resultsDir, f), "utf-8");
     return JSON.parse(content) as RunTelemetry;
   });
 }
 
-function generateComparison(taskId: string): ComparisonReport | null {
+function generateComparison(taskId: string, resultsDir: string): ComparisonReport | null {
   const task = getTaskById(taskId);
   if (!task) return null;
 
-  const allResults = loadResults(taskId);
+  const allResults = loadResults(taskId, resultsDir);
   if (allResults.length === 0) return null;
 
   const modes = [...new Set(allResults.map((r) => r.config.agentMode))];
@@ -193,16 +158,41 @@ function generateComparison(taskId: string): ComparisonReport | null {
 
 // ── CLI ─────────────────────────────────────────────────────────────
 
-function main() {
-  const args = process.argv.slice(2);
-  ensureResultsDir();
+async function runOne(
+  task: EvalTask,
+  mode: AgentMode,
+  seed: number,
+  model: string,
+  resultsDir: string,
+): Promise<RunTelemetry> {
+  const config: RunConfig = {
+    taskId: task.id,
+    agentMode: mode,
+    model,
+    seed,
+    timeout: 300_000,
+  };
+
+  console.log(`Running: ${task.name} (${mode}, seed=${seed}, model=${model})`);
+  const telemetry = await invokeAgent(config, task);
+
+  const outPath = join(resultsDir, `${task.id}_${mode}_s${seed}.json`);
+  writeFileSync(outPath, JSON.stringify(telemetry, null, 2));
+  console.log(`Result written to: ${outPath}`);
+  console.log(`Composite score: ${computeCompositeScore(telemetry.scorecard).toFixed(3)}`);
+  return telemetry;
+}
+
+/** Returns the process exit code. `resultsDir` is a parameter so tests can use a temp dir. */
+export async function main(args: string[], resultsDir: string = RESULTS_DIR): Promise<number> {
+  ensureResultsDir(resultsDir);
 
   if (args.includes("--list")) {
     console.log("Available eval tasks:");
     for (const task of EVAL_DATASET.tasks) {
       console.log(`  ${task.id} [${task.tier}] ${task.name}`);
     }
-    return;
+    return 0;
   }
 
   if (args.includes("--compare")) {
@@ -210,58 +200,103 @@ function main() {
     const taskId = args[taskIdIdx];
     if (!taskId) {
       console.error("Usage: --compare <taskId>");
-      process.exit(1);
+      return 1;
     }
-    const report = generateComparison(taskId);
+    const report = generateComparison(taskId, resultsDir);
     if (!report) {
       console.error(`No results found for task ${taskId}`);
-      process.exit(1);
+      return 1;
     }
     console.log(JSON.stringify(report, null, 2));
-    return;
+    return 0;
   }
 
-  // Single task run
   const taskIdx = args.indexOf("--task");
+  const tierIdx = args.indexOf("--tier");
   const modeIdx = args.indexOf("--mode");
   const seedIdx = args.indexOf("--seed");
+  const seedsIdx = args.indexOf("--seeds");
 
-  if (taskIdx === -1) {
+  if (taskIdx === -1 && tierIdx === -1) {
     console.log("Usage:");
     console.log("  --list                          List all tasks");
     console.log("  --task <id> --mode <mode>        Run a single task");
+    console.log("  --tier <prefix> --seeds <N>      Run every task whose tier starts with <prefix>, seeds 1..N");
     console.log("  --compare <id>                  Compare results for a task");
     console.log("");
     console.log("Modes: bare, mcp_lite, mcp_core, mcp_full");
-    return;
+    console.log("Backend: EVAL_BACKEND=stub|anthropic|openai (default stub); EVAL_MODEL is required for a real backend");
+    return 0;
   }
 
-  const taskId = args[taskIdx + 1];
-  const mode = (args[modeIdx + 1] || "bare") as AgentMode;
-  const seed = seedIdx !== -1 ? parseInt(args[seedIdx + 1]) : 1;
+  // The candidate id comes from the environment, never from this file, so a
+  // receipt can only name the model that was actually requested.
+  const backend = detectBackend();
+  if (backend.backend !== "stub" && !process.env.EVAL_MODEL) {
+    console.error(`EVAL_MODEL is required when EVAL_BACKEND=${backend.backend}`);
+    return 1;
+  }
+  const model = backend.model ?? "stub-model";
+  const mode = (modeIdx !== -1 ? args[modeIdx + 1] : "bare") as AgentMode;
 
-  const task = getTaskById(taskId);
-  if (!task) {
-    console.error(`Unknown task: ${taskId}`);
-    process.exit(1);
+  let tasks: EvalTask[];
+  if (tierIdx !== -1) {
+    const prefix = args[tierIdx + 1];
+    if (!prefix) {
+      console.error("Usage: --tier <prefix>");
+      return 1;
+    }
+    tasks = EVAL_DATASET.tasks.filter((t) => t.tier.startsWith(prefix));
+    if (tasks.length === 0) {
+      console.error(`No tasks with a tier starting with "${prefix}"`);
+      return 1;
+    }
+  } else {
+    const task = getTaskById(args[taskIdx + 1]);
+    if (!task) {
+      console.error(`Unknown task: ${args[taskIdx + 1]}`);
+      return 1;
+    }
+    tasks = [task];
   }
 
-  const config: RunConfig = {
-    taskId,
-    agentMode: mode,
-    model: "claude-sonnet-4-6",
-    modelVersion: "4.6",
-    seed,
-    timeout: 300_000,
-  };
+  let seeds: number[];
+  if (seedsIdx !== -1) {
+    const count = parseInt(args[seedsIdx + 1], 10);
+    if (!Number.isInteger(count) || count < 1) {
+      console.error("Usage: --seeds <N> with N >= 1");
+      return 1;
+    }
+    seeds = Array.from({ length: count }, (_, i) => i + 1);
+  } else {
+    seeds = [seedIdx !== -1 ? parseInt(args[seedIdx + 1], 10) : 1];
+  }
 
-  console.log(`Running: ${task.name} (${mode}, seed=${seed})`);
-  const telemetry = createStubTelemetry(config, task);
-
-  const outPath = join(RESULTS_DIR, `${taskId}_${mode}_s${seed}.json`);
-  writeFileSync(outPath, JSON.stringify(telemetry, null, 2));
-  console.log(`Result written to: ${outPath}`);
-  console.log(`Composite score: ${computeCompositeScore(telemetry.scorecard).toFixed(3)}`);
+  const failed: string[] = [];
+  for (const task of tasks) {
+    for (const seed of seeds) {
+      const telemetry = await runOne(task, mode, seed, model, resultsDir);
+      if (telemetry.error) failed.push(`${task.id} s${seed}: ${telemetry.error}`);
+    }
+  }
+  // A real backend exits non-zero when any run failed, so a migration eval cannot
+  // pass on error rows. The stub backend always reports its STUB marker; that smoke
+  // path stays exit 0.
+  if (backend.backend !== "stub" && failed.length > 0) {
+    console.error(`${failed.length} run(s) failed:`);
+    for (const line of failed) console.error(`  ${line}`);
+    return 1;
+  }
+  return 0;
 }
 
-main();
+// Run only as a script, so tests can import `main` with their own results directory.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main(process.argv.slice(2)).then(
+    (code) => process.exit(code),
+    (err) => {
+      console.error(err);
+      process.exit(1);
+    },
+  );
+}

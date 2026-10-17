@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { rrfFuse, rerankWithGemini, triSearch, condenseQuery, RRF_K, type TriCandidate } from "./triSearch";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { rrfFuse, geminiSamplingConfig, rerankWithGemini, triSearch, condenseQuery, RRF_K, type TriCandidate } from "./triSearch";
 
 // Scenario-based tests (.claude/rules/scenario_testing.md).
 // Persona: a founder/analyst running entity due-diligence; the grounding harness
@@ -179,5 +179,127 @@ describe("condenseQuery — multi-turn query rewrite", () => {
     expect(r.status).toBe("rewritten");
     expect(promptText).toContain("turn 11"); // last turn included
     expect(promptText).not.toContain("turn 0"); // beyond the last 3 → excluded
+  });
+});
+
+// Sampling is deprecated on gemini-3.8-flash / 3.6-flash / 3.5-flash-lite (ignored today, a 400 later; SPEC-v9 s1.3). Both calls used to
+// send generationConfig.temperature 0.
+const expectNoSampling = (body: any) => {
+  for (const key of ["temperature", "topP", "topK", "top_p", "top_k"]) {
+    expect(body.generationConfig, key).not.toHaveProperty(key);
+  }
+};
+
+describe("geminiSamplingConfig - keyed by exact id (SPEC-v9 s1.3)", () => {
+  it.each(["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "models/gemini-3.8-flash"])("%s omits temperature", (m) => {
+    expect(geminiSamplingConfig(m, 0)).toEqual({});
+  });
+  it.each(["gemini-3.5-flash", "gemini-3.1-pro-preview", "gemini-3-flash-preview", "gemini-3.1-flash-lite-preview", "gemini-2.5-flash"])("%s keeps temperature 0", (m) => {
+    expect(geminiSamplingConfig(m, 0)).toEqual({ temperature: 0 });
+  });
+});
+
+describe("rerankWithGemini - request shape (Gemini 3.x)", () => {
+  // SPEC-v9 s1.3: Gemini 3.x replaced thinkingBudget with thinkingLevel (`minimal` unsupported).
+  // thinkingBudget:0 is how this reranker used to keep a thinking model from spending its
+  // 256-token cap on a reasoning preamble; thinkingLevel "low" is the replacement.
+  it("sends thinkingLevel low and no thinkingBudget", async () => {
+    const bodies: any[] = [];
+    const urls: string[] = [];
+    const spyFetch = (async (url: string, init: { body: string }) => {
+      urls.push(String(url));
+      bodies.push(JSON.parse(init.body));
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ candidates: [{ content: { parts: [{ text: "[1,0]" }] } }] }),
+      } as unknown as Response;
+    }) as unknown as typeof fetch;
+    const fused = rrfFuse([leg("linkup", ["a", "b"])]);
+    const r = await rerankWithGemini("entity funding", fused, { topN: 2, apiKey: "test", fetchImpl: spyFetch });
+    expect(r.rerankStatus).toBe("ok");
+    expect(bodies).toHaveLength(1);
+    // The model rides in the URL, not the body: pin it so a changed default is a visible test change.
+    // PR 1 moves no ids; PR 2 changes it to gemini-3.8-flash with TRI_SEARCH_RERANK_MODEL precedence unchanged.
+    expect(urls[0]).toContain(`/models/${process.env.TRI_SEARCH_RERANK_MODEL || "gemini-3.5-flash"}:generateContent`);
+    const thinking = bodies[0].generationConfig.thinkingConfig;
+    expect(thinking).toEqual({ thinkingLevel: "low" });
+    expect(thinking).not.toHaveProperty("thinkingBudget");
+    // Round 10: sampling is dropped for the s1.3-listed ids only (gemini-3.8-flash / 3.6-flash / 3.5-flash-lite).
+    // The default gemini-3.5-flash is not one of them, so it keeps the temperature 0 main sent; PR 2's default
+    // (gemini-3.8-flash) is covered by the override test below.
+    if ((process.env.TRI_SEARCH_RERANK_MODEL || "gemini-3.5-flash") === "gemini-3.5-flash") expect(bodies[0].generationConfig.temperature).toBe(0);
+    // Gemini 3.x rejects a model-turn prefill (400, SPEC-v9 1.3): the last content is the user's.
+    expect(bodies[0].contents.at(-1).role).not.toBe("model");
+  });
+
+  it("condenseQuery sends the same thinking shape to the same model (thinkingBudget is removed on 3.6+)", async () => {
+    // Before: condenseQuery kept thinkingBudget:0 against RERANK_MODEL while the rerank call moved to
+    // thinkingLevel, so the rewrite would 400 and silently fall back to the raw question.
+    const bodies: any[] = [];
+    const urls: string[] = [];
+    const spyFetch = (async (url: string, init: { body: string }) => {
+      urls.push(String(url));
+      bodies.push(JSON.parse(init.body));
+      return { ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: "rewritten query" }] } }] }) } as unknown as Response;
+    }) as unknown as typeof fetch;
+    const r = await condenseQuery("and the cost?", ["audit tool calls"], { apiKey: "test", fetchImpl: spyFetch });
+    expect(r.status).toBe("rewritten");
+    expect(urls[0]).toContain(`/models/${process.env.TRI_SEARCH_RERANK_MODEL || "gemini-3.5-flash"}:generateContent`);
+    const thinking = bodies[0].generationConfig.thinkingConfig;
+    expect(thinking).toEqual({ thinkingLevel: "low" });
+    expect(thinking).not.toHaveProperty("thinkingBudget");
+    expect(JSON.stringify(bodies[0])).not.toContain("thinkingBudget");
+    if ((process.env.TRI_SEARCH_RERANK_MODEL || "gemini-3.5-flash") === "gemini-3.5-flash") expect(bodies[0].generationConfig.temperature).toBe(0); // not an s1.3 sampling-deprecated id (round 10)
+    expect(bodies[0].contents.at(-1).role).not.toBe("model");
+  });
+});
+
+// Persona: an operator pins TRI_SEARCH_RERANK_MODEL to a gemini-2.5 id (still in the repo's registry) while
+// the default moves to Gemini 3.x. thinkingLevel is a Gemini 3 field; sent to 2.5 it is rejected or ignored,
+// and both calls would quietly fall back to unranked order (PR #662 review round 6, P2). Not observed against
+// Google: the shape follows Google's thinking guide, as the Gemini 3.x cases above do.
+describe("thinking control follows the selected model (SPEC-v9 s1.3: keyed by exact id)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+  const run = async (model: string) => {
+    vi.stubEnv("TRI_SEARCH_RERANK_MODEL", model);
+    vi.resetModules();
+    const mod = await import("./triSearch");
+    const bodies: any[] = [];
+    const urls: string[] = [];
+    const spy = (async (url: string, init: { body: string }) => {
+      urls.push(String(url));
+      bodies.push(JSON.parse(init.body));
+      return { ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: "[1,0]" }] } }] }) } as unknown as Response;
+    }) as unknown as typeof fetch;
+    await mod.rerankWithGemini("entity funding", mod.rrfFuse([leg("linkup", ["a", "b"])]), { topN: 2, apiKey: "test", fetchImpl: spy });
+    await mod.condenseQuery("and the cost?", ["audit tool calls"], { apiKey: "test", fetchImpl: spy });
+    return { bodies, urls };
+  };
+
+  it("a gemini-2.5 override keeps thinkingBudget:0 and never gets thinkingLevel, in both calls", async () => {
+    const { bodies, urls } = await run("gemini-2.5-flash");
+    expect(bodies).toHaveLength(2);
+    for (const [i, body] of bodies.entries()) {
+      expect(urls[i]).toContain("/models/gemini-2.5-flash:generateContent");
+      expect(body.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 0 });
+      expect(JSON.stringify(body)).not.toContain("thinkingLevel");
+      // Sampling is deprecated only on the exact ids s1.3 lists: a 2.5 override keeps the temperature 0 main sent.
+      expect(body.generationConfig.temperature).toBe(0);
+    }
+  });
+
+  it("a gemini-3.x override gets thinkingLevel low and never thinkingBudget, in both calls", async () => {
+    const { bodies, urls } = await run("gemini-3.8-flash");
+    expect(bodies).toHaveLength(2);
+    for (const [i, body] of bodies.entries()) {
+      expect(urls[i]).toContain("/models/gemini-3.8-flash:generateContent");
+      expect(body.generationConfig.thinkingConfig).toEqual({ thinkingLevel: "low" });
+      expect(JSON.stringify(body)).not.toContain("thinkingBudget");
+      expectNoSampling(body);
+    }
   });
 });

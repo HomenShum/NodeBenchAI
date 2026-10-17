@@ -52,10 +52,40 @@ export interface RerankResult {
 export const RRF_K = 60;
 export const MAX_RERANK_CANDIDATES = 12;
 // NOTE: must be a real model id the key can reach (verified via GET /v1beta/models).
-// gemini-3.5-flash is a THINKING model — it MUST be paired with thinkingConfig.thinkingBudget:0
+// gemini-3.5-flash is a THINKING model — it MUST be paired with a low thinking level
 // below, else it spends the token budget on a reasoning preamble and never emits the bare index
-// array (verified: thinking-on tok=96 → no array; thinking-0 tok=256 → "[0,1,2]" in ~700ms).
+// array (verified with the since-removed thinkingBudget:0: thinking-on tok=96 → no array;
+// thinking-0 tok=256 → "[0,1,2]" in ~700ms). Gemini 3.x replaced thinkingBudget with
+// thinkingConfig.thinkingLevel (`minimal` is unsupported), so a 3.x model is sent "low"; a 2.5 override
+// still gets thinkingBudget:0 (geminiThinkingConfig).
 const RERANK_MODEL = process.env.TRI_SEARCH_RERANK_MODEL || "gemini-3.5-flash";
+/**
+ * Thinking control keyed by the model actually selected (SPEC-v9 s1.3: request shapes are keyed by
+ * exact model id; A.0.4: a TRI_SEARCH_RERANK_MODEL override keeps working). Gemini 3.x takes
+ * `thinkingLevel` and no longer accepts `thinkingBudget`; every other id, gemini-2.5-* included,
+ * keeps the `thinkingBudget: 0` that main sent, which is the field those models document.
+ */
+export function geminiThinkingConfig(model: string): { thinkingLevel: "low" } | { thinkingBudget: 0 } {
+    return isGemini3(model) ? { thinkingLevel: "low" } : { thinkingBudget: 0 };
+}
+
+function isGemini3(model: string): boolean {
+    return /^(models\/)?gemini-3/i.test(model.trim());
+}
+
+/** SPEC-v9 s1.3 lists `temperature` as deprecated for exactly these ids (keyed by exact id, never by prefix). */
+const SAMPLING_DEPRECATED_IDS: ReadonlySet<string> = new Set(["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"]);
+
+/**
+ * Sampling keyed by the exact model selected (SPEC-v9 s1.3): `temperature` is left out only for the ids
+ * s1.3 lists as deprecated and sent unchanged to every other id, so the frozen search judge
+ * (`benchmark.ts`, A.0.7) keeps `temperature: 0` on gemini-3.1-pro-preview, gemini-3-flash-preview and
+ * gemini-2.5-*. Spread it into `generationConfig`.
+ */
+export function geminiSamplingConfig(model: string, temperature: number): { temperature?: number } {
+    return SAMPLING_DEPRECATED_IDS.has(model.trim().toLowerCase().replace(/^models\//, "")) ? {} : { temperature };
+}
+
 const RERANK_TIMEOUT_MS = Number(process.env.TRI_SEARCH_RERANK_TIMEOUT_MS) || 6000;
 const MAX_TITLE = 120;
 const MAX_SNIPPET = 280;
@@ -137,9 +167,9 @@ export async function rerankWithGemini(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          // thinkingBudget:0 forces structured output on thinking models (3.x/2.5) so they
-          // emit the bare index array instead of a reasoning preamble; 256 tokens leaves room.
-          generationConfig: { temperature: 0, maxOutputTokens: 256, thinkingConfig: { thinkingBudget: 0 } },
+          // thinkingLevel "low" keeps thinking models (3.x) from spending the budget on a
+          // reasoning preamble so they emit the bare index array; 256 tokens leaves room.
+          generationConfig: { ...geminiSamplingConfig(RERANK_MODEL, 0), maxOutputTokens: 256, thinkingConfig: geminiThinkingConfig(RERANK_MODEL) },
         }),
         signal: AbortSignal.timeout(opts.timeoutMs ?? RERANK_TIMEOUT_MS),
       },
@@ -262,7 +292,10 @@ export async function condenseQuery(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0, maxOutputTokens: 128, thinkingConfig: { thinkingBudget: 0 } },
+          // Same Gemini 3.x model as the reranker: thinkingBudget is removed there (SPEC-v9 s1.3), so
+          // thinkingLevel "low" replaces it. Thinking counts toward the cap, so 256 (the rerank sizing)
+          // leaves room for a 400-char rewrite; a truncated reply would silently fall back to the raw question.
+          generationConfig: { ...geminiSamplingConfig(RERANK_MODEL, 0), maxOutputTokens: 256, thinkingConfig: geminiThinkingConfig(RERANK_MODEL) },
         }),
         signal: AbortSignal.timeout(opts.timeoutMs ?? RERANK_TIMEOUT_MS),
       },

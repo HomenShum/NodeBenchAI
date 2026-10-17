@@ -12,7 +12,7 @@ import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
-import { getLlmModel, resolveModelAlias, getModelWithFailover } from "../../../../shared/llm/modelCatalog";
+import { getLlmModel, resolveModelAlias, getModelWithFailover, anthropicText } from "../../../../shared/llm/modelCatalog";
 
 /**
  * Modern fast agent chat action
@@ -283,7 +283,8 @@ async function handleDocumentEdit(
  * Handle chat/question requests
  * Uses direct LLM call for quick responses
  */
-async function handleChatResponse(
+// Exported for providerCopies.requestShape.test.ts (SPEC-v9 A.0.6); not a Convex function.
+export async function handleChatResponse(
   ctx: ActionCtx,
   args: {
     message: string;
@@ -326,7 +327,7 @@ async function handleChatResponse(
       system: systemPrompt,
       messages: [{ role: "user", content: message }],
     });
-    response = completion.content[0]?.type === "text" ? completion.content[0].text : "I apologize, but I couldn't generate a response.";
+    response = anthropicText(completion.content) || "I apologize, but I couldn't generate a response.";
   } else if (provider === "gemini") {
     const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
     const result = await generateText({

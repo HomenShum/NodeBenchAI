@@ -26,7 +26,7 @@ import {
 } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import type { Id } from "../../_generated/dataModel";
-import { DEFAULT_PIPELINE_MODEL_ROUTE } from "../agents/mcp_tools/models/modelResolver";
+import { DEFAULT_PIPELINE_MODEL_ROUTE, assertKnownPipelineModel } from "../agents/mcp_tools/models/modelResolver";
 import {
   pipelineOwnerMatches,
   requireAuthenticatedPipelineOwnerKey,
@@ -71,6 +71,9 @@ export const createSchedule = mutation({
   handler: async (ctx, args) => {
     const ownerKey = await requireAuthenticatedPipelineOwnerKey(ctx);
     const launchText = normalizePipelineLaunchText(args);
+    // Same rule as startPipelineRun: an enabled schedule with an unknown model would count toward the
+    // owner's limit and be rejected by startPipelineRunInternal on every run (SPEC-v9 A.0.10).
+    assertKnownPipelineModel(launchText.modelId);
     const existingSchedules = await ctx.db
       .query("scheduledPipelineRuns")
       .withIndex("by_owner_createdAt", (q) => q.eq("ownerKey", ownerKey))

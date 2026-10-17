@@ -23,6 +23,7 @@ import {
   getLlmModel,
   resolveModelAlias,
   getModelWithFailover,
+  anthropicText,
 } from "../../../../shared/llm/modelCatalog";
 import { generateDedupJudgePrompt, type DedupVerdict } from "./postDedup";
 
@@ -53,7 +54,8 @@ interface DedupJudgmentResult {
 /**
  * Call LLM to judge dedup verdict.
  */
-async function callDedupJudge(prompt: string): Promise<JudgeResponse> {
+// Exported for providerCopies.requestShape.test.ts (SPEC-v9 A.0.6); not a Convex function.
+export async function callDedupJudge(prompt: string): Promise<JudgeResponse> {
   const { model: modelName, provider } = getModelWithFailover(
     resolveModelAlias(getLlmModel("judge"))
   );
@@ -71,9 +73,7 @@ async function callDedupJudge(prompt: string): Promise<JudgeResponse> {
         messages: [{ role: "user", content: prompt }],
       });
       content =
-        response.content[0]?.type === "text"
-          ? response.content[0].text
-          : undefined;
+        anthropicText(response.content) || undefined;
     } else if (provider === "gemini") {
       const google = createGoogleGenerativeAI({
         apiKey: process.env.GEMINI_API_KEY,

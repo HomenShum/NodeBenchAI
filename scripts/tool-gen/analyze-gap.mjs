@@ -13,6 +13,7 @@
 
 import { readFileSync, writeFileSync, appendFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const GAP_SPEC_PATH = "/tmp/gap-spec.json";
 const SUMMARY_PATH = "/tmp/gap-analysis-summary.txt";
@@ -42,7 +43,26 @@ function buildToolCatalog() {
   return catalog;
 }
 
-async function callClaude(systemPrompt, userPrompt) {
+/** The Messages API body. No sampling parameters: Claude 4.7+/5.x answer 400 to them. */
+export function buildClaudeRequest(systemPrompt, userPrompt) {
+  return {
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 2048,
+    system: systemPrompt,
+    messages: [{ role: "user", content: userPrompt }],
+  };
+}
+
+/** Concatenated text blocks. content[0] is a thinking block when adaptive thinking is on. */
+export function claudeText(data) {
+  const blocks = Array.isArray(data?.content) ? data.content : [];
+  return blocks
+    .filter((b) => b?.type === "text" && typeof b.text === "string")
+    .map((b) => b.text)
+    .join("");
+}
+
+export async function callClaude(systemPrompt, userPrompt) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("Missing ANTHROPIC_API_KEY");
 
@@ -53,12 +73,7 @@ async function callClaude(systemPrompt, userPrompt) {
       "anthropic-version": "2023-06-01",
       "content-type": "application/json",
     },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 2048,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-    }),
+    body: JSON.stringify(buildClaudeRequest(systemPrompt, userPrompt)),
   });
 
   if (!res.ok) {
@@ -66,8 +81,7 @@ async function callClaude(systemPrompt, userPrompt) {
     throw new Error(`Claude API ${res.status}: ${text}`);
   }
 
-  const data = await res.json();
-  return data.content[0].text;
+  return claudeText(await res.json());
 }
 
 async function main() {
@@ -170,7 +184,10 @@ Identify ONE tool gap. Return JSON:
   setOutput("gap_spec_path", GAP_SPEC_PATH);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// Run only as a script, so the request builder can be imported by tests.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

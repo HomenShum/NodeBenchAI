@@ -88,10 +88,7 @@ import {
   canReadAgentRunPresentation,
   projectAgentRunPresentation,
 } from "./agentRunPresentation";
-import {
-  FAST_AGENT_SIGN_IN_BENEFIT_COPY,
-  resolveFastAgentRequestedModel,
-} from "../../../../shared/llm/fastAgentRuntimeContract";
+import { FAST_AGENT_SIGN_IN_BENEFIT_COPY } from "../../../../shared/llm/fastAgentRuntimeContract";
 
 // Import tools
 import { fusionSearch, quickSearch } from "../../tools/search";
@@ -445,6 +442,8 @@ import {
   getLanguageModelSafe,
   normalizeModelInput,
   normalizeNodeBenchRuntimeModel,
+  normalizeFastAgentModel,
+  isFreeModel,
   DEFAULT_MODEL,
   isModelAvailable,
   type ApprovedModel,
@@ -2227,11 +2226,8 @@ export const createThread = action({
       throw new Error("Anonymous users must provide a session ID");
     }
 
-    const modelName = normalizeNodeBenchRuntimeModel(
-      resolveFastAgentRequestedModel({
-        isAnonymous,
-        requestedModel: args.model,
-      }),
+    const modelName = normalizeFastAgentModel(
+      { isAnonymous, requestedModel: args.model },
       isAnonymous ? "executor" : "advisor",
     );
 
@@ -2967,11 +2963,8 @@ export const initiateAsyncStreaming = mutation({
     const runtimeProfile = isAnonymous
       ? "executor"
       : args.useCoordinator !== false ? "advisor" : "executor";
-    const modelName = normalizeNodeBenchRuntimeModel(
-      resolveFastAgentRequestedModel({
-        isAnonymous,
-        requestedModel: args.model,
-      }),
+    const modelName = normalizeFastAgentModel(
+      { isAnonymous, requestedModel: args.model },
       runtimeProfile,
     );
     const chatAgent = createChatAgent(modelName);
@@ -4806,6 +4799,7 @@ export const streamAsync = internalAction({
           ...route.fallbackModels,
         ],
         excludedModels: [activeModel, ...attemptedModels],
+        requireFree: isFreeModel(activeModel),
         isModelAvailable,
         checkModel: checkRuntimeModelAccess,
       });

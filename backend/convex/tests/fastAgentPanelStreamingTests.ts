@@ -18,7 +18,7 @@ export const testDeleteByStreamId = internalMutation({
     const threadId = await ctx.db.insert("chatThreadsStream", {
       userId,
       title: "Test Thread",
-      model: "gpt-5-chat-latest",
+      model: "gpt-5.4-mini", // gpt-5-chat-latest retired 2026-07-23 (SPEC-v9 A.2.10); the resolver refuses it (Homen D1)
       agentThreadId: "dummyAgentThread",
       pinned: false,
       createdAt: now,
@@ -34,7 +34,7 @@ export const testDeleteByStreamId = internalMutation({
       streamId: undefined,
       agentMessageId: "dummyAgentMessageId-1",
       status: "complete",
-      model: "gpt-5-chat-latest",
+      model: "gpt-5.4-mini", // gpt-5-chat-latest retired 2026-07-23 (SPEC-v9 A.2.10); the resolver refuses it (Homen D1)
       tokensUsed: { input: 1, output: 1 },
       elapsedMs: 1,
       createdAt: now,
@@ -74,7 +74,7 @@ export const testDeleteByAgentId = internalMutation({
     const threadId = await ctx.db.insert("chatThreadsStream", {
       userId,
       title: "Test Thread 2",
-      model: "gpt-5-chat-latest",
+      model: "gpt-5.4-mini", // gpt-5-chat-latest retired 2026-07-23 (SPEC-v9 A.2.10); the resolver refuses it (Homen D1)
       agentThreadId: "dummyAgentThread-2",
       pinned: false,
       createdAt: now,
@@ -91,7 +91,7 @@ export const testDeleteByAgentId = internalMutation({
       streamId: undefined,
       agentMessageId,
       status: "complete",
-      model: "gpt-5-chat-latest",
+      model: "gpt-5.4-mini", // gpt-5-chat-latest retired 2026-07-23 (SPEC-v9 A.2.10); the resolver refuses it (Homen D1)
       tokensUsed: { input: 1, output: 1 },
       elapsedMs: 1,
       createdAt: now,

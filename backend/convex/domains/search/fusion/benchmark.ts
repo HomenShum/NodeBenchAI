@@ -43,6 +43,8 @@ import { v } from "convex/values";
 import { action, internalMutation, internalQuery } from "../../../_generated/server";
 import { internal, api } from "../../../_generated/api";
 import type { SearchResponse, SearchSource, FusionSearchPayload } from "./types";
+import { anthropicText } from "../../../../../shared/llm/modelCatalog";
+import { geminiSamplingConfig } from "../../../../../shared/search/triSearch";
 import {
   normalizeModelInput,
   getModelSpec,
@@ -226,8 +228,8 @@ export interface JudgeResult {
   rawResponse?: string;
   /** Model used for evaluation */
   judgeModel: ApprovedModel;
-  /** Temperature used (should always be 0 for determinism) */
-  temperature: number;
+  /** Temperature actually sent to the judge; undefined = omitted, the provider default applied (Claude 4.7+/5.x and Gemini 3.x reject or deprecate it). */
+  temperature?: number;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -408,7 +410,7 @@ Respond in JSON format:
 function parseJudgeResponse(
   response: string,
   rubric: JudgeRubric,
-  metadata: { judgeModel: ApprovedModel; rawResponse: string }
+  metadata: { judgeModel: ApprovedModel; rawResponse: string; temperature?: number }
 ): JudgeResult {
   try {
     // Extract JSON from response (handle markdown code blocks)
@@ -443,7 +445,7 @@ function parseJudgeResponse(
       evaluatedAt: Date.now(),
       judgePromptVersion: JUDGE_PROMPT_VERSION,
       judgeModel: metadata.judgeModel,
-      temperature: JUDGE_TEMPERATURE,
+      temperature: metadata.temperature,
       rawResponse: metadata.rawResponse,
     };
   } catch (error) {
@@ -458,7 +460,7 @@ function parseJudgeResponse(
       evaluatedAt: Date.now(),
       judgePromptVersion: JUDGE_PROMPT_VERSION,
       judgeModel: metadata.judgeModel,
-      temperature: JUDGE_TEMPERATURE,
+      temperature: metadata.temperature,
       rawResponse: metadata.rawResponse,
     };
   }
@@ -511,8 +513,8 @@ export const evaluateSearch = action({
     judgeModel: v.string(),
     /** Version of the judge prompt used */
     judgePromptVersion: v.string(),
-    /** Temperature used (always 0 for determinism) */
-    temperature: v.number(),
+    /** Temperature actually sent to the judge; absent when it was omitted (provider default) */
+    temperature: v.optional(v.number()),
   }),
   handler: async (ctx, args) => {
     const mode = args.mode || "balanced";
@@ -548,10 +550,13 @@ export const evaluateSearch = action({
     const prompt = buildJudgePrompt(judgeInput, DEFAULT_RUBRIC);
 
     // Determine API endpoint and headers based on provider
-    // DETERMINISM: Temperature pinned to 0 for reproducible evaluations
+    // DETERMINISM: temperature is pinned to 0 where the provider takes it; what was actually sent is recorded in sentTemperature
     let llmResponse: string;
+    // The sampling actually sent, recorded below; undefined means omitted (provider default).
+    let sentTemperature: number | undefined;
 
     if (modelSpec.provider === "openai") {
+      sentTemperature = JUDGE_TEMPERATURE;
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -587,7 +592,7 @@ export const evaluateSearch = action({
         body: JSON.stringify({
           model: modelSpec.sdkId,
           max_tokens: 1500,
-          temperature: JUDGE_TEMPERATURE, // Pinned to 0 for determinism
+          // No temperature: Claude 4.7+/5.x answer 400 to non-default sampling.
           messages: [
             { role: "user", content: `You are an expert search quality evaluator. Respond only with valid JSON.\n\n${prompt}` },
           ],
@@ -600,8 +605,10 @@ export const evaluateSearch = action({
       }
 
       const data = await response.json();
-      llmResponse = data.content?.[0]?.text || "";
+      llmResponse = anthropicText(data.content);
     } else if (modelSpec.provider === "google") {
+      const sampling = geminiSamplingConfig(modelSpec.sdkId, JUDGE_TEMPERATURE);
+      sentTemperature = sampling.temperature;
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${modelSpec.sdkId}:generateContent?key=${process.env.GOOGLE_GENERATIVE_AI_API_KEY}`,
         {
@@ -609,7 +616,7 @@ export const evaluateSearch = action({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contents: [{ parts: [{ text: `You are an expert search quality evaluator. Respond only with valid JSON.\n\n${prompt}` }] }],
-            generationConfig: { temperature: JUDGE_TEMPERATURE, maxOutputTokens: 1500 }, // Pinned to 0 for determinism
+            generationConfig: { ...sampling, maxOutputTokens: 1500 }, // pinned to 0 for determinism; geminiSamplingConfig leaves temperature out only on the ids SPEC-v9 s1.3 lists as deprecated (3.8-flash, 3.6-flash, 3.5-flash-lite)
           }),
         }
       );
@@ -629,6 +636,7 @@ export const evaluateSearch = action({
     const judgeResult = parseJudgeResponse(llmResponse, DEFAULT_RUBRIC, {
       judgeModel,
       rawResponse: llmResponse,
+      temperature: sentTemperature,
     });
 
     // 5. Save evaluation artifact with determinism metadata
@@ -646,7 +654,7 @@ export const evaluateSearch = action({
     });
 
     console.log(`[evaluateSearch] Result: ${judgeResult.pass ? "PASS" : "FAIL"} (score: ${judgeResult.overallScore.toFixed(2)})`);
-    console.log(`[evaluateSearch] Determinism: model=${judgeModel}, promptVersion=${JUDGE_PROMPT_VERSION}, temp=${JUDGE_TEMPERATURE}`);
+    console.log(`[evaluateSearch] Determinism: model=${judgeModel}, promptVersion=${JUDGE_PROMPT_VERSION}, temp=${sentTemperature ?? "provider-default (omitted)"}`);
 
     return {
       judgeInput,
@@ -654,7 +662,7 @@ export const evaluateSearch = action({
       searchResponse,
       judgeModel,
       judgePromptVersion: JUDGE_PROMPT_VERSION,
-      temperature: JUDGE_TEMPERATURE,
+      temperature: sentTemperature,
     };
   },
 });
