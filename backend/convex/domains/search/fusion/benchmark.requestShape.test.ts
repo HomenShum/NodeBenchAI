@@ -75,7 +75,10 @@ describe("benchmark.evaluateSearch judge request shape", () => {
 
   // Round 7, P2: the metadata used to say temperature 0 whatever was sent. A saved evaluation must
   // describe the request it came from: omitted sampling is recorded as absent (provider default).
-  it.each(["claude-sonnet-4.6", "gemini-3.1-pro-preview", "gemini-3-flash-preview"])(
+  // Round 10: gemini-3.1-pro-preview and gemini-3-flash-preview left this list. SPEC-v9 s1.3 deprecates sampling
+  // for gemini-3.8-flash / 3.6-flash / 3.5-flash-lite only (keyed by exact id) and benchmark.ts is a frozen judge
+  // (A.0.7), so they keep the temperature 0 main sent (see the "records the temperature it sent" cases below).
+  it.each(["claude-sonnet-4.6"])(
     "%s judge omits temperature and records it as omitted in the result, the return value and the saved artifact",
     async (judge) => {
       const { result, captured, saved } = await run(judge);
@@ -90,7 +93,7 @@ describe("benchmark.evaluateSearch judge request shape", () => {
     },
   );
 
-  it.each(["gpt-5.4", "gemini-2.5-flash"])("%s judge records the temperature it sent (0)", async (judge) => {
+  it.each(["gpt-5.4", "gemini-2.5-flash", "gemini-3.1-pro-preview", "gemini-3-flash-preview"])("%s judge records the temperature it sent (0)", async (judge) => {
     const { result, captured, saved } = await run(judge);
     const sent = captured[0].body.generationConfig ?? captured[0].body;
     expect(sent.temperature).toBe(0);
@@ -108,13 +111,13 @@ describe("benchmark.evaluateSearch judge request shape", () => {
     expect(captured[0].body.messages.at(-1).role).toBe("user");
   });
 
-  it("Gemini judge sends no sampling keys (deprecated on Gemini 3.x, SPEC-v9 s1.3), with the model in the URL", async () => {
-    // Round 3: this test used to require generationConfig.temperature === 0 and would have blocked
-    // the removal; ignored today, a 400 later. The determinism pin stays on the OpenAI and the
-    // other judges.
+  it("Gemini 3 judge keeps temperature 0 and sends no other sampling keys, with the model in the URL", async () => {
+    // Round 10: this test (round 3) required NO temperature on gemini-3.1-pro-preview. s1.3 does not list that id
+    // and the judge is frozen, so the calibration main had (temperature 0) is kept; topP/topK were never sent.
     const { captured } = await run("gemini-3.1-pro-preview");
     expect(captured[0].url).toContain("/models/gemini-3.1-pro-preview:generateContent");
-    for (const key of ["temperature", "topP", "topK", "top_p", "top_k"]) expect(captured[0].body.generationConfig, key).not.toHaveProperty(key);
+    expect(captured[0].body.generationConfig.temperature).toBe(0);
+    for (const key of ["topP", "topK", "top_p", "top_k"]) expect(captured[0].body.generationConfig, key).not.toHaveProperty(key);
     expect(captured[0].body.generationConfig.maxOutputTokens).toBe(1500);
     // A model-turn prefill is a 400 on Gemini 3.x; a content with no role is a user turn.
     expect(captured[0].body.contents.at(-1).role ?? "user").toBe("user");

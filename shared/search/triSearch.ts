@@ -73,13 +73,17 @@ function isGemini3(model: string): boolean {
     return /^(models\/)?gemini-3/i.test(model.trim());
 }
 
+/** SPEC-v9 s1.3 lists `temperature` as deprecated for exactly these ids (keyed by exact id, never by prefix). */
+const SAMPLING_DEPRECATED_IDS: ReadonlySet<string> = new Set(["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"]);
+
 /**
- * Sampling keyed by the model actually selected (SPEC-v9 s1.3): `temperature` is deprecated on Gemini
- * 3.x only, so it is left out there and sent unchanged to every other id (a gemini-2.5-* override keeps
- * the determinism main gave it). Spread it into `generationConfig`.
+ * Sampling keyed by the exact model selected (SPEC-v9 s1.3): `temperature` is left out only for the ids
+ * s1.3 lists as deprecated and sent unchanged to every other id, so the frozen search judge
+ * (`benchmark.ts`, A.0.7) keeps `temperature: 0` on gemini-3.1-pro-preview, gemini-3-flash-preview and
+ * gemini-2.5-*. Spread it into `generationConfig`.
  */
 export function geminiSamplingConfig(model: string, temperature: number): { temperature?: number } {
-    return isGemini3(model) ? {} : { temperature };
+    return SAMPLING_DEPRECATED_IDS.has(model.trim().toLowerCase().replace(/^models\//, "")) ? {} : { temperature };
 }
 
 const RERANK_TIMEOUT_MS = Number(process.env.TRI_SEARCH_RERANK_TIMEOUT_MS) || 6000;

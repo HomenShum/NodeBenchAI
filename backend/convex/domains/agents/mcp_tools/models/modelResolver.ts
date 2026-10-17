@@ -1086,6 +1086,15 @@ function refuseKnownUnregisteredModel(input: string): void {
 }
 
 /**
+ * The two ids whose `LEGACY_ALIASES` row is lossy: `claude-sonnet-4-5-20250929` -> `claude-sonnet-4` and
+ * `claude-opus-4-5-20251101` -> `claude-opus-4` (wire ids `...-4-20250514`, retired 2026-06-15). The shared
+ * catalog already sends both unchanged (`LEGACY_PASSTHROUGH_IDS`). `resolveModelAlias` keeps the rows
+ * for persisted data; every fail-closed entry point refuses these ids instead. PR 2 (SPEC-v9 modelResolver.ts:710,
+ * A.1 deadline 2026-11-30) maps them to `claude-sonnet-5-5` / `claude-opus-5-5` and deletes this set.
+ */
+const LOSSY_SNAPSHOT_IDS: ReadonlySet<string> = new Set(["claude-sonnet-4-5-20250929", "claude-opus-4-5-20251101"]);
+
+/**
  * Resolve untrusted input to an approved alias or fail closed (SPEC-v9 A.0.10):
  *   - empty input                       -> DEFAULT_MODEL
  *   - known alias                       -> that alias
@@ -1099,6 +1108,10 @@ function resolveOrFailClosed(
   caller: string,
 ): ApprovedModel {
   if (!input) return DEFAULT_MODEL;
+  // Homen D1: a snapshot LEGACY_ALIASES maps to an older, retired family is refused, not run as that family.
+  if (LOSSY_SNAPSHOT_IDS.has(input.trim().toLowerCase())) {
+    throw new RefusedModelError(input, "a dated snapshot whose only alias here is a different, retired model (see LEGACY_ALIASES); PR 2 registers it as itself, so it is never rerouted to that model");
+  }
   const resolved = resolveModelAlias(input);
   if (resolved) return resolved;
   refuseKnownUnregisteredModel(input);

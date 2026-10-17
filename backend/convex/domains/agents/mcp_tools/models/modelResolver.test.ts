@@ -545,6 +545,44 @@ describe("D1: SPEC-v9 1.2 OpenRouter and Bedrock wire ids are refused with the r
   });
 });
 
+// Persona: an operator pins a dated Claude snapshot that is still served (claude-sonnet-4-5-20250929 until
+// 2026-11-30; claude-opus-4-5-20251101 is active). LEGACY_ALIASES maps them to claude-sonnet-4 / claude-opus-4
+// (wire ids ...-4-20250514, retired 2026-06-15), so the fallback helpers called a retired model first and
+// reported "no fallback used" (PR #662 review round 7 P1 -> round 10). The id is refused instead; PR 2 maps it.
+describe("D1: a dated snapshot whose only alias is a retired family is refused, not run as that family (PR #662 round 10)", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  const snapshots = ["claude-sonnet-4-5-20250929", "claude-opus-4-5-20251101", " Claude-Sonnet-4-5-20250929 "];
+
+  it("every fail-closed entry point refuses it, and the fallback callback is never invoked", async () => {
+    for (const id of snapshots) {
+      for (const call of [
+        () => getLanguageModelSafe(id),
+        () => getLanguageModelSafe(id, { allowPaidFallback: true }),
+        () => normalizeModelInput(id),
+        () => normalizeNodeBenchRuntimeModel(id),
+        () => assertKnownModelInput(id),
+        () => getFallbackChain(id as never),
+        () => getLanguageModelWithFallback(id as never),
+      ]) {
+        expect(call, id).toThrow(RefusedModelError);
+      }
+      const tried: string[] = [];
+      await expect(executeWithModelFallback(async (_m, alias) => { tried.push(alias); return "ok"; }, { startModel: id as never })).rejects.toBeInstanceOf(RefusedModelError);
+      expect(tried, id).toEqual([]);
+    }
+  });
+
+  it("the alias rows stay for persisted data (resolveModelAlias unchanged; PR 2 repoints them)", () => {
+    expect(resolveModelAlias("claude-sonnet-4-5-20250929")).toBe("claude-sonnet-4");
+    expect(resolveModelAlias("claude-opus-4-5-20251101")).toBe("claude-opus-4");
+  });
+});
+
 // Persona: a visitor who has not signed in opens the FastAgent panel and a script (or a stale client) sends
 // a model field. The anonymous lane is bounded, but what was ASKED for is still validated first: an unknown
 // id throws at the public boundary, and a free request never becomes the paid bounded model

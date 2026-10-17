@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { rrfFuse, rerankWithGemini, triSearch, condenseQuery, RRF_K, type TriCandidate } from "./triSearch";
+import { rrfFuse, geminiSamplingConfig, rerankWithGemini, triSearch, condenseQuery, RRF_K, type TriCandidate } from "./triSearch";
 
 // Scenario-based tests (.claude/rules/scenario_testing.md).
 // Persona: a founder/analyst running entity due-diligence; the grounding harness
@@ -190,6 +190,15 @@ const expectNoSampling = (body: any) => {
   }
 };
 
+describe("geminiSamplingConfig - keyed by exact id (SPEC-v9 s1.3)", () => {
+  it.each(["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "models/gemini-3.8-flash"])("%s omits temperature", (m) => {
+    expect(geminiSamplingConfig(m, 0)).toEqual({});
+  });
+  it.each(["gemini-3.5-flash", "gemini-3.1-pro-preview", "gemini-3-flash-preview", "gemini-3.1-flash-lite-preview", "gemini-2.5-flash"])("%s keeps temperature 0", (m) => {
+    expect(geminiSamplingConfig(m, 0)).toEqual({ temperature: 0 });
+  });
+});
+
 describe("rerankWithGemini - request shape (Gemini 3.x)", () => {
   // SPEC-v9 s1.3: Gemini 3.x replaced thinkingBudget with thinkingLevel (`minimal` unsupported).
   // thinkingBudget:0 is how this reranker used to keep a thinking model from spending its
@@ -216,7 +225,10 @@ describe("rerankWithGemini - request shape (Gemini 3.x)", () => {
     const thinking = bodies[0].generationConfig.thinkingConfig;
     expect(thinking).toEqual({ thinkingLevel: "low" });
     expect(thinking).not.toHaveProperty("thinkingBudget");
-    expectNoSampling(bodies[0]);
+    // Round 10: sampling is dropped for the s1.3-listed ids only (gemini-3.8-flash / 3.6-flash / 3.5-flash-lite).
+    // The default gemini-3.5-flash is not one of them, so it keeps the temperature 0 main sent; PR 2's default
+    // (gemini-3.8-flash) is covered by the override test below.
+    if ((process.env.TRI_SEARCH_RERANK_MODEL || "gemini-3.5-flash") === "gemini-3.5-flash") expect(bodies[0].generationConfig.temperature).toBe(0);
     // Gemini 3.x rejects a model-turn prefill (400, SPEC-v9 1.3): the last content is the user's.
     expect(bodies[0].contents.at(-1).role).not.toBe("model");
   });
@@ -238,7 +250,7 @@ describe("rerankWithGemini - request shape (Gemini 3.x)", () => {
     expect(thinking).toEqual({ thinkingLevel: "low" });
     expect(thinking).not.toHaveProperty("thinkingBudget");
     expect(JSON.stringify(bodies[0])).not.toContain("thinkingBudget");
-    expectNoSampling(bodies[0]);
+    if ((process.env.TRI_SEARCH_RERANK_MODEL || "gemini-3.5-flash") === "gemini-3.5-flash") expect(bodies[0].generationConfig.temperature).toBe(0); // not an s1.3 sampling-deprecated id (round 10)
     expect(bodies[0].contents.at(-1).role).not.toBe("model");
   });
 });
