@@ -716,8 +716,9 @@ export function specOtherTransportWireId(input: string): string | null {
 /**
  * The 15 live `:free` ids of SPEC-v9 section 1.2 (read 2026-10-10), the only free ids Part A may
  * write. Re-checked 2026-10-31 against the public list: `nvidia/nemotron-3-super-120b-a12b:free` is no
- * longer listed and is replaced here by `recursive/flint-v1.0:free` (the free lane); the two laguna rows
- * stay because they are registered aliases on `main`.
+ * longer listed, so it is not LIVE and is no longer in this set (it stays known, see
+ * `refuseRetiredFreeWireId`); `recursive/flint-v1.0:free` (the free lane) takes its slot. The two laguna
+ * rows stay because they are registered aliases on `main`.
  *
  * Homen D1: each is known, so a request for one is never rerouted to the free lane. The
  * resolver sends the unregistered ones unchanged on OpenRouter; this catalog has no OpenRouter
@@ -745,6 +746,20 @@ export const SPEC_LIVE_FREE_WIRE_IDS: ReadonlySet<string> = new Set([
 export function specLiveFreeWireId(input: string): string | null {
   const normalized = input.trim().toLowerCase();
   return SPEC_LIVE_FREE_WIRE_IDS.has(normalized) ? normalized : null;
+}
+
+/**
+ * The first free pick, listed in SPEC-v9 section 1.2 and therefore KNOWN (Homen D1), that left the public
+ * OpenRouter list on 2026-10-31. Re-picking the free lane replaces it only as the lane's target: a request
+ * for it is refused with the reason at every boundary, never rerouted to `recursive/flint-v1.0:free`.
+ */
+const SPEC_RETIRED_FREE_WIRE_IDS: ReadonlySet<string> = new Set(["nvidia/nemotron-3-super-120b-a12b:free"]);
+
+/** Throws `RefusedModelError` ("retired upstream") when the input is a retired section 1.2 `:free` id. */
+export function refuseRetiredFreeWireId(input: string): void {
+  if (SPEC_RETIRED_FREE_WIRE_IDS.has(input.trim().toLowerCase())) {
+    throw new RefusedModelError(input, "a SPEC-v9 section 1.2 free id that is retired upstream (not in the public OpenRouter list on 2026-10-31); it is never rerouted to the free lane or another model");
+  }
 }
 
 /**
@@ -1109,6 +1124,7 @@ function isKnownCatalogModel(model: string): boolean {
  * environment: whether a provider is configured is dispatch's concern, not validation's.
  */
 export function assertKnownModel(input: string): void {
+  refuseRetiredFreeWireId(input);
   // The catalog's own short aliases ("kimi", "moonshotai/kimi-k2.6", "gpt5", ...) are known ids
   // (Homen D1), so they are resolved here instead of relying on every caller to do it first.
   const model = resolveModelAlias(input);

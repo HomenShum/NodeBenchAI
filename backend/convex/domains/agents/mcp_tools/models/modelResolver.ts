@@ -30,6 +30,7 @@ import {
   modelEquivalents,
   modelPricing,
   ownEntry,
+  refuseRetiredFreeWireId,
   specLiveFreeWireId,
   specOtherTransportWireId,
 } from "../../../../../../shared/llm/modelCatalog";
@@ -675,11 +676,13 @@ export const MODEL_SPECS: Record<ApprovedModel, ModelSpec> = {
   // public OpenRouter list (https://openrouter.ai/api/v1/models, fetched 2026-10-31T20:01Z, no expiration_date,
   // created 2026-10-21; SPEC-v9 re-pick). LIVE-UNVERIFIED: no OpenRouter key exists, so no request was made.
   // isFreeModel() derives "free" from the zero pricing below, which is what costClass: free means in this repo.
+  // structuredOutputs is false: the row lists response_format (json_object) but not structured_outputs, so
+  // json_schema support is unverified (fetched 2026-10-31T22:56Z, 452 rows); flip it only on evidence.
   "flint-v1-free": {
     alias: "flint-v1-free",
     provider: "openrouter",
     sdkId: FREE_LANE_WIRE_ID,
-    capabilities: { vision: false, toolUse: true, streaming: true, structuredOutputs: true, maxContext: 262_144 },
+    capabilities: { vision: false, toolUse: true, streaming: true, structuredOutputs: false, maxContext: 262_144 },
     pricing: { inputPerMillion: 0.00, outputPerMillion: 0.00 },
   },
   "laguna-s-2.1-free": {
@@ -890,7 +893,7 @@ export const LEGACY_ALIASES: Record<string, ApprovedModel> = {
   "nemotron-70b": "nemotron-3-nano-free",
   // Free lane: the OpenRouter wire id resolves to the typed alias (SPEC-v9 A.2.10 PR 1).
   // nvidia/nemotron-3-super-120b-a12b:free (the first pick) left the public list on 2026-10-31 and has no
-  // row: it is an unknown free-looking id, which resolveOrFailClosed sends to FREE_LANE_MODEL.
+  // row: it is a known section 1.2 id that is retired upstream, which refuseRetiredFreeWireId refuses.
   "recursive/flint-v1.0:free": "flint-v1-free",
   // Current free model aliases (verified July 22, 2026)
   "poolside/laguna-s-2.1:free": "laguna-s-2.1-free",
@@ -1070,6 +1073,7 @@ export function getPaidFallbackCount(): number {
  * Call after the alias lookup missed.
  */
 function refuseKnownUnregisteredModel(input: string): void {
+  refuseRetiredFreeWireId(input);
   const normalized = input.trim().toLowerCase();
   if (specLiveFreeWireId(normalized) !== null) {
     throw new RefusedModelError(input, "a live free OpenRouter id of SPEC-v9 section 1.2 that this entry point registers in PR 2; it is never rerouted to the free lane");
@@ -1150,22 +1154,18 @@ export function refuseReroutedKnownId(...forms: string[]): void {
  *   - unknown, free-looking             -> FREE_LANE_MODEL (never a paid id)
  *   - unknown, allowPaidFallback===true -> DEFAULT_MODEL, counted and annotated
  *   - unknown otherwise                 -> throws UnknownModelError
- * `rerouteUnknownFreeLooking: false` (the fallback helpers) removes the free-lane row for an unknown id:
- * only the free route aliases (a documented mapping, `routeAliasToModel`) still resolve to the lane, so
- * `x-free` throws instead of running as another model (Homen D1: unknown ids fail closed).
  */
 function resolveOrFailClosed(
   input: string | undefined | null,
   opts: UnknownModelOptions | undefined,
   caller: string,
-  rerouteUnknownFreeLooking = true,
 ): ApprovedModel {
   if (!input) return DEFAULT_MODEL;
   refuseReroutedKnownId(input); // Homen D1: a known id is refused, not run as a different model
   const resolved = resolveModelAlias(input);
   if (resolved) return resolved;
   refuseKnownUnregisteredModel(input);
-  if (isFreeLookingModelInput(input) && (rerouteUnknownFreeLooking || routeAliasToModel(input.trim().toLowerCase())?.routeTier === "free")) {
+  if (isFreeLookingModelInput(input)) {
     console.warn(`[modelResolver] ${caller}: unknown free-looking model "${input}" -> ${FREE_LANE_MODEL}`);
     return FREE_LANE_MODEL;
   }
@@ -1442,8 +1442,8 @@ export function getLanguageModelWithFallback(preferredModel?: ApprovedModel): {
   fallbackChain: ApprovedModel[];
 } {
   // The start model arrives from public actions as an unvalidated string (pdfInsights): resolve it
-  // first, so any unknown id throws UnknownModelError (only the free route aliases take the free lane).
-  const modelId = resolveOrFailClosed(preferredModel, undefined, "getLanguageModelWithFallback", false);
+  // first, so an unknown id throws UnknownModelError / a free-looking one takes the free lane (A.0.10).
+  const modelId = resolveOrFailClosed(preferredModel, undefined, "getLanguageModelWithFallback");
   const spec = MODEL_SPECS[modelId];
   const chain = fallbackChainFrom(modelId, "getLanguageModelWithFallback");
 
@@ -1459,9 +1459,9 @@ export function getLanguageModelWithFallback(preferredModel?: ApprovedModel): {
  * Execute a model call with automatic fallback on failure
  * This is the recommended way to call models with FREE-FIRST strategy
  *
- * The start model is never swapped for another: an unknown id (free-looking ones included) throws
- * UnknownModelError before `fn` runs, and only a free route alias (`auto-free`, ...) maps to the free lane.
- * Every later move is a counted fallback.
+ * The start model is resolved first (A.0.10): an unknown id throws UnknownModelError before `fn` runs, an
+ * unknown free-looking one takes the free lane, and a known id is never swapped. Every later move is a
+ * counted fallback.
  *
  * @param fn - Async function that takes a LanguageModel and returns a result
  * @param options - Optional configuration
@@ -1477,7 +1477,7 @@ export async function executeWithModelFallback<T>(
 ): Promise<{ result: T; modelUsed: ApprovedModel; isFree: boolean; fallbacksUsed: number }> {
   const { startModel = DEFAULT_MODEL, maxRetries = RETRY_CONFIG.maxRetries, onFallback } = options ?? {};
 
-  let currentModel = resolveOrFailClosed(startModel, undefined, "executeWithModelFallback", false);
+  let currentModel = resolveOrFailClosed(startModel, undefined, "executeWithModelFallback");
   let fallbacksUsed = 0;
   let lastError: Error | null = null;
 
@@ -1557,6 +1557,6 @@ export function getBestFreeModel(): ApprovedModel {
  * Get the fallback chain starting from a given model
  */
 export function getFallbackChain(startModel: ApprovedModel = DEFAULT_MODEL): ApprovedModel[] {
-  const start = resolveOrFailClosed(startModel, undefined, "getFallbackChain", false);
+  const start = resolveOrFailClosed(startModel, undefined, "getFallbackChain");
   return fallbackChainFrom(start, "getFallbackChain");
 }

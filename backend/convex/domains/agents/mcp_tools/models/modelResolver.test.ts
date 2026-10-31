@@ -29,7 +29,7 @@ import {
 import { ANONYMOUS_FAST_AGENT_MODEL_ID } from "../../../../../../shared/llm/fastAgentRuntimeContract";
 import { chooseNodeBenchRuntimeRoute } from "../../runtimeRouting";
 import { parseModelKey } from "../../../pipelines/piRuntime";
-import { LEGACY_PASSTHROUGH_IDS, RefusedModelError, SPEC_BEDROCK_WIRE_IDS, SPEC_LIVE_FREE_WIRE_IDS, SPEC_NATIVE_WIRE_IDS, SPEC_OPENROUTER_WIRE_IDS, modelAliases, modelEquivalents, modelPricing } from "../../../../../../shared/llm/modelCatalog";
+import { LEGACY_PASSTHROUGH_IDS, RefusedModelError, getModelWithFailover, SPEC_BEDROCK_WIRE_IDS, SPEC_LIVE_FREE_WIRE_IDS, SPEC_NATIVE_WIRE_IDS, SPEC_OPENROUTER_WIRE_IDS, modelAliases, modelEquivalents, modelPricing } from "../../../../../../shared/llm/modelCatalog";
 
 describe("pipeline model route resolution", () => {
   it("maps NodeBench auto routes to approved runtime aliases", () => {
@@ -96,6 +96,10 @@ describe("free lane registration (Codex v3 N2)", () => {
       sdkId: FREE_LANE_WIRE_ID,
       pricing: { inputPerMillion: 0, outputPerMillion: 0 },
     });
+  });
+
+  it("does not advertise json_schema: the public row lists response_format but not structured_outputs", () => {
+    expect(MODEL_SPECS[FREE_LANE_MODEL].capabilities.structuredOutputs).toBe(false);
   });
 
   it("resolves the OpenRouter wire id to the typed alias", () => {
@@ -332,19 +336,19 @@ describe("the fallback helpers resolve an unvalidated start model first (A.0.10,
     vi.restoreAllMocks();
   });
 
-  // Was: "free-looking unknown %s resolves to the free lane in all three helpers" (x-free, retired-model-free,
-  // someone/new:free ran as the free lane, with only a console.warn). Homen D1 (PR #662 judge round): an unknown
-  // id fails closed in the fallback helpers; the result must never name a model the caller did not ask for.
-  // The 2026-10-31 re-pick adds a real case: the first free pick, nvidia/nemotron-3-super-120b-a12b:free, left
-  // the public list and has no registry row, so a persisted caller asking for it must hear "unknown", not run flint.
-  it.each(["x-free", "retired-model-free", "someone/new:free", "nvidia/nemotron-3-super-120b-a12b:free"])(
-    "unknown free-looking %s fails closed in all three helpers and never calls the model",
+  // SPEC-v9 A.0.10: an unknown free-looking id resolves to the repo's free constant in the helpers too,
+  // exactly as in the public resolvers (the cost class is kept; it never becomes a paid id). A round-1
+  // judge finding (a77b96ff made these throw, one input under two rules) restored this.
+  it.each(["x-free", "retired-model-free", "someone/new:free", "invented:free"])(
+    "free-looking unknown %s resolves to the free lane in all three helpers",
     async (id) => {
-      const fn = vi.fn(async (_m: unknown, used: string) => used);
-      await expect(executeWithModelFallback(fn, { startModel: id as never })).rejects.toBeInstanceOf(UnknownModelError);
-      expect(fn).not.toHaveBeenCalled();
-      expect(() => getFallbackChain(id as never)).toThrow(UnknownModelError);
-      expect(() => getLanguageModelWithFallback(id as never)).toThrow(UnknownModelError);
+      const r = await executeWithModelFallback(async (_m, used) => used, { startModel: id as never });
+      expect(r.modelUsed).toBe(FREE_LANE_MODEL);
+      expect(r.isFree).toBe(true);
+      const chain = getFallbackChain(id as never);
+      expect(chain[0]).toBe(FREE_LANE_MODEL);
+      expect(chain.every((m) => isFreeModel(m))).toBe(true);
+      expect(getLanguageModelWithFallback(id as never).modelId).toBe(FREE_LANE_MODEL);
     },
   );
 
@@ -361,10 +365,41 @@ describe("the fallback helpers resolve an unvalidated start model first (A.0.10,
     },
   );
 
+  it("a non-free unknown id still throws in all three helpers and never calls the model", async () => {
+    const fn = vi.fn(async (_m: unknown, used: string) => used);
+    await expect(executeWithModelFallback(fn, { startModel: "not-a-model" as never })).rejects.toBeInstanceOf(UnknownModelError);
+    expect(fn).not.toHaveBeenCalled();
+    expect(() => getFallbackChain("not-a-model" as never)).toThrow(UnknownModelError);
+    expect(() => getLanguageModelWithFallback("not-a-model" as never)).toThrow(UnknownModelError);
+  });
+
+  // Homen D1: nvidia/nemotron-3-super-120b-a12b:free is listed in SPEC-v9 section 1.2, so it is KNOWN. The
+  // 2026-10-31 re-pick retires it only as the free-lane target (it left the public list): a request for it is
+  // refused with the reason at every boundary, never run as flint.
+  it("the retired section 1.2 free id is known and refused (not rerouted) at every boundary", async () => {
+    const id = "nvidia/nemotron-3-super-120b-a12b:free";
+    const fn = vi.fn(async (_m: unknown, used: string) => used);
+    await expect(executeWithModelFallback(fn, { startModel: id as never })).rejects.toBeInstanceOf(RefusedModelError);
+    expect(fn).not.toHaveBeenCalled();
+    for (const call of [
+      () => getFallbackChain(id as never),
+      () => getLanguageModelWithFallback(id as never),
+      () => getLanguageModelSafe(id),
+      () => normalizeModelInput(id),
+      () => assertKnownModelInput(id),
+      () => resolvePipelineModelSelection(id),
+      () => resolvePipelineModelSelection(`openrouter:${id}`),
+      () => assertKnownPipelineModel(id),
+      () => getModelWithFailover(id),
+    ]) {
+      expect(call).toThrow(RefusedModelError);
+      expect(call).toThrow(/retired upstream/);
+    }
+  });
+
   it("the public-boundary resolvers keep SPEC-v9 A.0.10: an unknown free-looking id takes the free lane (cost class kept)", () => {
     expect(getLanguageModelSafe("x-free")).toBeDefined();
     expect(normalizeModelInput("x-free")).toBe(FREE_LANE_MODEL);
-    expect(normalizeModelInput("nvidia/nemotron-3-super-120b-a12b:free")).toBe(FREE_LANE_MODEL);
   });
 
   it("the registered free-lane wire id resolves through the alias table", async () => {
@@ -450,8 +485,9 @@ describe("Object.prototype keys are not models", () => {
 // Persona: a safety engineer asks for the content-safety classifier by its OpenRouter id. It is one of the
 // 15 live `:free` ids SPEC-v9 section 1.2 lists, so Homen D1 makes it known: it must reach OpenRouter as
 // that id, never come back as the general chat model nvidia/nemotron-3-super (PR #662 review round 6, P2).
-// 2026-10-31 re-check: nvidia/nemotron-3-super-120b-a12b:free left the public list; recursive/flint-v1.0:free
-// (the free lane) takes its slot in the set, so the set stays at 15 ids.
+// 2026-10-31 re-check: nvidia/nemotron-3-super-120b-a12b:free left the public list, so it is no longer LIVE;
+// it stays known and is refused as "retired upstream" (see the fallback-helper tests). recursive/flint-v1.0:free
+// (the free lane) takes its slot in the live set, so the set stays at 15 ids.
 describe("D1: the SPEC-v9 1.2 live :free ids are known and are never rerouted", () => {
   // Typed out here, not read from SPEC_LIVE_FREE_WIRE_IDS, so the set cannot drift from the spec unseen.
   const SPEC_1_2_FREE = [
