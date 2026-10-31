@@ -194,7 +194,7 @@ describe("piRuntime.parseModelKey", () => {
     expect(await parseModelKey("nodebench:auto-balanced")).toMatchObject({ resolvedAlias: "kimi-k2.6" });
     expect(await parseModelKey("x:free")).toMatchObject({
       provider: "openrouter",
-      modelId: "nvidia/nemotron-3-super-120b-a12b:free",
+      modelId: "recursive/flint-v1.0:free",
     });
     vi.restoreAllMocks();
   });

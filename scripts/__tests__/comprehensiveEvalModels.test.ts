@@ -17,7 +17,7 @@ import { identityViolations, runSingleEpisode, unresolvableModels } from "../run
 
 describe("unresolvableModels (--models aborts only on a value the resolver does not resolve)", () => {
   it("accepts approved ids", () => {
-    expect(unresolvableModels(["kimi-k2.6", "claude-sonnet-4.6", "gpt-5.4-mini", "nemotron-3-super-free"])).toEqual([]);
+    expect(unresolvableModels(["kimi-k2.6", "claude-sonnet-4.6", "gpt-5.4-mini", "flint-v1-free"])).toEqual([]);
   });
 
   it("flags ids the resolver does not know, including the removed minimax-m2.1 and Object.prototype keys", () => {

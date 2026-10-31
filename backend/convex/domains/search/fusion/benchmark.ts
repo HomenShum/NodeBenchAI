@@ -23,7 +23,8 @@
  * ═══════════════════════════════════════════════════════════════════════════
  *
  * For reproducible evaluations:
- * - Temperature is pinned to 0 (deterministic output)
+ * - Temperature is pinned to 0 where the judge's API accepts it; the value actually sent is stored as
+ *   judgeResult.temperature, and absent means it was omitted (provider default), never an assumed 0
  * - judgePromptVersion is stored with each evaluation
  * - Raw LLM response is stored for replay/debugging
  *
@@ -484,11 +485,12 @@ function parseJudgeResponse(
  * This prevents users from selecting expensive/slow models for evaluation.
  *
  * ═══════════════════════════════════════════════════════════════════════════
- * DETERMINISM: Temperature pinned to 0
+ * DETERMINISM: Temperature pinned to 0 where accepted; the value sent is the value recorded
  * ═══════════════════════════════════════════════════════════════════════════
  *
  * For reproducible evaluations:
- * - Temperature is pinned to 0 (deterministic output)
+ * - Temperature is pinned to 0 where the judge's API accepts it; the value actually sent is stored as
+ *   judgeResult.temperature, and absent means it was omitted (provider default), never an assumed 0
  * - judgePromptVersion is stored with each evaluation
  * - Raw LLM response is stored for replay/debugging
  */

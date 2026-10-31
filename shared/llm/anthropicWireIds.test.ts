@@ -211,7 +211,7 @@ describe("getModelWithFailover fails closed", () => {
 
   it("sends an unknown free-looking id to the free lane on OpenRouter as the WIRE id, never a paid default or the alias", () => {
     // The returned `model` goes straight into the provider request, so the alias
-    // `nemotron-3-super-free` must never be what comes back (SPEC-v9 A.2.10 rule (b)).
+    // `flint-v1-free` must never be what comes back (SPEC-v9 A.2.10 rule (b)).
     for (const id of ["retired-model-free", "someone/new-model:free"]) {
       expect(getModelWithFailover(id), id).toEqual({ model: FREE_LANE_WIRE_ID, provider: "openrouter", isFallback: true });
     }

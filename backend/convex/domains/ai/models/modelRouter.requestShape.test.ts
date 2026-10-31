@@ -99,11 +99,11 @@ describe("modelRouter.route request shape and cost class", () => {
   it("a free request is capped at free even when the registry chain holds a paid model (requireVision)", async () => {
     // Before: tier is a floor in the registry chain, so requireVision put glm-4.7-flash ($0.07/M)
     // in the free chain; it was dispatched and recorded isFree=false, actualTier=cheap.
-    resolveChain.mockReturnValue({ chain: ["glm-4.7-flash", "nemotron-3-super-free"], reason: "ok", diagnostics: { primaryOutcome: "primary", candidatePoolSize: 2 } });
+    resolveChain.mockReturnValue({ chain: ["glm-4.7-flash", "flint-v1-free"], reason: "ok", diagnostics: { primaryOutcome: "primary", candidatePoolSize: 2 } });
     const result = await call(makeCtx(), { tier: "free", requireVision: true });
     const tried = generateText.mock.calls.map((c) => (c[0].model as { modelId: string }).modelId);
-    expect(tried).toEqual(["nvidia/nemotron-3-super-120b-a12b:free"]);
-    expect(result.modelId).toBe("nemotron-3-super-free");
+    expect(tried).toEqual(["recursive/flint-v1.0:free"]);
+    expect(result.modelId).toBe("flint-v1-free");
     expect(result.isFree).toBe(true);
     expect(result.routing.actualTier).toBe("free");
     expect(result.costUsd).toBe(0);
@@ -117,39 +117,39 @@ describe("modelRouter.route request shape and cost class", () => {
 
   it("a pinned free-lane route is recorded as free, not as premium paid usage", async () => {
     const ctx = makeCtx();
-    const result = await call(ctx, { pinnedModel: "nemotron-3-super-free" });
+    const result = await call(ctx, { pinnedModel: "flint-v1-free" });
     expect(result.isFree).toBe(true);
     expect(result.costUsd).toBe(0);
     expect(result.routing.actualTier).toBe("free");
     const logged = (ctx.runMutation.mock.calls[0] as unknown as [unknown, Record<string, unknown>])[1];
-    expect(logged).toMatchObject({ modelId: "nemotron-3-super-free", actualTier: "free", costUsd: 0 });
+    expect(logged).toMatchObject({ modelId: "flint-v1-free", actualTier: "free", costUsd: 0 });
   });
 
-  it.each(["auto-free", "nvidia/nemotron-3-super-120b-a12b:free", "invented-free"])(
+  it.each(["auto-free", "recursive/flint-v1.0:free", "invented-free"])(
     "a pinned free alias or wire id (%s) is priced, classified, cached and logged as the free lane it dispatched to",
     async (pinnedModel) => {
       // Before: the raw string was priced ($1/$5 default), isFree false, actualTier "premium" even
       // though the request went to the free lane (audit data, PR #662 round 2).
       const ctx = makeCtx();
       const result = await call(ctx, { tier: "free", pinnedModel, cacheKey: `pin-${pinnedModel}` });
-      expect((generateText.mock.calls[0][0].model as { modelId: string }).modelId).toBe("nvidia/nemotron-3-super-120b-a12b:free");
+      expect((generateText.mock.calls[0][0].model as { modelId: string }).modelId).toBe("recursive/flint-v1.0:free");
       expect(generateText.mock.calls[0][0].messages.at(-1).role).toBe("user");
-      expect(result).toMatchObject({ modelId: "nemotron-3-super-free", isFree: true, costUsd: 0 });
+      expect(result).toMatchObject({ modelId: "flint-v1-free", isFree: true, costUsd: 0 });
       expect(result.routing.actualTier).toBe("free");
       const logged = (ctx.runMutation.mock.calls[0] as unknown as [unknown, Record<string, unknown>])[1];
-      expect(logged).toMatchObject({ modelId: "nemotron-3-super-free", actualTier: "free", costUsd: 0, pinnedModel });
+      expect(logged).toMatchObject({ modelId: "flint-v1-free", actualTier: "free", costUsd: 0, pinnedModel });
 
       generateText.mockClear();
       const cached = await call(makeCtx(), { tier: "free", pinnedModel, cacheKey: `pin-${pinnedModel}` });
       expect(generateText).not.toHaveBeenCalled();
-      expect(cached).toMatchObject({ modelId: "nemotron-3-super-free", isFree: true, fromCache: true });
+      expect(cached).toMatchObject({ modelId: "flint-v1-free", isFree: true, fromCache: true });
     },
   );
 
   // Round 5: a cache hit reported the requested tier ("standard") for a free answer the fresh dispatch
   // reported as "free". The cached model's own tier is reported either way.
   it("a cache hit reports the cached model's own tier, as the fresh dispatch did", async () => {
-    const args = { tier: "standard" as const, pinnedModel: "nemotron-3-super-free", cacheKey: "tier-on-cache-hit" };
+    const args = { tier: "standard" as const, pinnedModel: "flint-v1-free", cacheKey: "tier-on-cache-hit" };
     const fresh = await call(makeCtx(), args);
     expect(fresh.routing).toMatchObject({ requestedTier: "standard", actualTier: "free" });
     generateText.mockClear();

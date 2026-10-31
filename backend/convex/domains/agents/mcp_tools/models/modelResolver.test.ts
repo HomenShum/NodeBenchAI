@@ -39,8 +39,8 @@ describe("pipeline model route resolution", () => {
       routeTier: "balanced",
       isFreeRoute: false,
     });
-    // Was laguna-s-2.1-free: that lane expires on OpenRouter 2026-10-31, so auto-free
-    // resolves to FREE_LANE_MODEL (SPEC-v9 A.2.10 PR 1; NodeVideo's measured pick).
+    // Was laguna-s-2.1-free: that lane expires on OpenRouter 2026-10-31 (gone from the public list), so auto-free
+    // resolves to FREE_LANE_MODEL (SPEC-v9 A.2.10 PR 1; re-picked 2026-10-31, live-unverified).
     expect(resolvePipelineModelSelection("nodebench:auto-free")).toMatchObject({
       resolvedModelId: FREE_LANE_MODEL,
       routeTier: "free",
@@ -74,7 +74,7 @@ describe("pipeline model route resolution", () => {
 // Free lane registration and fail-closed resolution (SPEC-v9 A.0.10, A.2.10 PR 1)
 // ---------------------------------------------------------------------------
 
-const FREE_LANE_WIRE_ID = "nvidia/nemotron-3-super-120b-a12b:free";
+const FREE_LANE_WIRE_ID = "recursive/flint-v1.0:free";
 
 describe("free lane registration (Codex v3 N2)", () => {
   beforeEach(() => {
@@ -332,18 +332,43 @@ describe("the fallback helpers resolve an unvalidated start model first (A.0.10,
     vi.restoreAllMocks();
   });
 
-  it.each(["x-free", "retired-model-free", "someone/new:free"])("free-looking unknown %s resolves to the free lane in all three helpers", async (id) => {
-    const r = await executeWithModelFallback(async (_m, used) => used, { startModel: id as never });
-    expect(r.modelUsed).toBe(FREE_LANE_MODEL);
-    expect(r.isFree).toBe(true);
-    const chain = getFallbackChain(id as never);
-    expect(chain[0]).toBe(FREE_LANE_MODEL);
-    expect(chain.every((m) => isFreeModel(m))).toBe(true);
-    expect(getLanguageModelWithFallback(id as never).modelId).toBe(FREE_LANE_MODEL);
+  // Was: "free-looking unknown %s resolves to the free lane in all three helpers" (x-free, retired-model-free,
+  // someone/new:free ran as the free lane, with only a console.warn). Homen D1 (PR #662 judge round): an unknown
+  // id fails closed in the fallback helpers; the result must never name a model the caller did not ask for.
+  // The 2026-10-31 re-pick adds a real case: the first free pick, nvidia/nemotron-3-super-120b-a12b:free, left
+  // the public list and has no registry row, so a persisted caller asking for it must hear "unknown", not run flint.
+  it.each(["x-free", "retired-model-free", "someone/new:free", "nvidia/nemotron-3-super-120b-a12b:free"])(
+    "unknown free-looking %s fails closed in all three helpers and never calls the model",
+    async (id) => {
+      const fn = vi.fn(async (_m: unknown, used: string) => used);
+      await expect(executeWithModelFallback(fn, { startModel: id as never })).rejects.toBeInstanceOf(UnknownModelError);
+      expect(fn).not.toHaveBeenCalled();
+      expect(() => getFallbackChain(id as never)).toThrow(UnknownModelError);
+      expect(() => getLanguageModelWithFallback(id as never)).toThrow(UnknownModelError);
+    },
+  );
+
+  it.each(["free", "auto-free", "nodebench:auto-free", "kilo-auto/free", "openrouter/free"])(
+    "the documented free route alias %s still resolves to the free lane in all three helpers",
+    async (id) => {
+      const r = await executeWithModelFallback(async (_m, used) => used, { startModel: id as never });
+      expect(r.modelUsed).toBe(FREE_LANE_MODEL);
+      expect(r.isFree).toBe(true);
+      const chain = getFallbackChain(id as never);
+      expect(chain[0]).toBe(FREE_LANE_MODEL);
+      expect(chain.every((m) => isFreeModel(m))).toBe(true);
+      expect(getLanguageModelWithFallback(id as never).modelId).toBe(FREE_LANE_MODEL);
+    },
+  );
+
+  it("the public-boundary resolvers keep SPEC-v9 A.0.10: an unknown free-looking id takes the free lane (cost class kept)", () => {
+    expect(getLanguageModelSafe("x-free")).toBeDefined();
+    expect(normalizeModelInput("x-free")).toBe(FREE_LANE_MODEL);
+    expect(normalizeModelInput("nvidia/nemotron-3-super-120b-a12b:free")).toBe(FREE_LANE_MODEL);
   });
 
   it("the registered free-lane wire id resolves through the alias table", async () => {
-    expect(FREE_WIRE).toBe("nvidia/nemotron-3-super-120b-a12b:free");
+    expect(FREE_WIRE).toBe("recursive/flint-v1.0:free");
     const r = await executeWithModelFallback(async (_m, used) => used, { startModel: FREE_WIRE as never });
     expect(r.modelUsed).toBe(FREE_LANE_MODEL);
     expect(getFallbackChain(FREE_WIRE as never)[0]).toBe(FREE_LANE_MODEL);
@@ -425,6 +450,8 @@ describe("Object.prototype keys are not models", () => {
 // Persona: a safety engineer asks for the content-safety classifier by its OpenRouter id. It is one of the
 // 15 live `:free` ids SPEC-v9 section 1.2 lists, so Homen D1 makes it known: it must reach OpenRouter as
 // that id, never come back as the general chat model nvidia/nemotron-3-super (PR #662 review round 6, P2).
+// 2026-10-31 re-check: nvidia/nemotron-3-super-120b-a12b:free left the public list; recursive/flint-v1.0:free
+// (the free lane) takes its slot in the set, so the set stays at 15 ids.
 describe("D1: the SPEC-v9 1.2 live :free ids are known and are never rerouted", () => {
   // Typed out here, not read from SPEC_LIVE_FREE_WIRE_IDS, so the set cannot drift from the spec unseen.
   const SPEC_1_2_FREE = [
@@ -433,7 +460,7 @@ describe("D1: the SPEC-v9 1.2 live :free ids are known and are never rerouted", 
     "thinkingmachines/inkling:free", "poolside/laguna-xs-2.1:free", "cohere/north-mini-code:free",
     "nvidia/nemotron-3.5-content-safety:free", "nvidia/nemotron-3-ultra-550b-a55b:free",
     "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", "google/gemma-4-26b-a4b-it:free",
-    "google/gemma-4-31b-it:free", "nvidia/nemotron-3-super-120b-a12b:free",
+    "google/gemma-4-31b-it:free", "recursive/flint-v1.0:free",
   ];
   beforeEach(() => {
     vi.stubEnv("OPENROUTER_API_KEY", "test-key-not-real");
@@ -470,7 +497,7 @@ describe("D1: the SPEC-v9 1.2 live :free ids are known and are never rerouted", 
         () => resolvePipelineModelSelection(`openrouter:${id}`).resolvedModelId,
       ]) {
         if (registered) {
-          expect(call(), id).toBe(registered); // nemotron-super and laguna s/xs are registered aliases
+          expect(call(), id).toBe(registered); // flint (the free lane) and laguna s/xs are registered aliases
         } else {
           expect(call, id).toThrow(RefusedModelError);
         }

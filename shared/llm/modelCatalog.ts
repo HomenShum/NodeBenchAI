@@ -165,8 +165,8 @@ export const modelPricing: Record<string, ModelPricing> = {
   "glm-4.5-air-free": { inputPer1M: 0.00, outputPer1M: 0.00, contextWindow: 131072 },
   "deepseek-chimera-free": { inputPer1M: 0.00, outputPer1M: 0.00, contextWindow: 163840 },
   "venice-dolphin-free": { inputPer1M: 0.00, outputPer1M: 0.00, contextWindow: 32768 },
-  // FREE_LANE_MODEL (modelResolver.ts); wire id nvidia/nemotron-3-super-120b-a12b:free, 262,144-token context (SPEC-v9 A.2.10 PR 1)
-  "nemotron-3-super-free": { inputPer1M: 0.00, outputPer1M: 0.00, contextWindow: 262144 },
+  // FREE_LANE_MODEL (modelResolver.ts); wire id recursive/flint-v1.0:free, 262,144-token context (SPEC-v9 A.2.10 PR 1, re-picked 2026-10-31)
+  "flint-v1-free": { inputPer1M: 0.00, outputPer1M: 0.00, contextWindow: 262144 },
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -715,7 +715,11 @@ export function specOtherTransportWireId(input: string): string | null {
 
 /**
  * The 15 live `:free` ids of SPEC-v9 section 1.2 (read 2026-10-10), the only free ids Part A may
- * write. Homen D1: each is known, so a request for one is never rerouted to the free lane. The
+ * write. Re-checked 2026-10-31 against the public list: `nvidia/nemotron-3-super-120b-a12b:free` is no
+ * longer listed and is replaced here by `recursive/flint-v1.0:free` (the free lane); the two laguna rows
+ * stay because they are registered aliases on `main`.
+ *
+ * Homen D1: each is known, so a request for one is never rerouted to the free lane. The
  * resolver sends the unregistered ones unchanged on OpenRouter; this catalog has no OpenRouter
  * branch until PR 2, so it refuses them with a reason (`FREE_LANE_WIRE_ID` is the one it serves).
  */
@@ -734,7 +738,7 @@ export const SPEC_LIVE_FREE_WIRE_IDS: ReadonlySet<string> = new Set([
   "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
   "google/gemma-4-26b-a4b-it:free",
   "google/gemma-4-31b-it:free",
-  "nvidia/nemotron-3-super-120b-a12b:free",
+  "recursive/flint-v1.0:free",
 ]);
 
 /** The input, trimmed and lower-cased, when it is one of the 15 live free ids; else null. */
@@ -1050,10 +1054,10 @@ export function getEquivalentModel(modelName: string, targetProvider: LlmProvide
 
 /**
  * The verified free lane's OpenRouter wire id, typed once: modelResolver.ts imports it for
- * `MODEL_SPECS[FREE_LANE_MODEL].sdkId`. SPEC-v9 A.2.10: the alias `nemotron-3-super-free`
+ * `MODEL_SPECS[FREE_LANE_MODEL].sdkId`. SPEC-v9 A.2.10: the alias `flint-v1-free`
  * never reaches a provider.
  */
-export const FREE_LANE_WIRE_ID = "nvidia/nemotron-3-super-120b-a12b:free";
+export const FREE_LANE_WIRE_ID = "recursive/flint-v1.0:free";
 
 /**
  * The string to put in a provider request. Callers of `getModelWithFailover`
@@ -1071,7 +1075,7 @@ function toProviderWireId(model: string, provider: LlmProvider): string {
 /**
  * The verified free lane's alias, typed once: modelResolver.ts imports it as `FREE_LANE_MODEL`.
  */
-export const FREE_LANE_CATALOG_ID = "nemotron-3-super-free";
+export const FREE_LANE_CATALOG_ID = "flint-v1-free";
 
 /** The free route aliases; mirrors `routeAliasToModel` (routeTier "free") in modelResolver.ts. */
 const FREE_ROUTE_ALIASES = new Set(["free", "auto-free", "nodebench:auto-free", "kilo-auto/free", "openrouter/free"]);

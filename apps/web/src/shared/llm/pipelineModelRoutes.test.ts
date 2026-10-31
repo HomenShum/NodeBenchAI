@@ -25,12 +25,12 @@ describe("pipeline model routes", () => {
     expect(option).toMatchObject({
       label: "Auto free",
       provider: "openrouter",
-      // Was laguna-s-2.1-free: that lane expires on OpenRouter 2026-10-31, so auto-free
-      // resolves to FREE_LANE_MODEL (SPEC-v9 A.2.10 PR 1; NodeVideo's measured pick).
-      resolvedModelId: "nemotron-3-super-free",
+      // Was laguna-s-2.1-free: that lane expires on OpenRouter 2026-10-31 (gone from the public list), so auto-free
+      // resolves to FREE_LANE_MODEL (SPEC-v9 A.2.10 PR 1; re-picked 2026-10-31, live-unverified).
+      resolvedModelId: "flint-v1-free",
       isFree: true,
     });
-    expect(getPipelineModelRuntimeId(PIPELINE_MODEL_AUTO_FREE)).toBe("nemotron-3-super-free");
+    expect(getPipelineModelRuntimeId(PIPELINE_MODEL_AUTO_FREE)).toBe("flint-v1-free");
   });
 
   it("keeps direct models and route models in one selector bank", () => {

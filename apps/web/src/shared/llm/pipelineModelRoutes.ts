@@ -48,8 +48,8 @@ const AUTO_ROUTE_OPTIONS: PipelineModelOption[] = [
     detail: "Free-capable OpenRouter route for budget-sensitive runs.",
     provider: "openrouter",
     // Must equal routeAliasToModel("auto-free") in modelResolver.ts (FREE_LANE_MODEL):
-    // laguna-s-2.1:free expires on OpenRouter 2026-10-31 (SPEC-v9 A.1).
-    resolvedModelId: "nemotron-3-super-free",
+    // laguna-s-2.1:free left the public OpenRouter list by 2026-10-31 (SPEC-v9 A.1).
+    resolvedModelId: "flint-v1-free",
     isRoute: true,
     isFree: true,
   },

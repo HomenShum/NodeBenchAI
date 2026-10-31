@@ -53,7 +53,7 @@ describe("agentChatActions.continueThread fails closed on a stored model", () =>
 
   it("a free-looking stored model continues on the free lane, not a paid default", async () => {
     await (continueThread as any)._handler(ctxWith("retired-model-free"), { threadId: "t1", message: "hi" });
-    expect(createCoordinatorAgent).toHaveBeenCalledWith("nemotron-3-super-free");
+    expect(createCoordinatorAgent).toHaveBeenCalledWith("flint-v1-free");
   });
 
   it("a transient failure to read the thread still falls back to the default model", async () => {

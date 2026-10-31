@@ -104,6 +104,20 @@ describe("benchmark.evaluateSearch judge request shape", () => {
     expect(logged).toContain("temp=0");
   });
 
+  // PR #662 judge round (2026-10-31): the recorded temperature must be the value on the wire for every branch,
+  // so a future change to what is sent cannot leave the metadata saying something else.
+  it.each(["claude-sonnet-4.6", "gpt-5.4", "gemini-2.5-flash", "gemini-3.1-pro-preview", "gemini-3-flash-preview"])(
+    "%s judge: result, return value and saved artifact equal the temperature in the request body (absent when omitted)",
+    async (judge) => {
+      const { result, captured, saved } = await run(judge);
+      const sent = (captured[0].body.generationConfig ?? captured[0].body).temperature;
+      expect(result.judgeResult.temperature).toBe(sent);
+      expect(result.temperature).toBe(sent);
+      expect(saved.temperature).toBe(sent);
+      expect("temperature" in saved).toBe(sent !== undefined);
+    },
+  );
+
   it("OpenAI judge keeps temperature pinned to 0", async () => {
     const { captured } = await run("gpt-5.4");
     expect(captured[0].url).toBe("https://api.openai.com/v1/chat/completions");

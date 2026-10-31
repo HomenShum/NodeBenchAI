@@ -125,9 +125,9 @@ export const APPROVED_MODELS = [
   "minimax-m2.7",      // MiniMax M2.7 - agentic executor lane $0.30/$1.20
   "mistral-large",     // Mistral Large 2411 - function calling $2/M
   // OpenRouter free-tier models (availability is re-verified before routing changes)
-  "nemotron-3-super-free", // NVIDIA Nemotron 3 Super 120B A12B - 262K, tools + structured outputs; FREE_LANE_MODEL
-  "laguna-s-2.1-free", // Poolside Laguna S 2.1 - 262K, current free judge lane
-  "laguna-xs-2.1-free", // Poolside Laguna XS 2.1 - 262K, free fallback judge lane
+  "flint-v1-free", // Recursive Flint v1.0 - 262K, tools + response_format; FREE_LANE_MODEL (re-picked 2026-10-31)
+  "laguna-s-2.1-free", // Poolside Laguna S 2.1 - 262K, judge lane (not in the public OpenRouter list on 2026-10-31)
+  "laguna-xs-2.1-free", // Poolside Laguna XS 2.1 - 262K, fallback judge lane (not in the public list on 2026-10-31)
   "qwen3-coder-free",  // Qwen3 Coder 480B MoE (A3.5B) - 262K, agentic coding
   "step-3.5-flash-free", // StepFun Step 3.5 Flash 196B MoE (11B) - 256K, reasoning
   "gpt-oss-120b-free", // OpenAI open-source 120B - 131K, tools
@@ -157,13 +157,15 @@ export const DEFAULT_MODEL: ApprovedModel = "kimi-k2.6";
 export const FALLBACK_MODEL: ApprovedModel = "gpt-5.4-mini";
 
 /**
- * The one verified free lane. This is the typed resolver boundary (an approved
+ * The one free lane. This is the typed resolver boundary (an approved
  * alias): code that hands a value to the resolver writes this constant. Both the
  * alias and its provider wire string (`MODEL_SPECS[FREE_LANE_MODEL].sdkId`) are typed once,
  * in shared/llm/modelCatalog.ts (`FREE_LANE_CATALOG_ID`, `FREE_LANE_WIRE_ID`), and imported here.
- * Evidence: NodeVideo's measured free-model benchmark
- * (config/openrouter-free-routing.json), the only measured free pick in the portfolio.
- * SPEC-v9 A.2.10 PR 1 (Codex v3 N2).
+ * Evidence (live-unverified, no OpenRouter key, Homen 2026-10-16): the public list
+ * https://openrouter.ai/api/v1/models fetched 2026-10-31T20:01Z shows `recursive/flint-v1.0:free` as the
+ * newest `:free` row with no `expiration_date`, tools + response_format, 262,144 context, price 0/0.
+ * It replaces `nvidia/nemotron-3-super-120b-a12b:free` and `poolside/laguna-*`, both gone from that list.
+ * SPEC-v9 D2/D2a, A.2.10 PR 1 (Codex v3 N2).
  */
 export const FREE_LANE_MODEL: ApprovedModel = FREE_LANE_CATALOG_ID;
 
@@ -195,8 +197,8 @@ export const MODEL_PRIORITY_ORDER: ApprovedModel[] = [
   "gpt-5.4-nano",
   // EXPERIMENTAL / FREE LANES. Every id from here on is free, so a chain that
   // starts on a free model never reaches a paid one (modelResolver.test.ts pins this).
-  "nemotron-3-super-free",  // FREE_LANE_MODEL: head of the free segment
-  "laguna-s-2.1-free",      // Previous primary free route (expires 2026-10-31)
+  "flint-v1-free",  // FREE_LANE_MODEL: head of the free segment
+  "laguna-s-2.1-free",      // Previous primary free route (gone from the public OpenRouter list 2026-10-31)
   "laguna-xs-2.1-free",     // Current explicit free fallback
   "qwen3-coder-free",       // Legacy free alias retained for compatibility
   "step-3.5-flash-free",    // 196B MoE, reasoning + tools
@@ -669,12 +671,12 @@ export const MODEL_SPECS: Record<ApprovedModel, ModelSpec> = {
   // Free availability is temporal; callers that require continuity must use an
   // explicit, provenance-preserving fallback rather than assuming this list is live.
   // ═══════════════════════════════════════════════════════════════════════════
-  // Free lane (FREE_LANE_MODEL). Wire id and 262,144-token context from NodeVideo's
-  // measured benchmark (config/openrouter-free-routing.json, 8/8 successes);
-  // tools + structured outputs per SPEC-v9 s1.2. isFreeModel() derives "free"
-  // from the zero pricing below, which is what costClass: free means in this repo.
-  "nemotron-3-super-free": {
-    alias: "nemotron-3-super-free",
+  // Free lane (FREE_LANE_MODEL). Wire id, 262,144-token context, tools and response_format from the
+  // public OpenRouter list (https://openrouter.ai/api/v1/models, fetched 2026-10-31T20:01Z, no expiration_date,
+  // created 2026-10-21; SPEC-v9 re-pick). LIVE-UNVERIFIED: no OpenRouter key exists, so no request was made.
+  // isFreeModel() derives "free" from the zero pricing below, which is what costClass: free means in this repo.
+  "flint-v1-free": {
+    alias: "flint-v1-free",
     provider: "openrouter",
     sdkId: FREE_LANE_WIRE_ID,
     capabilities: { vision: false, toolUse: true, streaming: true, structuredOutputs: true, maxContext: 262_144 },
@@ -886,8 +888,10 @@ export const LEGACY_ALIASES: Record<string, ApprovedModel> = {
   "nvidia/llama-3.1-nemotron-70b-instruct:free": "nemotron-3-nano-free",
   "nemotron": "nemotron-3-nano-free",
   "nemotron-70b": "nemotron-3-nano-free",
-  // Free lane: the OpenRouter wire id resolves to the typed alias (SPEC-v9 A.2.10 PR 1)
-  "nvidia/nemotron-3-super-120b-a12b:free": "nemotron-3-super-free",
+  // Free lane: the OpenRouter wire id resolves to the typed alias (SPEC-v9 A.2.10 PR 1).
+  // nvidia/nemotron-3-super-120b-a12b:free (the first pick) left the public list on 2026-10-31 and has no
+  // row: it is an unknown free-looking id, which resolveOrFailClosed sends to FREE_LANE_MODEL.
+  "recursive/flint-v1.0:free": "flint-v1-free",
   // Current free model aliases (verified July 22, 2026)
   "poolside/laguna-s-2.1:free": "laguna-s-2.1-free",
   "poolside/laguna-s-2.1": "laguna-s-2.1-free",
@@ -1146,18 +1150,22 @@ export function refuseReroutedKnownId(...forms: string[]): void {
  *   - unknown, free-looking             -> FREE_LANE_MODEL (never a paid id)
  *   - unknown, allowPaidFallback===true -> DEFAULT_MODEL, counted and annotated
  *   - unknown otherwise                 -> throws UnknownModelError
+ * `rerouteUnknownFreeLooking: false` (the fallback helpers) removes the free-lane row for an unknown id:
+ * only the free route aliases (a documented mapping, `routeAliasToModel`) still resolve to the lane, so
+ * `x-free` throws instead of running as another model (Homen D1: unknown ids fail closed).
  */
 function resolveOrFailClosed(
   input: string | undefined | null,
   opts: UnknownModelOptions | undefined,
   caller: string,
+  rerouteUnknownFreeLooking = true,
 ): ApprovedModel {
   if (!input) return DEFAULT_MODEL;
   refuseReroutedKnownId(input); // Homen D1: a known id is refused, not run as a different model
   const resolved = resolveModelAlias(input);
   if (resolved) return resolved;
   refuseKnownUnregisteredModel(input);
-  if (isFreeLookingModelInput(input)) {
+  if (isFreeLookingModelInput(input) && (rerouteUnknownFreeLooking || routeAliasToModel(input.trim().toLowerCase())?.routeTier === "free")) {
     console.warn(`[modelResolver] ${caller}: unknown free-looking model "${input}" -> ${FREE_LANE_MODEL}`);
     return FREE_LANE_MODEL;
   }
@@ -1434,8 +1442,8 @@ export function getLanguageModelWithFallback(preferredModel?: ApprovedModel): {
   fallbackChain: ApprovedModel[];
 } {
   // The start model arrives from public actions as an unvalidated string (pdfInsights): resolve it
-  // first, so an unknown id throws UnknownModelError / a free-looking one takes the free lane.
-  const modelId = resolveOrFailClosed(preferredModel, undefined, "getLanguageModelWithFallback");
+  // first, so any unknown id throws UnknownModelError (only the free route aliases take the free lane).
+  const modelId = resolveOrFailClosed(preferredModel, undefined, "getLanguageModelWithFallback", false);
   const spec = MODEL_SPECS[modelId];
   const chain = fallbackChainFrom(modelId, "getLanguageModelWithFallback");
 
@@ -1451,6 +1459,10 @@ export function getLanguageModelWithFallback(preferredModel?: ApprovedModel): {
  * Execute a model call with automatic fallback on failure
  * This is the recommended way to call models with FREE-FIRST strategy
  *
+ * The start model is never swapped for another: an unknown id (free-looking ones included) throws
+ * UnknownModelError before `fn` runs, and only a free route alias (`auto-free`, ...) maps to the free lane.
+ * Every later move is a counted fallback.
+ *
  * @param fn - Async function that takes a LanguageModel and returns a result
  * @param options - Optional configuration
  * @returns The result from the first successful model call
@@ -1465,7 +1477,7 @@ export async function executeWithModelFallback<T>(
 ): Promise<{ result: T; modelUsed: ApprovedModel; isFree: boolean; fallbacksUsed: number }> {
   const { startModel = DEFAULT_MODEL, maxRetries = RETRY_CONFIG.maxRetries, onFallback } = options ?? {};
 
-  let currentModel = resolveOrFailClosed(startModel, undefined, "executeWithModelFallback");
+  let currentModel = resolveOrFailClosed(startModel, undefined, "executeWithModelFallback", false);
   let fallbacksUsed = 0;
   let lastError: Error | null = null;
 
@@ -1536,8 +1548,8 @@ export async function executeWithModelFallback<T>(
  * Free availability is temporal; production callers should retain an explicit fallback.
  */
 export function getBestFreeModel(): ApprovedModel {
-  // laguna-s-2.1:free expires on OpenRouter 2026-10-31 (SPEC-v9 A.1); the free
-  // lane is the registered, measured FREE_LANE_MODEL.
+  // laguna-s-2.1:free left the public OpenRouter list by 2026-10-31 (SPEC-v9 A.1); the free
+  // lane is the registered FREE_LANE_MODEL (recursive/flint-v1.0:free, live-unverified).
   return FREE_LANE_MODEL;
 }
 
@@ -1545,6 +1557,6 @@ export function getBestFreeModel(): ApprovedModel {
  * Get the fallback chain starting from a given model
  */
 export function getFallbackChain(startModel: ApprovedModel = DEFAULT_MODEL): ApprovedModel[] {
-  const start = resolveOrFailClosed(startModel, undefined, "getFallbackChain");
+  const start = resolveOrFailClosed(startModel, undefined, "getFallbackChain", false);
   return fallbackChainFrom(start, "getFallbackChain");
 }
