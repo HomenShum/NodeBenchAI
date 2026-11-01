@@ -13,7 +13,8 @@
  *   EVAL_MODEL       — model override (default: per-backend)
  */
 
-import type { RunConfig, RunTelemetry, Scorecard, ToolCallRecord, EvalTask } from "./types.js";
+import { createHash } from "node:crypto";
+import type { RunConfig, RunTelemetry, Scorecard, ToolCallRecord, ToolRequestRecord, EvalTask } from "./types.js";
 
 export type InvokerBackend = "stub" | "anthropic" | "openai";
 
@@ -22,6 +23,42 @@ interface InvokerOptions {
   apiKey?: string;
   model?: string;
   verbose?: boolean;
+  /** Transport for the Anthropic backend; tests pass a fake, runs use global fetch. */
+  fetchImpl?: typeof fetch;
+}
+
+/** BOUND_READ: a Messages response larger than this is treated as a failed run. */
+const MAX_RESPONSE_CHARS = 4_000_000;
+
+/**
+ * BOUND_READ: never buffers more than MAX_RESPONSE_CHARS. A declared content-length over the cap is
+ * refused before any byte is read; otherwise the stream is cancelled the moment the cap is crossed.
+ * Returns null when the body is too large.
+ */
+async function readBounded(response: Response): Promise<string | null> {
+  const declared = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > MAX_RESPONSE_CHARS) {
+    await response.body?.cancel();
+    return null;
+  }
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value, { stream: true });
+    if (text.length > MAX_RESPONSE_CHARS) {
+      await reader.cancel();
+      return null;
+    }
+  }
+  return text + decoder.decode();
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
 }
 
 function getDefaultModel(backend: InvokerBackend): string {
@@ -74,7 +111,40 @@ async function invokeStub(config: RunConfig, _task: EvalTask): Promise<RunTeleme
   };
 }
 
-// ── Anthropic Backend (scaffold) ────────────────────────────────────
+// ── Anthropic Backend ───────────────────────────────────────────────
+
+interface AnthropicBlock {
+  type: string;
+  text?: string;
+  name?: string;
+  input?: unknown;
+}
+
+/**
+ * The Messages API body for one run. The model is whatever the caller names
+ * (EVAL_MODEL) so a receipt can name its candidate; no sampling parameters
+ * (Claude 4.7+/5.x answer 400 to them); no prefill; `tool_choice` is `auto`
+ * (Sonnet/Opus 5.5 reject forced tool choice).
+ */
+export function buildAnthropicRequest(
+  config: RunConfig,
+  task: EvalTask,
+  model: string,
+): Record<string, unknown> {
+  const tools = config.agentMode !== "bare" ? buildMcpToolDefs(config) : [];
+  return {
+    model,
+    max_tokens: 8192,
+    system: buildSystemPrompt(config, task),
+    messages: [{ role: "user", content: task.description }],
+    ...(tools.length > 0
+      ? {
+          tools: tools.map((t) => ({ ...t, input_schema: { type: "object", properties: {} } })),
+          tool_choice: { type: "auto" },
+        }
+      : {}),
+  };
+}
 
 async function invokeAnthropic(
   config: RunConfig,
@@ -87,30 +157,74 @@ async function invokeAnthropic(
 
   const startedAt = new Date().toISOString();
   const startMs = Date.now();
+  // No tool runs in this harness and no result is sent back, so tool_use blocks are
+  // only requests: they are recorded apart from `toolCalls` and earn no score.
   const toolCalls: ToolCallRecord[] = [];
+  const requestedTools: ToolRequestRecord[] = [];
+  let error: string | undefined;
+  let outputHash = "";
+  let tokenCount = 0;
+  let echoedModel: string | undefined;
 
-  // Build system prompt based on agent mode
-  const systemPrompt = buildSystemPrompt(config, task);
-
-  // Build tool definitions for MCP modes
-  const tools = config.agentMode !== "bare" ? buildMcpToolDefs(config) : [];
-
-  // TODO: Replace with real Anthropic API call
-  // const response = await fetch("https://api.anthropic.com/v1/messages", {
-  //   method: "POST",
-  //   headers: {
-  //     "Content-Type": "application/json",
-  //     "x-api-key": options.apiKey,
-  //     "anthropic-version": "2023-06-01",
-  //   },
-  //   body: JSON.stringify({
-  //     model: options.model,
-  //     max_tokens: 8192,
-  //     system: systemPrompt,
-  //     messages: [{ role: "user", content: task.description }],
-  //     tools: tools.length > 0 ? tools : undefined,
-  //   }),
-  // });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.timeout);
+  try {
+    const response = await (options.fetchImpl ?? fetch)("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": options.apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify(buildAnthropicRequest(config, task, options.model ?? config.model)),
+      signal: controller.signal,
+    });
+    const raw = await readBounded(response);
+    if (raw === null) {
+      error = `Anthropic response exceeded ${MAX_RESPONSE_CHARS} chars`;
+    } else if (!response.ok) {
+      error = `Anthropic HTTP ${response.status}: ${raw.slice(0, 240)}`;
+    } else {
+      const data = JSON.parse(raw) as {
+        model?: string;
+        stop_reason?: string;
+        content?: AnthropicBlock[];
+        usage?: { input_tokens?: number; output_tokens?: number };
+      };
+      // Read blocks by type: content[0] is a thinking block when adaptive thinking is on.
+      const blocks = Array.isArray(data.content) ? data.content : [];
+      const text = blocks
+        .filter((b) => b.type === "text" && typeof b.text === "string")
+        .map((b) => b.text as string)
+        .join("");
+      for (const block of blocks) {
+        if (block.type !== "tool_use" || !block.name) continue;
+        requestedTools.push({
+          toolName: block.name,
+          inputHash: sha256(JSON.stringify(block.input ?? null)),
+        });
+      }
+      outputHash = sha256(text);
+      tokenCount = (data.usage?.input_tokens ?? 0) + (data.usage?.output_tokens ?? 0);
+      // The model string the provider returned, not the one requested (SPEC-v9 A.0.3).
+      echoedModel = data.model;
+      const problems: string[] = [];
+      // Only end_turn is a finished answer. max_tokens (adaptive thinking counts toward the cap on
+      // Claude 5.x, so a cap sized for 4.5 truncates), pause_turn and a missing stop_reason are all
+      // unfinished turns and must not count as a clean run.
+      if (data.stop_reason === "tool_use") {
+        problems.push(`Anthropic stop_reason: tool_use; ${requestedTools.length} tool(s) requested, none executed (unfinished turn)`);
+      } else if (data.stop_reason !== "end_turn") {
+        problems.push(`Anthropic stop_reason: ${data.stop_reason ?? "missing"} (not end_turn, unfinished or truncated turn)`);
+      }
+      if (!echoedModel) problems.push("Anthropic response carries no model string, so the run has no identity evidence");
+      if (problems.length > 0) error = problems.join("; ");
+    }
+  } catch (err) {
+    error = err instanceof Error ? (err.name === "AbortError" ? "request timeout" : err.message) : String(err);
+  } finally {
+    clearTimeout(timer);
+  }
 
   const wallClockMs = Date.now() - startMs;
   const completedAt = new Date().toISOString();
@@ -125,7 +239,7 @@ async function invokeAnthropic(
     efficiency: {
       wallClockMs,
       toolCallCount: toolCalls.length,
-      tokenCount: 0,
+      tokenCount,
       retryThrashRate: 0,
     },
     compounding: {
@@ -141,9 +255,13 @@ async function invokeAnthropic(
     completedAt,
     scorecard,
     toolCalls,
+    requestedTools,
     verificationCycles: [],
-    outputHash: "",
-    error: "SCAFFOLD: Anthropic API call not yet wired — implement real invocation",
+    outputHash,
+    echoedModel,
+    // taskSuccessRate stays 0: acceptance criteria are not graded here, so a
+    // completed call is recorded without claiming the task passed.
+    ...(error ? { error } : {}),
   };
 }
 

@@ -4,7 +4,7 @@ import { v } from "convex/values";
 import { action } from "../../_generated/server";
 import { internal, components } from "../../_generated/api";
 import { Agent, stepCountIs } from "@convex-dev/agent";
-import { getLanguageModelSafe, DEFAULT_MODEL } from "../agents/mcp_tools/models";
+import { getLanguageModelSafe, normalizeModelInput, DEFAULT_MODEL } from "../agents/mcp_tools/models";
 import { PERSONAS, type Persona, GROUND_TRUTH_ENTITIES } from "./groundTruth";
 import { calculateRequestCost } from "../../../../shared/llm/modelCatalog";
 
@@ -1020,6 +1020,9 @@ export const runPersonaEpisodeEval = action({
     }
 
     const model = String(args.model ?? DEFAULT_MODEL);
+    // What the resolver chose for `model`; throws UnknownModelError for an unknown id,
+    // so a run can never be labelled with a candidate it did not use (SPEC-v9 A.0.3).
+    const resolvedModelId = normalizeModelInput(model);
     const suite = args.suite ?? "core";
     const useDbScenarios = args.useDbScenarios === true;
 
@@ -1354,6 +1357,7 @@ export const runPersonaEpisodeEval = action({
     return {
       ok: total > 0 && passed === total,
       model,
+      resolvedModelId,
       elapsedMs: Date.now() - startedAt,
       window: {
         suite,

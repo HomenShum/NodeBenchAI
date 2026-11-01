@@ -12,6 +12,7 @@ import {
   getLlmModel,
   resolveModelAlias,
   getModelWithFailover,
+  anthropicText,
 } from "../../../../shared/llm/modelCatalog";
 import { runPiOrAiSdkCompletion } from "../pipelines/piRuntime";
 import { linkupSearch } from "../../tools/media/linkupSearch";
@@ -591,7 +592,8 @@ function generatePersonaHooks(entity: EnrichedEntityPayload): PersonaHooks {
   };
 }
 
-async function generateWithProvider(
+// Exported for providerCopies.requestShape.test.ts (SPEC-v9 A.0.6); not a Convex function.
+export async function generateWithProvider(
   modelInput: string,
   systemPrompt: string,
   userPrompt: string,
@@ -632,7 +634,7 @@ async function generateWithProvider(
       system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }],
     });
-    return response.content[0]?.type === "text" ? response.content[0].text : "";
+    return anthropicText(response.content);
   }
 
   if (provider === "gemini") {

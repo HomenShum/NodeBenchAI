@@ -112,7 +112,7 @@
     },
     "modelMigration": {
       "pinnedModel": "gemini-3.5-flash (nodeagent.yaml provider.model.id)",
-      "migrationEvalCommand": "npx tsx scripts/eval-harness/runner.ts --task tier1 --seeds 3"
+      "migrationEvalCommand": "EVAL_BACKEND=anthropic EVAL_MODEL=<candidate> npx tsx scripts/eval-harness/runner.ts --tier tier1 --seeds 3"
     },
     "tracing": {
       "traceIdPropagated": true,

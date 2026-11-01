@@ -10,7 +10,7 @@ import { generateText } from "ai";
 import { Id } from "../../_generated/dataModel";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { getLlmModel, resolveModelAlias, getModelWithFailover } from "../../../../shared/llm/modelCatalog";
+import { getLlmModel, resolveModelAlias, getModelWithFailover, anthropicText } from "../../../../shared/llm/modelCatalog";
 
 // Legacy import - agentTools not used with new Convex Agent system
 // import { agentToolsOpenAI } from "../agents/agentTools";
@@ -198,7 +198,7 @@ export const generateResponse = action({
         system: messages.filter((m: any) => m.role === "system").map((m: any) => m.content).join("\n"),
         messages: messages.filter((m: any) => m.role !== "system"),
       });
-      responseMessage = { content: response.content[0]?.type === "text" ? response.content[0].text : "" };
+      responseMessage = { content: anthropicText(response.content) };
       toolCalls = undefined;
     } else if (provider === "gemini") {
       const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });

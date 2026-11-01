@@ -4,6 +4,7 @@ import { action } from "../_generated/server";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import { assertKnownModelInput } from "../domains/agents/mcp_tools/models";
 
 /**
  * Enqueue a durable coordinator workflow run.
@@ -18,6 +19,7 @@ export const startCoordinatorWorkflow = action({
     runId: v.string(),
   }),
   handler: async (ctx, args): Promise<{ runId: string }> => {
+    assertKnownModelInput(args.model); // fail closed before anything is queued (SPEC-v9 A.0.10)
     const runId = await ctx.scheduler.runAfter(
       0,
        

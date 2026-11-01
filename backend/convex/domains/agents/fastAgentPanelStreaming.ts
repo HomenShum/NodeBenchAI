@@ -88,10 +88,7 @@ import {
   canReadAgentRunPresentation,
   projectAgentRunPresentation,
 } from "./agentRunPresentation";
-import {
-  FAST_AGENT_SIGN_IN_BENEFIT_COPY,
-  resolveFastAgentRequestedModel,
-} from "../../../../shared/llm/fastAgentRuntimeContract";
+import { FAST_AGENT_SIGN_IN_BENEFIT_COPY } from "../../../../shared/llm/fastAgentRuntimeContract";
 
 // Import tools
 import { fusionSearch, quickSearch } from "../../tools/search";
@@ -445,6 +442,9 @@ import {
   getLanguageModelSafe,
   normalizeModelInput,
   normalizeNodeBenchRuntimeModel,
+  pickNodeBenchLaneModel,
+  normalizeFastAgentModel,
+  isFreeModel,
   DEFAULT_MODEL,
   isModelAvailable,
   type ApprovedModel,
@@ -2227,11 +2227,8 @@ export const createThread = action({
       throw new Error("Anonymous users must provide a session ID");
     }
 
-    const modelName = normalizeNodeBenchRuntimeModel(
-      resolveFastAgentRequestedModel({
-        isAnonymous,
-        requestedModel: args.model,
-      }),
+    const modelName = normalizeFastAgentModel(
+      { isAnonymous, requestedModel: args.model },
       isAnonymous ? "executor" : "advisor",
     );
 
@@ -2309,7 +2306,10 @@ export const createThreadForUserInternal = internalAction({
     model: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<Id<"chatThreadsStream">> => {
-    const modelName = normalizeNodeBenchRuntimeModel(args.model, "advisor");
+    // The swarm's tasks run the requested `args.model` (executeSwarmInternal -> scheduleDelegations); this thread
+    // only holds the team's output, so its own model is the advisor-profile pick (an unknown id still throws).
+    // The refusing normalizeNodeBenchRuntimeModel would make createSwarm's default 'claude-sonnet-4.6' throw here.
+    const modelName = pickNodeBenchLaneModel(args.model, "advisor");
     const chatAgent = createChatAgent(modelName);
     const title = (args.title ?? "").trim() || "Research Thread";
 
@@ -2967,11 +2967,8 @@ export const initiateAsyncStreaming = mutation({
     const runtimeProfile = isAnonymous
       ? "executor"
       : args.useCoordinator !== false ? "advisor" : "executor";
-    const modelName = normalizeNodeBenchRuntimeModel(
-      resolveFastAgentRequestedModel({
-        isAnonymous,
-        requestedModel: args.model,
-      }),
+    const modelName = normalizeFastAgentModel(
+      { isAnonymous, requestedModel: args.model },
       runtimeProfile,
     );
     const chatAgent = createChatAgent(modelName);
@@ -3238,7 +3235,8 @@ export const streamAsync = internalAction({
       : null;
     const usageSessionId = args.usageSessionId ?? (isAnonymous ? args.anonymousSessionId : undefined);
 
-    let activeModel: ApprovedModel = normalizeNodeBenchRuntimeModel(
+    // Pre-route value, overwritten by the route below: the lane (not the caller) picks the model here.
+    let activeModel: ApprovedModel = pickNodeBenchLaneModel(
       args.model,
       args.useCoordinator !== false ? "advisor" : "executor",
     );
@@ -4806,6 +4804,7 @@ export const streamAsync = internalAction({
           ...route.fallbackModels,
         ],
         excludedModels: [activeModel, ...attemptedModels],
+        requireFree: isFreeModel(activeModel),
         isModelAvailable,
         checkModel: checkRuntimeModelAccess,
       });

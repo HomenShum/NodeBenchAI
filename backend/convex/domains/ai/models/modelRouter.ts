@@ -16,7 +16,7 @@ import { v } from "convex/values";
 import { internalAction } from "../../../_generated/server";
 import { internal } from "../../../_generated/api";
 import { generateText } from "ai";
-import { getLanguageModelSafe } from "../../agents/mcp_tools/models";
+import { getLanguageModelSafe, getProviderForModel, isFreeModel, normalizeModelInput, resolveModelAlias } from "../../agents/mcp_tools/models";
 // B-PR4: capability-aware fallback chain.
 // resolveChain replaces the static `[...TIER_MODELS[tier]]` candidate list
 // with a tier-floor-enforced ordering that respects requested capabilities
@@ -98,17 +98,24 @@ export interface RouteResult {
   };
 }
 
+/** Claude 4.7+/5.x 400 on non-default sampling and Gemini 3.x deprecates it. */
+function acceptsSampling(modelId: string): boolean {
+  const alias = resolveModelAlias(modelId);
+  const provider = alias ? getProviderForModel(alias) : null;
+  return provider !== "anthropic" && provider !== "google";
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // MODEL TIERS — which models serve which tier
 // ═══════════════════════════════════════════════════════════════════════════
 
 const TIER_MODELS: Record<TaskTier, string[]> = {
+  // openai-gpt-oss-120b-free, arcee-trinity-large-free and nemotron-3-nano-30b-free
+  // were dropped: they are not approved aliases, so getLanguageModelSafe used to
+  // route them to the paid DEFAULT_MODEL (SPEC-v9 A.2.10 PR 1).
   free: [
     "qwen3-coder-free",
     "step-3.5-flash-free",
-    "openai-gpt-oss-120b-free",
-    "arcee-trinity-large-free",
-    "nemotron-3-nano-30b-free",
     "llama-3.3-70b-free",
   ],
   cheap: [
@@ -141,6 +148,8 @@ const MODEL_PRICING: Record<string, { input: number; output: number }> = {
   "arcee-trinity-large-free": { input: 0, output: 0 },
   "nemotron-3-nano-30b-free": { input: 0, output: 0 },
   "llama-3.3-70b-free": { input: 0, output: 0 },
+  // Free aliases are priced and classified by isFreeAlias (the resolver's cost class), not by a row
+  // here. Prices for the new paid ids land in PR 2.
   "glm-4.7-flash": { input: 0.07, output: 0.07 },
   "gemini-3-flash-preview": { input: 0.50, output: 3.00 },
   "claude-haiku-4.5": { input: 1.00, output: 5.00 },
@@ -172,11 +181,31 @@ const TASK_DEFAULT_TIER: Record<TaskCategory, TaskTier> = {
 // COST CALCULATION
 // ═══════════════════════════════════════════════════════════════════════════
 
+/**
+ * Free is a property of the resolved model, not of this file's partial price table: 15 of the 19
+ * approved free aliases (laguna-s-2.1-free included) have no MODEL_PRICING row and used to be billed
+ * at the $1/$5 default, recorded isFree=false / actualTier "premium", and summed into the agent's
+ * dollar budget by checkAgentBudget.
+ */
+function isFreeAlias(modelId: string): boolean {
+  const alias = resolveModelAlias(modelId);
+  return alias !== null && isFreeModel(alias);
+}
+
+/** The tier a model actually serves: free is a property of the resolved model, never of the requested tier. */
+function classifyTier(modelId: string): TaskTier {
+  if (isFreeAlias(modelId)) return "free";
+  if (TIER_MODELS.cheap.includes(modelId)) return "cheap";
+  if (TIER_MODELS.standard.includes(modelId)) return "standard";
+  return "premium";
+}
+
 function calculateCost(
   modelId: string,
   inputTokens: number,
   outputTokens: number
 ): number {
+  if (isFreeAlias(modelId)) return 0;
   const pricing = MODEL_PRICING[modelId] ?? { input: 1.0, output: 5.0 };
   return (
     (inputTokens / 1_000_000) * pricing.input +
@@ -296,7 +325,7 @@ export const route = internalAction({
         return {
           text: cached.text,
           modelId: cached.modelId,
-          isFree: MODEL_PRICING[cached.modelId]?.input === 0,
+          isFree: isFreeAlias(cached.modelId),
           inputTokens: cached.inputTokens,
           outputTokens: cached.outputTokens,
           costUsd: 0,
@@ -304,7 +333,7 @@ export const route = internalAction({
           fromCache: true,
           routing: {
             requestedTier: tier,
-            actualTier: tier,
+            actualTier: classifyTier(cached.modelId), // the cached answer's own tier, as a fresh dispatch reports it
             taskCategory: args.taskCategory,
             fallbacksUsed: 0,
             pinnedModel: args.pinnedModel ?? null,
@@ -398,10 +427,15 @@ export const route = internalAction({
         console.warn(
           `[modelRouter] chain resolver returned empty (reason=${resolution.reason}); falling back to TIER_MODELS[${tier}]`,
         );
+        // The free tier never appends paid candidates (SPEC-v9 A.0.10).
         candidates = [...(TIER_MODELS[tier] ?? TIER_MODELS.cheap)];
-        if (tier === "free") {
-          candidates.push(...TIER_MODELS.cheap);
-        }
+      }
+
+      // A free request is capped at free (SPEC-v9 A.0.10): the registry chain applies tier as a
+      // floor, so a capability requirement (for example requireVision) can put a paid model in it.
+      // If no free model qualifies the call fails below instead of billing.
+      if (tier === "free") {
+        candidates = candidates.filter(isFreeAlias);
       }
     }
 
@@ -418,8 +452,13 @@ export const route = internalAction({
       failedWith: number | string;
     }> = [];
 
-    for (const modelId of candidates) {
+    for (const candidate of candidates) {
+      // Resolve once: dispatch, pricing, isFree, actualTier, cache and audit all use the model that
+      // actually answers. A pinned 'auto-free', the free-lane wire id or an unknown '-free' id is
+      // dispatched to the free lane and must be recorded as free, not priced as the raw string.
+      let modelId = candidate;
       try {
+        modelId = normalizeModelInput(candidate);
         const model = getLanguageModelSafe(modelId);
         if (!model) continue;
 
@@ -431,20 +470,18 @@ export const route = internalAction({
             content: m.content,
           })),
           maxOutputTokens: args.maxTokens ?? 2048,
-          temperature: args.temperature ?? 0.3,
+          // Claude 4.7+/5.x reject non-default sampling (400) and Gemini 3.x
+          // deprecates it, so only the other providers receive temperature.
+          ...(acceptsSampling(modelId) ? { temperature: args.temperature ?? 0.3 } : {}),
         });
 
         const inputTokens = result.usage?.inputTokens ?? 0;
         const outputTokens = result.usage?.outputTokens ?? 0;
         const costUsd = calculateCost(modelId, inputTokens, outputTokens);
         const latencyMs = Date.now() - startTime;
-        const isFree = MODEL_PRICING[modelId]?.input === 0;
+        const isFree = isFreeAlias(modelId);
 
-        // Determine actual tier based on model used
-        if (isFree) actualTier = "free";
-        else if (TIER_MODELS.cheap.includes(modelId)) actualTier = "cheap";
-        else if (TIER_MODELS.standard.includes(modelId)) actualTier = "standard";
-        else actualTier = "premium";
+        actualTier = classifyTier(modelId);
 
         // ─── Cache result ──────────────────────────────────────────
         if (args.cacheKey) {
@@ -536,7 +573,7 @@ export const route = internalAction({
           typeof rawStatus === "number"
             ? rawStatus
             : (lastError.message || "error").slice(0, 80);
-        failedAttempts.push({ modelId, failedWith });
+        failedAttempts.push({ modelId: candidate, failedWith });
 
         // Retry on 429/503 with backoff
         if (

@@ -8,7 +8,7 @@ import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
-import { getLlmModel, resolveModelAlias, getModelWithFailover } from "../../shared/llm/modelCatalog";
+import { getLlmModel, resolveModelAlias, getModelWithFailover, anthropicText } from "../../shared/llm/modelCatalog";
 
 /**
  * LLM-powered tag generation for documents
@@ -82,7 +82,7 @@ Example: [{"name":"react","kind":"entity","importance":0.9},{"name":"web develop
         system: systemPrompt,
         messages: [{ role: "user", content: userPrompt }],
       });
-      responseText = response.content[0]?.type === "text" ? response.content[0].text : "[]";
+      responseText = anthropicText(response.content) || "[]";
     } else if (provider === "gemini") {
       const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
       const result = await generateText({

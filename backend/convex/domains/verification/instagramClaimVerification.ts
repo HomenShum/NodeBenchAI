@@ -154,9 +154,9 @@ async function getFreeModel() {
       console.warn(`[instagramClaimVerification] Model ${modelAlias} unavailable, trying next`);
     }
   }
-  // Fallback to default (may have cost)
-  console.warn("[instagramClaimVerification] No free models available, using default");
-  return { model: getLanguageModelSafe("gemini-3-flash-preview"), alias: "gemini-3-flash-preview" };
+  // A free-lane job never becomes a paid job (SPEC-v9 A.0.10): with no free model buildable
+  // (OpenRouter not configured) the action fails visibly instead of billing gemini-3-flash-preview.
+  throw new Error("[instagramClaimVerification] No free model available (is OPENROUTER_API_KEY set?); refusing to fall back to a paid model");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

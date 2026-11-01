@@ -10,7 +10,7 @@
 import { action, internalAction, query, internalMutation, internalQuery } from "../../../../_generated/server";
 import { internal } from "../../../../_generated/api";
 import { v } from "convex/values";
-import { normalizeModelInput, isApprovedModel } from "./modelResolver";
+import { resolveModelAlias, isApprovedModel } from "./modelResolver";
 import type { Id } from "../../../../_generated/dataModel";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -40,8 +40,10 @@ export const getLegacyThreads = internalQuery({
     const legacyThreads: Array<{ _id: Id<"chatThreadsStream">; model: string; normalized: string }> = [];
     for (const thread of threads) {
       if (thread.model && !isApprovedModel(thread.model)) {
-        const normalized = normalizeModelInput(thread.model);
-        if (normalized !== thread.model) {
+        // Unknown persisted strings are left as they are: normalizeModelInput now
+        // throws for them, and rows are never rewritten to a paid default.
+        const normalized = resolveModelAlias(thread.model);
+        if (normalized && normalized !== thread.model) {
           legacyThreads.push({ _id: thread._id, model: thread.model, normalized });
         }
       }
@@ -59,8 +61,8 @@ export const getLegacyMessages = internalQuery({
     const legacyMessages: Array<{ _id: Id<"chatMessagesStream">; model: string; normalized: string }> = [];
     for (const msg of messages) {
       if (msg.model && !isApprovedModel(msg.model)) {
-        const normalized = normalizeModelInput(msg.model);
-        if (normalized !== msg.model) {
+        const normalized = resolveModelAlias(msg.model);
+        if (normalized && normalized !== msg.model) {
           legacyMessages.push({ _id: msg._id, model: msg.model, normalized });
         }
       }

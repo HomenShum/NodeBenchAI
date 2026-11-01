@@ -49,6 +49,43 @@ export type LlmTask =
 
 export type UserTier = "anonymous" | "free" | "pro" | "team" | "enterprise";
 
+/**
+ * Own-property lookup for the alias, pricing, equivalent, fallback and wire-id tables below.
+ * These tables are plain objects keyed by untrusted model ids, so `table["toString"]` would
+ * otherwise return `Object.prototype.toString` and a name nobody registered would count as known
+ * (SPEC-v9 A.0.10). `Object.prototype.hasOwnProperty.call` rather than `Object.hasOwn`: backend/convex compiles with lib ES2021.
+ */
+export function ownEntry<T>(table: Readonly<Record<string, T>>, key: string): T | undefined {
+  return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined;
+}
+
+/**
+ * Thrown when an id is not a model this repo knows and is not free-looking. Unknown ids never
+ * become a paid default (SPEC-v9 A.0.10). Defined here, not in modelResolver.ts, so the catalog's
+ * `getModelWithFailover` and the resolver reject with the same class.
+ */
+export class UnknownModelError extends Error {
+  readonly input: string;
+  constructor(input: string, detail?: string) {
+    super(`Unknown model "${input}"${detail ? `. ${detail}` : ""}`);
+    this.name = "UnknownModelError";
+    this.input = input;
+  }
+}
+
+/**
+ * A KNOWN id (SPEC-v9 section 1.2 / Homen D1) that a particular transport does not serve yet. It is
+ * refused with its reason instead of being called unknown, and never rerouted to another model.
+ * It extends `UnknownModelError`, so every boundary that already catches that class still catches it.
+ */
+export class RefusedModelError extends UnknownModelError {
+  constructor(input: string, reason: string) {
+    super(input);
+    this.message = `Model "${input}" is a known id, refused here: ${reason}`;
+    this.name = "RefusedModelError";
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // MODEL PRICING (per 1M tokens, USD)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -128,6 +165,8 @@ export const modelPricing: Record<string, ModelPricing> = {
   "glm-4.5-air-free": { inputPer1M: 0.00, outputPer1M: 0.00, contextWindow: 131072 },
   "deepseek-chimera-free": { inputPer1M: 0.00, outputPer1M: 0.00, contextWindow: 163840 },
   "venice-dolphin-free": { inputPer1M: 0.00, outputPer1M: 0.00, contextWindow: 32768 },
+  // FREE_LANE_MODEL (modelResolver.ts); wire id recursive/flint-v1.0:free, 262,144-token context (SPEC-v9 A.2.10 PR 1, re-picked 2026-10-31)
+  "flint-v1-free": { inputPer1M: 0.00, outputPer1M: 0.00, contextWindow: 262144 },
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -330,7 +369,7 @@ export function calculateRequestCost(
   outputTokens: number,
   useCachedInput: boolean = false
 ): number {
-  const pricing = modelPricing[modelName];
+  const pricing = ownEntry(modelPricing, modelName);
   if (!pricing) {
     console.warn(`[calculateRequestCost] No pricing for model "${modelName}", using estimate`);
     // Default to gpt-5.4-nano pricing as fallback
@@ -348,7 +387,7 @@ export function calculateRequestCost(
  * Get pricing info for a model
  */
 export function getModelPricing(modelName: string): ModelPricing | null {
-  return modelPricing[modelName] ?? null;
+  return ownEntry(modelPricing, modelName) ?? null;
 }
 
 /**
@@ -364,7 +403,7 @@ export function getProviderForModel(modelName: string): LlmProvider | null {
   if (modelName.startsWith("gemini-") || modelName.startsWith("deep-research-")) {
     return "gemini";
   }
-  if (modelPricing[modelName] != null) {
+  if (ownEntry(modelPricing, modelName) != null) {
     return "openrouter";
   }
   return null;
@@ -559,7 +598,244 @@ export const modelAliases: Record<string, string> = {
  */
 export function resolveModelAlias(modelInput: string): string {
   const normalized = modelInput.toLowerCase().trim();
-  return modelAliases[normalized] ?? modelInput;
+  return ownEntry(modelAliases, normalized) ?? modelInput;
+}
+
+// -----------------------------------------------------------------------------
+// ANTHROPIC WIRE IDS - explicit table, never string surgery
+// -----------------------------------------------------------------------------
+
+/**
+ * Catalog alias (dotted, UI-facing) -> the id api.anthropic.com accepts.
+ * The dotted alias is not a valid wire id, so every caller that hands a catalog
+ * model to Anthropic must go through `anthropicWireId`. Kept in sync with the
+ * `provider: "anthropic"` rows of `MODEL_SPECS` in modelResolver.ts by
+ * `anthropicWireIds.test.ts` (Convex cannot import this table from there, and
+ * this file cannot import from backend/convex).
+ */
+export const ANTHROPIC_WIRE_IDS: Readonly<Record<string, string>> = {
+  "claude-opus-4.7": "claude-opus-4-7",
+  "claude-sonnet-4.6": "claude-sonnet-4-6",
+  "claude-haiku-4.5": "claude-haiku-4-5",
+  "claude-opus-4.1": "claude-opus-4-1-20250805",
+  "claude-opus-4": "claude-opus-4-20250514",
+  "claude-sonnet-4": "claude-sonnet-4-20250514",
+  "claude-haiku-3.5": "claude-3-5-haiku-20241022",
+};
+
+/**
+ * Ids `modelResolver.LEGACY_ALIASES` recognises and that `main` sent to the provider unchanged,
+ * so they keep going out unchanged: PR 1 moves no ids (SPEC-v9 A.0.4). Each already is its own
+ * wire string; the resolver's lossy alias for it (for example `claude-sonnet-4-5-20250929` ->
+ * `claude-sonnet-4`, retired) is never what a caller asked for. The ids move in PR 2.
+ * Left out on purpose: the dotted `claude-opus-4.6`, `claude-opus-4.5`, `claude-sonnet-4.5`
+ * (never wire ids, api.anthropic.com 404s on them) and `gpt-oss*` (OpenRouter free aliases that
+ * the `gpt-` prefix used to route to paid OpenAI). `anthropicWireIds.test.ts` pins this list
+ * against `LEGACY_ALIASES`, so a new resolver alias that main would have passed through
+ * fails the test instead of being rejected at runtime.
+ */
+export const LEGACY_PASSTHROUGH_IDS: ReadonlySet<string> = new Set([
+  "claude-haiku-4-5-20251001",
+  "claude-sonnet-4-5-20250929",
+  "claude-opus-4-5-20251101",
+  "gpt-5.2",
+  "gpt-5.1",
+  "gpt-5.1-codex",
+  "gpt-5-mini",
+  "gpt-5-nano",
+  "gpt-5-chat-latest",
+  "gpt-4.1-mini",
+  "gpt-4.1-nano",
+  "gpt-4o",
+  "gpt-4o-mini",
+  "gemini-3-pro",
+  "gemini-3-flash",
+  "gemini-3.1-flash-lite-preview-lite",
+]);
+
+/**
+ * The ids SPEC-v9 section 1.2 lists as their own wire string on the `anthropic`, `google` and
+ * `openai` transports. Each is already what the provider accepts, so `main` sent every one
+ * unchanged (it routed on the `claude-` / `gemini-` / `gpt-` prefix); PR 1 moves no ids
+ * (A.0.4) and Homen D1 makes them known. They are dispatched as written. The resolver registers
+ * them in PR 2; `anthropicWireIds.test.ts` iterates this set through every public boundary.
+ */
+export const SPEC_NATIVE_WIRE_IDS: ReadonlySet<string> = new Set([
+  "claude-haiku-5-5",
+  "claude-sonnet-5-5",
+  "claude-opus-5-5",
+  "claude-fable-5-1",
+  "gemini-3.8-flash",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-3.1-pro-preview",
+  "gemini-3.8-flash-tts",
+  "gemini-3.8-live",
+  "gpt-6.1-sol",
+  "gpt-6-luna",
+  "gpt-5.4-mini",
+]);
+
+/**
+ * The ids SPEC-v9 section 1.2 lists as their wire string on the `openrouter` and `bedrock` transports
+ * (the paid OpenRouter slugs; the `:free` column is `SPEC_LIVE_FREE_WIRE_IDS`). Homen D1: each is
+ * known. Neither transport has a branch in this catalog or in the resolver until PR 2, so a request
+ * for one is REFUSED with its reason (`RefusedModelError`), never called "unknown" and never
+ * rerouted to another model, `allowPaidFallback` included.
+ */
+export const SPEC_OPENROUTER_WIRE_IDS: ReadonlySet<string> = new Set([
+  "anthropic/claude-haiku-5.5",
+  "anthropic/claude-sonnet-5.5",
+  "anthropic/claude-opus-5.5",
+  "anthropic/claude-fable-5.1",
+  "google/gemini-3.8-flash",
+  "google/gemini-3.6-flash",
+  "google/gemini-3.5-flash-lite",
+  "google/gemini-3.1-pro-preview",
+  "openai/gpt-6.1-sol",
+  "openai/gpt-6-luna",
+  "openai/gpt-5.4-mini",
+  "moonshotai/kimi-k3",
+  "z-ai/glm-5.3",
+  "minimax/minimax-m3",
+]);
+
+export const SPEC_BEDROCK_WIRE_IDS: ReadonlySet<string> = new Set([
+  "anthropic.claude-haiku-5-5",
+  "anthropic.claude-sonnet-5-5",
+  "anthropic.claude-opus-5-5",
+  "anthropic.claude-fable-5-1",
+]);
+
+/** The input, trimmed and lower-cased, when it is a section 1.2 OpenRouter or Bedrock wire id; else null. */
+export function specOtherTransportWireId(input: string): string | null {
+  const normalized = input.trim().toLowerCase();
+  return SPEC_OPENROUTER_WIRE_IDS.has(normalized) || SPEC_BEDROCK_WIRE_IDS.has(normalized) ? normalized : null;
+}
+
+/**
+ * The verified free lane's OpenRouter wire id, typed once: modelResolver.ts imports it for
+ * `MODEL_SPECS[FREE_LANE_MODEL].sdkId`. SPEC-v9 A.2.10: the alias `flint-v1-free`
+ * never reaches a provider.
+ */
+export const FREE_LANE_WIRE_ID = "recursive/flint-v1.0:free";
+
+/**
+ * The verified free lane's alias, typed once: modelResolver.ts imports it as `FREE_LANE_MODEL`.
+ */
+export const FREE_LANE_CATALOG_ID = "flint-v1-free";
+
+/**
+ * The live `:free` ids of SPEC-v9 section 1.2 (15 when read 2026-10-10), the only free ids Part A may
+ * write. Re-checked 2026-10-31 (23:53Z and 2026-11-01 00:07Z fetches of the public list, 452 rows):
+ * `nvidia/nemotron-3-super-120b-a12b:free` and `apodex/apodex-1.1-mini:free` are no longer listed, so
+ * neither is LIVE and neither is in this set (14 ids); both stay known and are refused, see
+ * `refuseRetiredFreeWireId`. `recursive/flint-v1.0:free` (the free lane) took nemotron's slot. The two
+ * laguna rows are also absent from the list but stay because they are registered aliases on `main`.
+ *
+ * Homen D1: each is known, so a request for one is never rerouted to the free lane. The
+ * resolver sends the unregistered ones unchanged on OpenRouter; this catalog has no OpenRouter
+ * branch until PR 2, so it refuses them with a reason (`FREE_LANE_WIRE_ID` is the one it serves).
+ */
+export const SPEC_LIVE_FREE_WIRE_IDS: ReadonlySet<string> = new Set([
+  "dots-studio/dots-3-note-preview:free",
+  "liquid/lfm-2.5-2.6b:free",
+  "nvidia/nemotron-3.5-lightning:free",
+  "thinkingmachines/inkling-small:free",
+  "poolside/laguna-s-2.1:free",
+  "thinkingmachines/inkling:free",
+  "poolside/laguna-xs-2.1:free",
+  "cohere/north-mini-code:free",
+  "nvidia/nemotron-3.5-content-safety:free",
+  "nvidia/nemotron-3-ultra-550b-a55b:free",
+  "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "google/gemma-4-31b-it:free",
+  FREE_LANE_WIRE_ID,
+]);
+
+/** The input, trimmed and lower-cased, when it is one of the live free ids; else null. */
+export function specLiveFreeWireId(input: string): string | null {
+  const normalized = input.trim().toLowerCase();
+  return SPEC_LIVE_FREE_WIRE_IDS.has(normalized) ? normalized : null;
+}
+
+/**
+ * SPEC-v9 section 1.2 `:free` ids, KNOWN (Homen D1), that are not in the public OpenRouter list on
+ * 2026-10-31: the first free pick (nemotron; the 2026-10-31 re-pick replaces it only as the lane's target)
+ * and apodex. A request for one is refused with the reason at every boundary, never rerouted to
+ * `recursive/flint-v1.0:free` or sent to OpenRouter as a model that is not served.
+ */
+const SPEC_RETIRED_FREE_WIRE_IDS: ReadonlySet<string> = new Set([
+  "nvidia/nemotron-3-super-120b-a12b:free",
+  "apodex/apodex-1.1-mini:free",
+]);
+
+/** Throws `RefusedModelError` ("retired upstream") when the input is a retired section 1.2 `:free` id. */
+export function refuseRetiredFreeWireId(input: string): void {
+  if (SPEC_RETIRED_FREE_WIRE_IDS.has(input.trim().toLowerCase())) {
+    throw new RefusedModelError(input, "a SPEC-v9 section 1.2 free id that is retired upstream (not in the public OpenRouter list on 2026-10-31); it is never rerouted to the free lane or another model");
+  }
+}
+
+/**
+ * Resolver-registry ids (`APPROVED_MODELS`, `LEGACY_ALIASES`, and their wire strings) whose
+ * provider is OpenRouter and that this catalog cannot dispatch: it has no OpenRouter branch
+ * (PR 2 adds it). Homen D1: a known id is never silently rerouted, so these are REFUSED with this
+ * reason instead of falling to the paid default (`main`: gpt-5.4-mini) or to the free lane
+ * (head, for the free-looking ones). `anthropicWireIds.test.ts` derives the same set from the
+ * resolver and pins this one to it in both directions.
+ */
+export const OPENROUTER_ONLY_REGISTRY_IDS: ReadonlySet<string> = new Set([
+  "arcee-ai/trinity-large-preview:free", "arcee-ai/trinity-mini:free", "chimera",
+  "cognitivecomputations/dolphin-mistral-24b-venice-edition:free", "deepseek-chimera",
+  "deepseek/deepseek-r1", "deepseek/deepseek-r1-0528:free", "deepseek/deepseek-r1:free", "deepseek/deepseek-v3.2",
+  "deepseek/deepseek-v3.2-speciale", "devstral", "devstral-2", "devstral-2-free", "dolphin-mistral", "gemma",
+  "gemma-3-27b", "glm", "glm-4.5-air", "google/gemma-3-27b-it:free", "gpt-oss", "gpt-oss-120b", "gpt-oss-20b",
+  "grok", "grok-4-fast", "grok-4-fast-free", "kat-coder", "kat-coder-pro", "kat-coder-pro-free",
+  "kwaipilot/kat-coder-pro:free", "laguna-s-2.1", "laguna-s-2.1-free", "laguna-xs-2.1", "laguna-xs-2.1-free",
+  "llama-3.3", "llama-3.3-70b", "llama-4", "llama-4-maverick", "llama-4-maverick-free", "llama-4-scout",
+  "llama-4-scout-free", "meta-llama/llama-3.3-70b-instruct:free", "meta-llama/llama-4-maverick:free",
+  "meta-llama/llama-4-scout:free", "mimo", "mimo-v2", "mimo-v2-flash-free", "mistral-small",
+  "mistral-small-3.1", "mistralai/devstral-2:free", "mistralai/mistral-large-2411",
+  "mistralai/mistral-small-3.1-24b-instruct:free", "nemotron", "nemotron-3-nano", "nemotron-70b",
+  "nemotron-free", "nemotron-nano-12b", "nvidia/llama-3.1-nemotron-70b-instruct:free",
+  "nvidia/nemotron-3-nano-30b-a3b:free", "nvidia/nemotron-nano-12b-v2-vl:free", "openai/gpt-oss-120b:free",
+  "openai/gpt-oss-20b:free", "poolside/laguna-s-2.1", "poolside/laguna-s-2.1:free", "poolside/laguna-xs-2.1",
+  "poolside/laguna-xs-2.1:free", "qwen/qwen3-235b-a22b", "qwen/qwen3-coder:free",
+  "qwen/qwen3-next-80b-a3b-instruct:free", "qwen3-coder", "qwen3-next", "step-3.5-flash",
+  "stepfun/step-3.5-flash:free", "tngtech/deepseek-r1t2-chimera:free", "trinity", "trinity-large",
+  "trinity-mini", "venice-dolphin", "x-ai/grok-4-fast:free", "xiaomi/mimo-v2-flash",
+  "xiaomi/mimo-v2-flash:free", "z-ai/glm-4.5-air:free", "z-ai/glm-4.7", "z-ai/glm-4.7-20251222",
+  "z-ai/glm-4.7-flash", "z-ai/glm-4.7-flash-20260119", "zhipu/glm-4.5-air:free",
+]);
+
+/**
+ * The Anthropic wire id for a catalog alias (or short alias such as "claude").
+ * A string that already is a wire id is returned unchanged, dated snapshots in
+ * `LEGACY_PASSTHROUGH_IDS` included. Returns null when the input is none of these,
+ * so callers decide whether to fail or pass it through.
+ */
+export function anthropicWireId(modelInput: string): string | null {
+  const resolved = resolveModelAlias(modelInput.trim());
+  const fromAlias = ownEntry(ANTHROPIC_WIRE_IDS, resolved);
+  if (fromAlias) return fromAlias;
+  if (Object.values(ANTHROPIC_WIRE_IDS).includes(resolved)) return resolved;
+  return resolved.startsWith("claude-") && (LEGACY_PASSTHROUGH_IDS.has(resolved) || SPEC_NATIVE_WIRE_IDS.has(resolved)) ? resolved : null;
+}
+
+/**
+ * Concatenated text of an Anthropic Messages response. Reads blocks by `type`:
+ * `content[0]` is a thinking block whenever adaptive thinking is on (default
+ * on Claude Haiku 5.5), so index 0 is not "the answer".
+ */
+export function anthropicText(
+  content: ReadonlyArray<{ type: string; text?: string }> | null | undefined,
+): string {
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((block) => (block?.type === "text" && typeof block.text === "string" ? block.text : ""))
+    .join("");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -622,7 +898,7 @@ export function validateContextWindow(
   promptText: string, 
   reserveOutputTokens: number = 4000 
 ): { fits: boolean; tokenEstimate: number; contextWindow: number; overflow: number } { 
-  const pricing = modelPricing[modelName];
+  const pricing = ownEntry(modelPricing, modelName);
   const contextWindow = pricing?.contextWindow ?? 128000; // Default to 128K
   
   // Rough token estimation: ~4 chars per token for English
@@ -673,7 +949,7 @@ export const modelFallbackChains: Record<string, string[]> = {
 };
 
 export function getNextFallback(model: string, attempted: string[]): string | null {
-  const chain = modelFallbackChains[model] ?? [];
+  const chain = ownEntry(modelFallbackChains, model) ?? [];
   return chain.find((m) => !attempted.includes(m)) ?? null;
 }
 
@@ -790,7 +1066,7 @@ export const modelEquivalents: Record<string, Record<LlmProvider, string>> = {
  * Get equivalent model for a different provider (for failover)
  */
 export function getEquivalentModel(modelName: string, targetProvider: LlmProvider): string {
-  const equivalents = modelEquivalents[modelName];
+  const equivalents = ownEntry(modelEquivalents, modelName);
   if (equivalents?.[targetProvider]) {
     return equivalents[targetProvider];
   }
@@ -808,32 +1084,123 @@ export function getEquivalentModel(modelName: string, targetProvider: LlmProvide
 }
 
 /**
- * Get a working model with failover.
- * Tries the preferred model's provider first, then falls back to alternatives.
+ * The string to put in a provider request. Callers of `getModelWithFailover`
+ * send `model` straight to the provider SDK, so for Anthropic it must be the
+ * wire id, not the dotted catalog alias (api.anthropic.com 404s on
+ * "claude-sonnet-4.6"), and the free-lane alias becomes its OpenRouter wire id.
+ * Only known ids reach here (`getModelWithFailover` throws on the rest), so an id
+ * with no table entry is already its own wire id (openai, gemini: sdkId == alias).
  */
-export function getModelWithFailover(preferredModel: string): {
+function toProviderWireId(model: string, provider: LlmProvider): string {
+  if (provider === "openrouter" && model === FREE_LANE_CATALOG_ID) return FREE_LANE_WIRE_ID;
+  return provider === "anthropic" ? (anthropicWireId(model) ?? model) : model;
+}
+
+/** The free route aliases; mirrors `routeAliasToModel` (routeTier "free") in modelResolver.ts. */
+const FREE_ROUTE_ALIASES = new Set(["free", "auto-free", "nodebench:auto-free", "kilo-auto/free", "openrouter/free"]);
+
+/** Free-looking unknown ids: the OpenRouter `-free` / `:free` suffix or a free route alias. */
+function isFreeLookingModel(model: string): boolean {
+  const normalized = model.trim().toLowerCase();
+  return /(-|:)free$/.test(normalized) || FREE_ROUTE_ALIASES.has(normalized);
+}
+
+/**
+ * A model this catalog knows by name or by wire id (`ANTHROPIC_WIRE_IDS` values; for openai and
+ * gemini the resolver's sdkId equals the catalog name, pinned by anthropicWireIds.test.ts), or an id
+ * main passed through that the resolver still recognises (`LEGACY_PASSTHROUGH_IDS`). A provider
+ * prefix (`gpt-`, `claude-`, `gemini-`) is not knowledge: an id that is only prefix-shaped is unknown.
+ */
+function isKnownCatalogModel(model: string): boolean {
+  return (
+    ownEntry(modelPricing, model) != null ||
+    ownEntry(modelEquivalents, model) != null ||
+    LEGACY_PASSTHROUGH_IDS.has(model) ||
+    SPEC_NATIVE_WIRE_IDS.has(model) ||
+    anthropicWireId(model) !== null
+  );
+}
+
+/**
+ * Throws `UnknownModelError` unless `getModelWithFailover` would dispatch `model` (a known model or
+ * a free-looking id). Public actions call it with `resolveModelAlias(input)` before they hand the
+ * caller's string on, so the boundary accepts exactly what dispatch accepts. It reads no
+ * environment: whether a provider is configured is dispatch's concern, not validation's.
+ */
+export function assertKnownModel(input: string): void {
+  refuseRetiredFreeWireId(input);
+  // The catalog's own short aliases ("kimi", "moonshotai/kimi-k2.6", "gpt5", ...) are known ids
+  // (Homen D1), so they are resolved here instead of relying on every caller to do it first.
+  const model = resolveModelAlias(input);
+  if (OPENROUTER_ONLY_REGISTRY_IDS.has(model)) {
+    throw new RefusedModelError(model, "a registered OpenRouter id this catalog cannot dispatch until PR 2 adds the OpenRouter branch; it is refused, never rerouted to another model");
+  }
+  if (specOtherTransportWireId(model) !== null) {
+    throw new RefusedModelError(model, "a SPEC-v9 section 1.2 OpenRouter or Bedrock id that this catalog cannot dispatch until PR 2 adds those branches (PR 1 moves no ids); it is refused, never rerouted to another model");
+  }
+  const liveFree = specLiveFreeWireId(model);
+  if (liveFree !== null && liveFree !== FREE_LANE_WIRE_ID) {
+    throw new RefusedModelError(model, "a live free OpenRouter id of SPEC-v9 section 1.2 that this catalog cannot dispatch until PR 2 adds the OpenRouter branch; it is never rerouted to another model");
+  }
+  if (!isKnownCatalogModel(model) && !isFreeLookingModel(model)) {
+    throw new UnknownModelError(model, "an unrecognised id never fails over to a paid default and is never sent to a provider");
+  }
+}
+
+function isFreeCatalogModel(model: string): boolean {
+  const price = ownEntry(modelPricing, model);
+  return price != null && price.inputPer1M === 0 && price.outputPer1M === 0;
+}
+
+/**
+ * Get a working model with failover.
+ * An unknown id fails closed (SPEC-v9 A.0.10): free-looking -> the free lane (wire id),
+ * anything else throws before any provider is consulted, so a public API argument can
+ * never reach a paid provider unvalidated. A free model never fails over to a paid provider.
+ * Tries the preferred model's provider first, then falls back to alternatives.
+ * The returned `model` is the provider wire id (see `toProviderWireId`).
+ */
+export function getModelWithFailover(requestedModel: string): {
   model: string;
   provider: LlmProvider;
   isFallback: boolean;
 } {
-  const provider = getProviderForModel(preferredModel);
-  
-  if (!provider) {
-    return { model: DEFAULT_FALLBACK_MODEL, provider: "openai", isFallback: true };
+  assertKnownModel(requestedModel);
+  const preferredModel = resolveModelAlias(requestedModel);
+  // The free lane's own wire id is known (SPEC-v9 1.2): served as asked, not as a substitution.
+  if (specLiveFreeWireId(preferredModel) === FREE_LANE_WIRE_ID) {
+    return { model: FREE_LANE_WIRE_ID, provider: "openrouter", isFallback: false };
   }
-  
+  const known = isKnownCatalogModel(preferredModel);
+  const provider = getProviderForModel(preferredModel);
+
+  if (!known && isFreeLookingModel(preferredModel)) {
+    // The wire id, not the alias: the caller sends `model` to the provider as is.
+    console.warn(`[getModelWithFailover] unrecognised free-looking id "${preferredModel}" -> the verified free lane ${FREE_LANE_WIRE_ID}`);
+    return { model: FREE_LANE_WIRE_ID, provider: "openrouter", isFallback: true };
+  }
+  if (!provider) throw new UnknownModelError(preferredModel, "no provider for this id");
+
   // Check if preferred provider is configured
   if (isProviderConfigured(provider)) {
-    return { model: preferredModel, provider, isFallback: false };
+    return { model: toProviderWireId(preferredModel, provider), provider, isFallback: false };
   }
-  
+
+  if (isFreeCatalogModel(preferredModel)) {
+    throw new Error(`[getModelWithFailover] Free model "${preferredModel}": ${provider} is not configured and a free request never fails over to a paid provider`);
+  }
+
   // Try fallback providers
   const fallbacks = providerFallbackChain[provider];
   for (const fallbackProvider of fallbacks) {
     if (isProviderConfigured(fallbackProvider)) {
       const equivalentModel = getEquivalentModel(preferredModel, fallbackProvider);
       console.warn(`[getModelWithFailover] ${provider} not configured, falling back to ${fallbackProvider}: ${equivalentModel}`);
-      return { model: equivalentModel, provider: fallbackProvider, isFallback: true };
+      return {
+        model: toProviderWireId(equivalentModel, fallbackProvider),
+        provider: fallbackProvider,
+        isFallback: true,
+      };
     }
   }
   

@@ -32,6 +32,7 @@ export const APPROVED_MODELS = [
   "qwen3-235b",
   "minimax-m2.7",
   "mistral-large",
+  "flint-v1-free",
   "laguna-s-2.1-free",
   "laguna-xs-2.1-free",
   "qwen3-coder-free",
@@ -293,6 +294,16 @@ export const MODEL_UI_INFO: Record<ApprovedModel, ModelUIInfo> = {
     contextWindow: "131K",
     icon: "OR",
   },
+  "flint-v1-free": {
+    id: "flint-v1-free",
+    name: "Flint v1.0 (Free)",
+    provider: "openrouter",
+    description: "Free lane with tools and response_format (live-unverified)",
+    tier: "powerful",
+    contextWindow: "262K",
+    icon: "OR",
+    isFree: true,
+  },
   "laguna-s-2.1-free": {
     id: "laguna-s-2.1-free",
     name: "Laguna S 2.1 (Free)",
@@ -478,23 +489,33 @@ export const MODEL_UI_INFO: Record<ApprovedModel, ModelUIInfo> = {
 export const DEFAULT_MODEL: ApprovedModel = "kimi-k2.6";
 export const FALLBACK_MODEL: ApprovedModel = "gpt-5.4-mini";
 
+// Mirrors modelResolver.ts; approvedModels.drift.test.ts fails when they diverge.
 export const MODEL_PRIORITY_ORDER: ApprovedModel[] = [
   "kimi-k2.6",
-  "minimax-m2.7",
   "gemini-3.1-flash-lite-preview",
-  "gpt-5.4-mini",
   "gemini-3-flash-preview",
   "gemini-3.1-pro-preview",
+  "minimax-m2.7",
+  "gpt-5.4-mini",
   "gpt-5.4",
   "claude-sonnet-4.6",
   "claude-opus-4.7",
   "claude-haiku-4.5",
   "gpt-5.4-nano",
+  "flint-v1-free",
+  "laguna-s-2.1-free",
+  "laguna-xs-2.1-free",
   "qwen3-coder-free",
   "step-3.5-flash-free",
   "gpt-oss-120b-free",
   "trinity-large-free",
   "nemotron-3-nano-free",
+  "qwen3-next-free",
+  "llama-3.3-70b-free",
+  "glm-4.5-air-free",
+  "deepseek-r1-free",
+  "deepseek-chimera-free",
+  "venice-dolphin-free",
 ];
 
 export type NodeBenchRuntimeProfile = "advisor" | "executor" | "background";
@@ -503,16 +524,16 @@ export const NODEBENCH_ADVISOR_MODEL: ApprovedModel = "kimi-k2.6";
 
 export const NODEBENCH_EXECUTOR_MODELS: ApprovedModel[] = [
   "gemini-3.1-flash-lite-preview",
-  "gpt-5.4-mini",
-  "minimax-m2.7",
   "gemini-3-flash-preview",
+  "minimax-m2.7",
+  "gpt-5.4-mini",
   "kimi-k2.6",
 ];
 
 export const NODEBENCH_BACKGROUND_MODELS: ApprovedModel[] = [
   "gemini-3.1-pro-preview",
-  "kimi-k2.6",
   "gpt-5.4",
+  "kimi-k2.6",
   "gemini-3-flash-preview",
 ];
 
@@ -532,6 +553,18 @@ const NODEBENCH_EXECUTOR_ALLOWED = new Set<ApprovedModel>([
 
 const NODEBENCH_BACKGROUND_ALLOWED = new Set<ApprovedModel>(NODEBENCH_BACKGROUND_MODELS);
 
+/** A free model keeps its cost class in every profile; a paid one must be in the profile's allowlist (mirrors modelResolver.ts). */
+export function isAllowedInProfile(model: ApprovedModel, profile: NodeBenchRuntimeProfile): boolean {
+  if (MODEL_UI_INFO[model].isFree) return true;
+  return (
+    profile === "advisor"
+      ? NODEBENCH_ADVISOR_ALLOWED
+      : profile === "background"
+        ? NODEBENCH_BACKGROUND_ALLOWED
+        : NODEBENCH_EXECUTOR_ALLOWED
+  ).has(model);
+}
+
 export function normalizeNodeBenchRuntimeModel(
   input: string | undefined | null,
   profile: NodeBenchRuntimeProfile = "advisor",
@@ -549,17 +582,12 @@ export function normalizeNodeBenchRuntimeModel(
     return fallback;
   }
 
-  if (profile === "advisor" && NODEBENCH_ADVISOR_ALLOWED.has(candidate)) {
-    return candidate;
-  }
-  if (profile === "executor" && NODEBENCH_EXECUTOR_ALLOWED.has(candidate)) {
-    return candidate;
-  }
-  if (profile === "background" && NODEBENCH_BACKGROUND_ALLOWED.has(candidate)) {
+  if (isAllowedInProfile(candidate, profile)) {
     return candidate;
   }
 
-  return fallback;
+  // Mirrors modelResolver.ts (Homen D1): a known model the profile does not allow is refused, not swapped.
+  throw new Error(`Model "${candidate}" is not allowed on the ${profile} profile and is never swapped for that profile's default (${fallback})`);
 }
 
 export function isApprovedModel(model: string): model is ApprovedModel {
@@ -572,6 +600,16 @@ export function getModelsByProvider(provider: Provider): ApprovedModel[] {
 
 export function getModelUIList(): ModelUIInfo[] {
   return APPROVED_MODELS.map((model) => MODEL_UI_INFO[model]);
+}
+
+/**
+ * The models a signed-in user can actually start a thread or send on. The FastAgent panel sends the
+ * `advisor` profile (createThread, initiateAsyncStreaming with useCoordinator: true) and the backend
+ * refuses a known paid model that profile does not allow (Homen D1), so the picker offers only the models
+ * the profile accepts plus the free ones. The other 19 used to be answered silently by kimi-k2.6.
+ */
+export function getSelectableModelUIList(profile: NodeBenchRuntimeProfile = "advisor"): ModelUIInfo[] {
+  return APPROVED_MODELS.filter((model) => isAllowedInProfile(model, profile)).map((model) => MODEL_UI_INFO[model]);
 }
 
 export const PROVIDER_COLORS: Record<

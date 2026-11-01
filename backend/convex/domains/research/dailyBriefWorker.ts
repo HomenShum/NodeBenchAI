@@ -19,9 +19,12 @@ import {
   getLlmModel,
   resolveModelAlias,
   getModelWithFailover,
+  assertKnownModel,
+  anthropicText,
 } from "../../../../shared/llm/modelCatalog";
 
-async function generateWithProvider(
+// Exported for providerCopies.requestShape.test.ts (SPEC-v9 A.0.6); not a Convex function.
+export async function generateWithProvider(
   modelInput: string,
   systemPrompt: string,
   userPrompt: string,
@@ -39,7 +42,7 @@ async function generateWithProvider(
       system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }],
     });
-    return response.content[0]?.type === "text" ? response.content[0].text : "";
+    return anthropicText(response.content);
   }
 
   if (provider === "gemini") {
@@ -596,6 +599,10 @@ export const runNextTask = action({
   handler: async (ctx, args): Promise<any> => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
+    // A.0.10: an unknown model id throws here, before any provider is reached. Validation only,
+    // by the same catalog lookup dispatch uses (resolveModelAlias -> getModelWithFailover), so the
+    // boundary accepts exactly what dispatch accepts. The caller's string is forwarded as given.
+    if (args.model !== undefined) assertKnownModel(resolveModelAlias(args.model));
 
     const res: any = await ctx.runAction(
       internal.domains.research.dailyBriefWorker.runNextTaskInternal,

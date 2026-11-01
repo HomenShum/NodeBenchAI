@@ -12,7 +12,7 @@ import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
-import { getLlmModel, resolveModelAlias, getModelWithFailover } from "../../../../shared/llm/modelCatalog";
+import { getLlmModel, resolveModelAlias, getModelWithFailover, anthropicText } from "../../../../shared/llm/modelCatalog";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -143,7 +143,8 @@ async function fetchSourceContent(
 /**
  * Call LLM-as-a-judge to verify claim against source
  */
-async function judgeClaimAgainstSource(
+// Exported for providerCopies.requestShape.test.ts (SPEC-v9 A.0.6); not a Convex function.
+export async function judgeClaimAgainstSource(
   claimText: string,
   sourceContent: string
 ): Promise<JudgeResult> {
@@ -161,7 +162,7 @@ async function judgeClaimAgainstSource(
         system: JUDGE_SYSTEM_PROMPT,
         messages: [{ role: "user", content: userPrompt }],
       });
-      content = response.content[0]?.type === "text" ? response.content[0].text : undefined;
+      content = anthropicText(response.content) || undefined;
     } else if (provider === "gemini") {
       const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
       const result = await generateText({

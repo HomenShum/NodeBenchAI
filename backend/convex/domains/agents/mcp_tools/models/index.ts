@@ -23,10 +23,18 @@ export {
   LEGACY_ALIASES,
   DEFAULT_MODEL,
   FALLBACK_MODEL,
+  FREE_LANE_MODEL,
   MODEL_PRIORITY_ORDER,
   NODEBENCH_ADVISOR_MODEL,
   NODEBENCH_EXECUTOR_MODELS,
   NODEBENCH_BACKGROUND_MODELS,
+
+  // Fail-closed resolution (SPEC-v9 A.0.10)
+  UnknownModelError,
+  type UnknownModelOptions,
+  assertKnownModelInput,
+  assertKnownPipelineModel,
+  getPaidFallbackCount,
 
   // Core resolver functions
   getLanguageModel,
@@ -44,6 +52,8 @@ export {
   // Normalization
   normalizeModelInput,
   normalizeNodeBenchRuntimeModel,
+  pickNodeBenchLaneModel,
+  normalizeFastAgentModel,
   isApprovedModel,
 
   // Free model helpers

@@ -100,7 +100,7 @@ async function getAnthropicProvider(): Promise<LlmProvider | null> {
           max_tokens: maxTokens ?? 2048,
           system: system ?? "",
           messages: [{ role: "user", content: prompt }],
-          temperature: temperature ?? 0.3,
+          // No temperature: Claude 4.7+/5.x answer 400 to non-default sampling.
         });
         const text = result.content.filter((b) => b.type === "text").map((b) => (b as any).text as string).join("");
         return {

@@ -142,27 +142,30 @@ function parseRawModelKey(input: string): {
   return { provider: "openai", modelId: input, requestedModelId: input };
 }
 
-async function parseModelKey(input: string): Promise<{
+// Exported for the fail-closed test (SPEC-v9 A.2.10 PR 1); not a Convex function.
+export async function parseModelKey(input: string): Promise<{
   provider: PiProviderId;
   modelId: string;
   requestedModelId: string;
   resolvedAlias?: string;
 }> {
+  // Only a failure to LOAD the resolver module may fall through to the raw
+  // parser. An UnknownModelError (or any resolver error) must surface: the raw
+  // parser would forward an arbitrary id to pi-ai (SPEC-v9 A.0.10).
+  let resolver: typeof import("../agents/mcp_tools/models/modelResolver");
   try {
-    const { getModelSpec, resolvePipelineModelSelection } = await import(
-      "../agents/mcp_tools/models/modelResolver"
-    );
-    const selection = resolvePipelineModelSelection(input);
-    const spec = getModelSpec(selection.resolvedModelId);
-    return {
-      provider: spec.provider as PiProviderId,
-      modelId: spec.sdkId,
-      requestedModelId: selection.requestedModelId,
-      resolvedAlias: selection.resolvedModelId,
-    };
+    resolver = await import("../agents/mcp_tools/models/modelResolver");
   } catch {
     return parseRawModelKey(input);
   }
+  const selection = resolver.resolvePipelineModelSelection(input);
+  const spec = resolver.getModelSpec(selection.resolvedModelId);
+  return {
+    provider: spec.provider as PiProviderId,
+    modelId: spec.sdkId,
+    requestedModelId: selection.requestedModelId,
+    resolvedAlias: selection.resolvedModelId,
+  };
 }
 
 /**
@@ -409,6 +412,7 @@ export async function runPiOrAiSdkCompletion(args: PiRunArgs): Promise<PiRunResu
     // Fallback: AI SDK path.
     const ai = await import("ai");
     const {
+      calculateCost,
       executeWithModelFallback,
       getModelSpec,
       resolvePipelineModelSelection,
@@ -437,12 +441,15 @@ export async function runPiOrAiSdkCompletion(args: PiRunArgs): Promise<PiRunResu
     );
     const result = fallback.result;
     const spec = getModelSpec(fallback.modelUsed);
+    const inputTokens = result.usage?.inputTokens ?? 0;
+    const outputTokens = result.usage?.outputTokens ?? 0;
     return {
       text: result.text,
       usage: {
-        inputTokens: result.usage?.inputTokens ?? 0,
-        outputTokens: result.usage?.outputTokens ?? 0,
-        estimatedUsd: 0,
+        inputTokens,
+        outputTokens,
+        // Priced from the model that actually answered; a hardcoded 0 hid paid fallbacks.
+        estimatedUsd: calculateCost(fallback.modelUsed, inputTokens, outputTokens).totalCost,
       },
       modelId: fallback.modelUsed,
       providerId: spec.provider as PiProviderId,

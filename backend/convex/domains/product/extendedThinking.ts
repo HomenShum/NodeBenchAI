@@ -44,11 +44,13 @@ import {
 import { api, internal } from "../../_generated/api";
 import {
   buildCheckpointPrompt,
+  buildCheckpointRequestBody,
+  estimateThinkingTokens,
   parseCheckpointResponse,
+  resolveCheckpointModel,
   shouldContinue,
   MAX_CHECKPOINTS,
   MAX_THINKING_BUDGET_TOKENS,
-  MAX_OUTPUT_TOKENS,
 } from "../../../../workers/node/pipeline/extendedThinkingRunner";
 
 const DEFAULT_MODEL = "claude-sonnet-4.6";
@@ -95,6 +97,8 @@ export const requestExtendedRun = mutation({
       ),
     );
     const modelName = args.modelName ?? DEFAULT_MODEL;
+    // A.0.10: an id with no Anthropic wire id is rejected here, before a run is inserted or a job scheduled.
+    resolveCheckpointModel(modelName);
     const now = Date.now();
 
     const runId = await ctx.db.insert("extendedThinkingRuns", {
@@ -333,16 +337,13 @@ export const advanceRun = internalAction({
           "anthropic-version": "2023-06-01",
         },
         signal: controller.signal,
-        body: JSON.stringify({
-          model: run.modelName,
-          max_tokens: MAX_OUTPUT_TOKENS,
-          thinking: {
-            type: "enabled",
-            budget_tokens: Math.min(10_000, run.thinkingBudgetTokens - run.thinkingTokensUsed),
-          },
-          system: prompt.system,
-          messages: [{ role: "user", content: prompt.user }],
-        }),
+        body: JSON.stringify(
+          buildCheckpointRequestBody({
+            modelName: run.modelName,
+            prompt,
+            remainingThinkingTokens: run.thinkingBudgetTokens - run.thinkingTokensUsed,
+          }),
+        ),
       });
 
       if (!response.ok) {
@@ -381,13 +382,10 @@ export const advanceRun = internalAction({
             const textBlock = envelope.content?.find((b) => b.type === "text");
             rawText = textBlock?.text ?? null;
             outputTokens = envelope.usage?.output_tokens ?? 0;
-            // Anthropic returns total tokens; extended thinking tokens are
-            // included in output_tokens for billing.  We approximate
-            // thinkingTokens from the length of the 'thinking' block.
-            const thinkingBlock = envelope.content?.find((b) => b.type === "thinking");
-            thinkingTokens = thinkingBlock?.thinking
-              ? Math.ceil(thinkingBlock.thinking.length / 4)
-              : 0;
+            // output_tokens is thinking + answer with no split, and the thinking
+            // block's text is omitted by default on Sonnet 5.x / Opus 4.7+, so its
+            // length cannot be used. Charge output_tokens minus the answer.
+            thinkingTokens = estimateThinkingTokens(outputTokens, rawText ?? "");
             if (!rawText) errorMessage = "no text block in anthropic response";
           } catch (err) {
             errorMessage = `anthropic envelope parse: ${

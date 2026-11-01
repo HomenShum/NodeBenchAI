@@ -6,13 +6,14 @@ import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
-import { getLlmModel, getProviderForModel, resolveModelAlias, getModelWithFailover } from "../../../../shared/llm/modelCatalog";
+import { getLlmModel, getProviderForModel, resolveModelAlias, getModelWithFailover, anthropicText } from "../../../../shared/llm/modelCatalog";
 
 // NOTE: Query is in morningDigestQueries.ts (Convex requires queries in non-Node files)
 // Import it via: api.domains.ai.morningDigestQueries.getDigestData
 
 // Multi-provider LLM helper
-async function generateWithProvider(
+// Exported for providerCopies.requestShape.test.ts (SPEC-v9 A.0.6); not a Convex function.
+export async function generateWithProvider(
   modelInput: string,
   systemPrompt: string,
   userPrompt: string,
@@ -28,7 +29,7 @@ async function generateWithProvider(
       system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }],
     });
-    return response.content[0]?.type === "text" ? response.content[0].text : "";
+    return anthropicText(response.content);
   }
   
   if (provider === "gemini") {
