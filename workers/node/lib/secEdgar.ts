@@ -9,6 +9,8 @@
  * Company tickers: https://www.sec.gov/files/company_tickers.json
  */
 
+import { fetchPipelineJson, PipelineHttpError } from "./pipelineHttp.js";
+
 const EDGAR_UA = "NodeBench/1.0 (nodebench@nodebenchai.com)";
 const TICKER_URL = "https://www.sec.gov/files/company_tickers.json";
 const FACTS_URL = "https://data.sec.gov/api/xbrl/companyfacts/CIK";
@@ -28,31 +30,32 @@ interface EdgarFinancials {
 // Cache ticker lookup (loaded once)
 let tickerCache: Map<string, { cik: string; ticker: string; name: string }> | null = null;
 
-async function loadTickers(): Promise<Map<string, { cik: string; ticker: string; name: string }>> {
+async function loadTickers(signal?: AbortSignal): Promise<Map<string, { cik: string; ticker: string; name: string }>> {
+  signal?.throwIfAborted();
   if (tickerCache) return tickerCache;
 
   try {
-    const resp = await fetch(TICKER_URL, {
+    const data = await fetchPipelineJson(TICKER_URL, {
       headers: { "User-Agent": EDGAR_UA },
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!resp.ok) throw new Error(`Tickers ${resp.status}`);
-
-    const data = (await resp.json()) as Record<string, { cik_str: string; ticker: string; title: string }>;
-    tickerCache = new Map();
-
-    for (const entry of Object.values(data)) {
+    }, 2_097_152, signal, 10_000) as Record<string, { cik_str: string; ticker: string; title: string }>;
+    const entries = Object.values(data);
+    if (!entries.length || entries.length > 25_000) throw new PipelineHttpError("INVALID_PROVIDER_RESPONSE");
+    const complete = new Map<string, { cik: string; ticker: string; name: string }>();
+    for (const entry of entries) {
+      if (!entry || typeof entry.title !== "string" || !entry.title.trim() || typeof entry.ticker !== "string" || !entry.ticker.trim() || !/^\d{1,10}$/.test(String(entry.cik_str))) throw new PipelineHttpError("INVALID_PROVIDER_RESPONSE");
       const key = entry.title.toLowerCase();
       const cik = String(entry.cik_str).padStart(10, "0");
-      tickerCache.set(key, { cik, ticker: entry.ticker, name: entry.title });
+      complete.set(key, { cik, ticker: entry.ticker, name: entry.title });
       // Also index by ticker
-      tickerCache.set(entry.ticker.toLowerCase(), { cik, ticker: entry.ticker, name: entry.title });
+      complete.set(entry.ticker.toLowerCase(), { cik, ticker: entry.ticker, name: entry.title });
+      if (complete.size > 25_000) throw new PipelineHttpError("INVALID_PROVIDER_RESPONSE");
     }
-
+    signal?.throwIfAborted();
+    tickerCache = complete;
     return tickerCache;
-  } catch {
-    tickerCache = new Map();
-    return tickerCache;
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    return new Map();
   }
 }
 
@@ -110,19 +113,15 @@ function extractFact(facts: any, concepts: string[], unit = "USD"): { value: num
  * Fetch real financial data from SEC EDGAR for a public company.
  * Free API, no key required. Returns null for private companies.
  */
-export async function fetchEdgarFinancials(entityName: string): Promise<EdgarFinancials | null> {
+export async function fetchEdgarFinancials(entityName: string, signal?: AbortSignal): Promise<EdgarFinancials | null> {
   try {
-    const tickers = await loadTickers();
+    const tickers = await loadTickers(signal);
     const company = findCompanyCIK(entityName, tickers);
     if (!company) return null;
 
-    const resp = await fetch(`${FACTS_URL}${company.cik}.json`, {
+    const facts = await fetchPipelineJson(`${FACTS_URL}${company.cik}.json`, {
       headers: { "User-Agent": EDGAR_UA },
-      signal: AbortSignal.timeout(15_000),
-    });
-
-    if (!resp.ok) return null;
-    const facts = await resp.json();
+    }, 5_242_880, signal, 15_000);
 
     // Extract key financials
     const revenue = extractFact(facts, [
@@ -152,7 +151,8 @@ export async function fetchEdgarFinancials(entityName: string): Promise<EdgarFin
       fiscalYear: revenue?.fy ?? netIncome?.fy ?? null,
       source: `SEC EDGAR (CIK ${company.cik})`,
     };
-  } catch {
+  } catch (error) {
+    if (signal?.aborted) throw error;
     return null;
   }
 }
