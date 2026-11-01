@@ -23,6 +23,7 @@ import {
   normalizeFastAgentModel,
   normalizeModelInput,
   normalizeNodeBenchRuntimeModel,
+  pickNodeBenchLaneModel,
   resolveModelAlias,
   resolvePipelineModelSelection,
 } from "./modelResolver";
@@ -373,11 +374,12 @@ describe("the fallback helpers resolve an unvalidated start model first (A.0.10,
     expect(() => getLanguageModelWithFallback("not-a-model" as never)).toThrow(UnknownModelError);
   });
 
-  // Homen D1: nvidia/nemotron-3-super-120b-a12b:free is listed in SPEC-v9 section 1.2, so it is KNOWN. The
-  // 2026-10-31 re-pick retires it only as the free-lane target (it left the public list): a request for it is
-  // refused with the reason at every boundary, never run as flint.
-  it("the retired section 1.2 free id is known and refused (not rerouted) at every boundary", async () => {
-    const id = "nvidia/nemotron-3-super-120b-a12b:free";
+  // Homen D1: nvidia/nemotron-3-super-120b-a12b:free and apodex/apodex-1.1-mini:free are listed in SPEC-v9
+  // section 1.2, so they are KNOWN. Both are absent from the public OpenRouter list (fetches of 2026-10-31T23:53Z
+  // and 2026-11-01T00:07Z, 452 rows), so a request for either is refused with the reason at every boundary,
+  // never run as flint and never sent to OpenRouter as a model that is not served (PR #662 round 14: apodex was
+  // still forwarded unchanged by getLanguageModelSafe).
+  it.each(["nvidia/nemotron-3-super-120b-a12b:free", "apodex/apodex-1.1-mini:free"])("the retired section 1.2 free id %s is known and refused (not rerouted) at every boundary", async (id) => {
     const fn = vi.fn(async (_m: unknown, used: string) => used);
     await expect(executeWithModelFallback(fn, { startModel: id as never })).rejects.toBeInstanceOf(RefusedModelError);
     expect(fn).not.toHaveBeenCalled();
@@ -391,6 +393,7 @@ describe("the fallback helpers resolve an unvalidated start model first (A.0.10,
       () => resolvePipelineModelSelection(`openrouter:${id}`),
       () => assertKnownPipelineModel(id),
       () => getModelWithFailover(id),
+      () => getLanguageModelSafe(id, { allowPaidFallback: true }),
     ]) {
       expect(call).toThrow(RefusedModelError);
       expect(call).toThrow(/retired upstream/);
@@ -456,11 +459,45 @@ describe("normalizeNodeBenchRuntimeModel is the first resolver and fails closed"
     }
   });
 
-  it("empty input takes the profile default, and a known paid model outside the profile takes it too", () => {
+  it("empty input takes the profile default", () => {
     expect(normalizeNodeBenchRuntimeModel(undefined, "advisor")).toBe("kimi-k2.6");
     expect(normalizeNodeBenchRuntimeModel("", "executor")).toBe("gemini-3.1-flash-lite-preview");
     expect(normalizeNodeBenchRuntimeModel(null, "background")).toBe("gemini-3.1-pro-preview");
-    expect(normalizeNodeBenchRuntimeModel("claude-opus-4.7", "executor")).toBe("gemini-3.1-flash-lite-preview");
+  });
+
+  // Persona: a signed-in user picks claude-opus-4.7 in the model selector and starts a thread. createThread
+  // (advisor profile) stored kimi-k2.6 as the thread model with no signal; the executor profile returned
+  // gemini-3.1-flash-lite-preview. Homen D1: a known id is never silently swapped, so the profile refuses it
+  // and names the profile (PR #662 round 14; this test replaces the one that pinned the Opus -> Gemini swap).
+  it("a known paid model outside the profile is refused with a reason that names the profile, never swapped for the profile default", () => {
+    for (const [id, profile, fallback] of [
+      ["claude-opus-4.7", "advisor", "kimi-k2.6"],
+      ["claude-opus-4.7", "executor", "gemini-3.1-flash-lite-preview"],
+      ["claude-opus-4.7", "background", "gemini-3.1-pro-preview"],
+      ["gpt-5.4-nano", "advisor", "kimi-k2.6"],
+    ] as const) {
+      let error: unknown;
+      try { normalizeNodeBenchRuntimeModel(id, profile); } catch (e) { error = e; }
+      expect(error, `${profile}/${id}`).toBeInstanceOf(RefusedModelError);
+      expect((error as Error).message, `${profile}/${id}`).toContain(`${profile} profile`);
+      expect((error as Error).message, `${profile}/${id}`).toContain(fallback);
+    }
+  });
+
+  it("the authenticated createThread path (normalizeFastAgentModel) refuses instead of storing the profile default", () => {
+    expect(() => normalizeFastAgentModel({ isAnonymous: false, requestedModel: "claude-opus-4.7" }, "advisor")).toThrow(/advisor profile/);
+    expect(normalizeFastAgentModel({ isAnonymous: false, requestedModel: "gpt-5.4" }, "advisor")).toBe("gpt-5.4");
+  });
+
+  it("the anonymous bounded lane is unchanged: a known paid request takes the bounded model, an unknown id still throws", () => {
+    expect(normalizeFastAgentModel({ isAnonymous: true, requestedModel: "claude-opus-4.7" }, "executor")).toBe("gemini-3.1-flash-lite-preview");
+    expect(() => normalizeFastAgentModel({ isAnonymous: true, requestedModel: "gpt-9-ultra" }, "executor")).toThrow(UnknownModelError);
+  });
+
+  it("lane routing (pickNodeBenchLaneModel) keeps the lane default for a model the lane does not allow, and still validates", () => {
+    expect(pickNodeBenchLaneModel("claude-opus-4.7", "advisor")).toBe("kimi-k2.6");
+    expect(pickNodeBenchLaneModel("gpt-5.4", "advisor")).toBe("gpt-5.4");
+    expect(() => pickNodeBenchLaneModel("gpt-9-ultra", "advisor")).toThrow(UnknownModelError);
   });
 
   it("allowPaidFallback turns an unknown id into the profile-checked DEFAULT_MODEL", () => {
@@ -487,11 +524,12 @@ describe("Object.prototype keys are not models", () => {
 // that id, never come back as the general chat model nvidia/nemotron-3-super (PR #662 review round 6, P2).
 // 2026-10-31 re-check: nvidia/nemotron-3-super-120b-a12b:free left the public list, so it is no longer LIVE;
 // it stays known and is refused as "retired upstream" (see the fallback-helper tests). recursive/flint-v1.0:free
-// (the free lane) takes its slot in the live set, so the set stays at 15 ids.
+// (the free lane) takes its slot in the live set. Round 14: apodex/apodex-1.1-mini:free is also absent from the
+// public list, so it moved to the retired set too and the live set is 14 ids (was 15).
 describe("D1: the SPEC-v9 1.2 live :free ids are known and are never rerouted", () => {
   // Typed out here, not read from SPEC_LIVE_FREE_WIRE_IDS, so the set cannot drift from the spec unseen.
   const SPEC_1_2_FREE = [
-    "apodex/apodex-1.1-mini:free", "dots-studio/dots-3-note-preview:free", "liquid/lfm-2.5-2.6b:free",
+    "dots-studio/dots-3-note-preview:free", "liquid/lfm-2.5-2.6b:free",
     "nvidia/nemotron-3.5-lightning:free", "thinkingmachines/inkling-small:free", "poolside/laguna-s-2.1:free",
     "thinkingmachines/inkling:free", "poolside/laguna-xs-2.1:free", "cohere/north-mini-code:free",
     "nvidia/nemotron-3.5-content-safety:free", "nvidia/nemotron-3-ultra-550b-a55b:free",
@@ -508,7 +546,7 @@ describe("D1: the SPEC-v9 1.2 live :free ids are known and are never rerouted", 
     vi.restoreAllMocks();
   });
 
-  it("the set is exactly the 15 ids of the spec", () => {
+  it("the set is exactly the 14 ids of the spec that the public list still serves (15 before apodex left it)", () => {
     expect([...SPEC_LIVE_FREE_WIRE_IDS].sort()).toEqual([...SPEC_1_2_FREE].sort());
   });
 
@@ -630,7 +668,7 @@ describe("D1: a known id whose only alias is a different model is refused at eve
   const ids = [...REROUTED_KNOWN_MODEL_IDS];
 
   it("the set is LEGACY_ALIASES keys that name another model, and every catalog pass-through id is in it or is a same-model row", () => {
-    expect(ids.length).toBe(19);
+    expect(ids.length).toBe(40); // was 19 before the 21 retired free-lane vendor ids joined (round 14)
     for (const id of ids) {
       const target = LEGACY_ALIASES[id];
       expect(target, `${id}: must be a LEGACY_ALIASES key`).toBeDefined();
@@ -687,6 +725,42 @@ describe("D1: a known id whose only alias is a different model is refused at eve
     await expect(parseModelKey("claude-opus-4-5-20251101")).rejects.toThrow(/never rerouted/);
   });
 
+  // Round 14 (Homen D1): the "retired free-lane redirects" had been exempt on the argument that they keep the cost
+  // class. Cost class is not identity: xiaomi/mimo-v2-flash:free ran as qwen/qwen3-coder:free, llama-4-scout as
+  // llama-3.3-70b, x-ai/grok-4-fast:free as stepfun/step-3.5-flash:free, and the PAID grok-4 ($3/$15 in the shared
+  // catalog) as step-3.5-flash-free, each with fallbacksUsed 0 and usedDefault false.
+  const FREE_LANE_VENDOR_IDS = [
+    "xiaomi/mimo-v2-flash:free", "meta-llama/llama-4-scout:free", "meta-llama/llama-4-maverick:free",
+    "x-ai/grok-4-fast:free", "mistralai/devstral-2:free", "kwaipilot/kat-coder-pro:free",
+    "nvidia/llama-3.1-nemotron-70b-instruct:free", "grok-4",
+  ];
+  it("the specific vendor ids of the retired free-lane rows are refused at every entry point, never run as another model", async () => {
+    for (const id of FREE_LANE_VENDOR_IDS) {
+      expect(REROUTED_KNOWN_MODEL_IDS.has(id), id).toBe(true);
+      expect(resolveModelAlias(id), `${id}: the row stays for persisted data`).not.toBeNull();
+      for (const call of [
+        () => resolvePipelineModelSelection(id),
+        () => normalizeModelInput(id),
+        () => getLanguageModelSafe(id),
+        () => getLanguageModelSafe(id, { allowPaidFallback: true }),
+      ]) {
+        expect(call, id).toThrow(RefusedModelError);
+      }
+      const tried: string[] = [];
+      await expect(executeWithModelFallback(async (_m, alias) => { tried.push(alias); return "ok"; }, { startModel: id as never })).rejects.toBeInstanceOf(RefusedModelError);
+      expect(tried, id).toEqual([]);
+    }
+  });
+
+  it("the family shorthands of those rows (mimo, grok, llama-4, devstral, kat-coder, nemotron) still resolve to their free replacement", () => {
+    expect(resolvePipelineModelSelection("mimo").resolvedModelId).toBe("qwen3-coder-free");
+    expect(resolvePipelineModelSelection("grok").resolvedModelId).toBe("step-3.5-flash-free");
+    expect(resolvePipelineModelSelection("llama-4").resolvedModelId).toBe("llama-3.3-70b-free");
+    expect(normalizeModelInput("devstral")).toBe("qwen3-coder-free");
+    expect(normalizeModelInput("kat-coder")).toBe("qwen3-coder-free");
+    expect(normalizeModelInput("nemotron")).toBe("nemotron-3-nano-free");
+  });
+
   it("family shorthands and same-model rows are not refused", () => {
     expect(normalizeModelInput("claude-haiku-4-5-20251001")).toBe("claude-haiku-4.5");
     expect(resolvePipelineModelSelection("claude-haiku-4-5-20251001").resolvedModelId).toBe("claude-haiku-4.5");
@@ -732,11 +806,18 @@ describe("FastAgent anonymous callers: the requested model is validated before t
     expect(anon("gpt-5.4-mini")).toBe(ANONYMOUS_FAST_AGENT_MODEL_ID);
   });
 
-  it("does not change a signed-in caller", () => {
+  it("does not change a signed-in caller: same model, or the same refusal (round 14: a known paid model outside the profile is refused)", () => {
+    const outcome = (run: () => string) => {
+      try {
+        return run();
+      } catch (error) {
+        return `${(error as Error).name}: ${(error as Error).message}`;
+      }
+    };
     for (const id of [undefined, "auto-free", "gpt-5.4-mini", "claude-opus-4.7", "kimi-k2.6"]) {
       for (const profile of ["advisor", "executor"] as const) {
-        expect(normalizeFastAgentModel({ isAnonymous: false, requestedModel: id }, profile), `${profile}/${id}`).toBe(
-          normalizeNodeBenchRuntimeModel(id, profile),
+        expect(outcome(() => normalizeFastAgentModel({ isAnonymous: false, requestedModel: id }, profile)), `${profile}/${id}`).toBe(
+          outcome(() => normalizeNodeBenchRuntimeModel(id, profile)),
         );
       }
     }

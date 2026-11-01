@@ -5,6 +5,7 @@ import {
   NODEBENCH_EXECUTOR_MODELS,
   isFreeModel,
   normalizeNodeBenchRuntimeModel,
+  pickNodeBenchLaneModel,
   refuseReroutedKnownId,
   resolveModelAlias,
   type ApprovedModel,
@@ -211,7 +212,7 @@ export function chooseNodeBenchRuntimeRoute(
     contextRotRisk === "high" || messagesCompacted >= 24;
 
   if (highRiskLongContext) {
-    const preferredModel = normalizeNodeBenchRuntimeModel(
+    const preferredModel = pickNodeBenchLaneModel(
       args.requestedModel ?? NODEBENCH_BACKGROUND_MODELS[0],
       "background",
     );
@@ -230,7 +231,7 @@ export function chooseNodeBenchRuntimeRoute(
   }
 
   if (explicitAdvisor) {
-    const preferredModel = normalizeNodeBenchRuntimeModel(
+    const preferredModel = pickNodeBenchLaneModel(
       args.requestedModel ?? NODEBENCH_ADVISOR_MODEL,
       "advisor",
     );
@@ -250,7 +251,7 @@ export function chooseNodeBenchRuntimeRoute(
   }
 
   if (continuationSignal) {
-    const preferredModel = normalizeNodeBenchRuntimeModel(
+    const preferredModel = pickNodeBenchLaneModel(
       args.requestedModel ?? NODEBENCH_ADVISOR_MODEL,
       "advisor",
     );
@@ -270,7 +271,7 @@ export function chooseNodeBenchRuntimeRoute(
   }
 
   if (args.useCoordinator !== false && (openingAnchorSignal || multiAngleSignal)) {
-    const preferredModel = normalizeNodeBenchRuntimeModel(
+    const preferredModel = pickNodeBenchLaneModel(
       args.requestedModel ?? NODEBENCH_ADVISOR_MODEL,
       "advisor",
     );

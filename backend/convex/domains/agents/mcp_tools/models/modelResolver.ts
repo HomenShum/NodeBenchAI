@@ -256,45 +256,63 @@ const NODEBENCH_EXECUTOR_ALLOWED = new Set<ApprovedModel>([
 
 const NODEBENCH_BACKGROUND_ALLOWED = new Set<ApprovedModel>(NODEBENCH_BACKGROUND_MODELS);
 
+function profileDefaultModel(profile: NodeBenchRuntimeProfile): ApprovedModel {
+  return profile === "advisor"
+    ? NODEBENCH_ADVISOR_MODEL
+    : profile === "background"
+      ? NODEBENCH_BACKGROUND_MODELS[0]
+      : NODEBENCH_EXECUTOR_MODELS[0];
+}
+
+/** A free model keeps its cost class in every profile; a paid one must be in the profile's allowlist. */
+function isAllowedInProfile(model: ApprovedModel, profile: NodeBenchRuntimeProfile): boolean {
+  if (isFreeModel(model)) return true;
+  return (
+    profile === "advisor"
+      ? NODEBENCH_ADVISOR_ALLOWED
+      : profile === "background"
+        ? NODEBENCH_BACKGROUND_ALLOWED
+        : NODEBENCH_EXECUTOR_ALLOWED
+  ).has(model);
+}
+
 /**
  * First resolver on the FastAgent public entry points. Empty input takes the
  * profile default. Anything else goes through `resolveOrFailClosed` (A.0.10): a
  * free-looking unknown id becomes FREE_LANE_MODEL, any other unknown id throws
- * `UnknownModelError`. A free model keeps its cost class in every profile; a
- * known paid model the profile does not allow takes the profile default.
+ * `UnknownModelError`. A free model keeps its cost class in every profile. A known
+ * paid model the profile does not allow is refused with `RefusedModelError` naming
+ * the profile, never swapped for the profile default (Homen D1).
  */
 export function normalizeNodeBenchRuntimeModel(
   input: string | undefined | null,
   profile: NodeBenchRuntimeProfile = "advisor",
   opts?: UnknownModelOptions,
 ): ApprovedModel {
-  const fallback =
-    profile === "advisor"
-      ? NODEBENCH_ADVISOR_MODEL
-      : profile === "background"
-        ? NODEBENCH_BACKGROUND_MODELS[0]
-        : NODEBENCH_EXECUTOR_MODELS[0];
-
-  if (!input) {
-    return fallback;
-  }
-
+  if (!input) return profileDefaultModel(profile);
   const resolved = resolveOrFailClosed(input, opts, "normalizeNodeBenchRuntimeModel");
+  if (isAllowedInProfile(resolved, profile)) return resolved;
+  throw new RefusedModelError(
+    input,
+    `"${resolved}" is not allowed on the ${profile} profile and is never swapped for that profile's default (${profileDefaultModel(profile)})`,
+  );
+}
 
-  if (isFreeModel(resolved)) {
-    return resolved;
-  }
-  if (profile === "advisor" && NODEBENCH_ADVISOR_ALLOWED.has(resolved)) {
-    return resolved;
-  }
-  if (profile === "executor" && NODEBENCH_EXECUTOR_ALLOWED.has(resolved)) {
-    return resolved;
-  }
-  if (profile === "background" && NODEBENCH_BACKGROUND_ALLOWED.has(resolved)) {
-    return resolved;
-  }
-
-  return fallback;
+/**
+ * Lane routing only (`chooseNodeBenchRuntimeRoute`, and the streamAsync pre-route value it overwrites): the
+ * prompt, not the caller, picks the lane, so a requested model the lane does not allow takes the lane default
+ * and the returned route reports the model it chose. Validation is the same as `normalizeNodeBenchRuntimeModel`
+ * (an unknown id still throws). Everything that STORES or starts a thread on a requested model uses the
+ * refusing function above.
+ */
+export function pickNodeBenchLaneModel(
+  input: string | undefined | null,
+  profile: NodeBenchRuntimeProfile,
+  opts?: UnknownModelOptions,
+): ApprovedModel {
+  if (!input) return profileDefaultModel(profile);
+  const resolved = resolveOrFailClosed(input, opts, "pickNodeBenchLaneModel");
+  return isAllowedInProfile(resolved, profile) ? resolved : profileDefaultModel(profile);
 }
 
 /**
@@ -308,7 +326,8 @@ export function normalizeFastAgentModel(
   profile: NodeBenchRuntimeProfile,
 ): ApprovedModel {
   if (isAnonymous && requestedModel) {
-    const requested = normalizeNodeBenchRuntimeModel(requestedModel, profile);
+    // Validate what was asked (unknown throws); a paid request takes the documented bounded lane below.
+    const requested = resolveOrFailClosed(requestedModel, undefined, "normalizeFastAgentModel");
     if (isFreeModel(requested)) return requested;
   }
   return normalizeNodeBenchRuntimeModel(resolveFastAgentRequestedModel({ isAnonymous, requestedModel }), profile);
@@ -1104,9 +1123,13 @@ function refuseKnownUnregisteredModel(input: string): void {
  * `resolveModelAlias` keeps the rows for persisted data and display; every entry point that picks a model
  * to RUN refuses these ids instead (`refuseReroutedKnownId`). PR 2 (A.1: `claude-sonnet-4-5-20250929` stops
  * 2026-11-30) registers each as itself or maps it to its vendor-named successor, then deletes this set.
- * Not here, by design: family shorthands (`claude`, `claude-sonnet`, `gemini`, `kimi`, `glm`, ...), the
- * same-model rows (`claude-haiku-4-5-20251001`, the hyphenated 4.x names) and the retired free-lane
- * redirects (free to free, cost class kept).
+ * The specific vendor ids of the retired free-lane rows are here too (`xiaomi/mimo-v2-flash:free` ran as
+ * qwen3-coder, `meta-llama/llama-4-scout:free` as llama-3.3-70b, `x-ai/grok-4-fast:free` and the PAID `grok-4`
+ * as step-3.5-flash): keeping the cost class is not keeping the model, and the spec has no exception for them
+ * (PR #662 round 14). Their rows stay for persisted data and display.
+ * Not here, by design: family shorthands (`claude`, `claude-sonnet`, `gemini`, `kimi`, `glm`, `mimo`, `grok`,
+ * `llama-4`, `devstral`, `kat-coder`, `nemotron`, ...) and the same-model rows (`claude-haiku-4-5-20251001`,
+ * the hyphenated 4.x names).
  */
 const REROUTED_KNOWN_IDS: ReadonlySet<string> = new Set([
   "claude-sonnet-4-5-20250929",
@@ -1128,6 +1151,28 @@ const REROUTED_KNOWN_IDS: ReadonlySet<string> = new Set([
   "gemini-3-pro",
   "gemini-3-flash",
   "gemini-3.1-flash-lite-preview-lite",
+  // retired free-lane rows, specific vendor ids only
+  "mimo-v2-flash-free",
+  "xiaomi/mimo-v2-flash:free",
+  "xiaomi/mimo-v2-flash",
+  "devstral-2-free",
+  "mistralai/devstral-2:free",
+  "devstral-2",
+  "llama-4-maverick-free",
+  "meta-llama/llama-4-maverick:free",
+  "llama-4-maverick",
+  "llama-4-scout-free",
+  "meta-llama/llama-4-scout:free",
+  "llama-4-scout",
+  "kat-coder-pro-free",
+  "kwaipilot/kat-coder-pro:free",
+  "kat-coder-pro",
+  "grok-4-fast-free",
+  "x-ai/grok-4-fast:free",
+  "grok-4-fast",
+  "grok-4",
+  "nvidia/llama-3.1-nemotron-70b-instruct:free",
+  "nemotron-70b",
 ]);
 
 /** The ids `refuseReroutedKnownId` refuses; exported so the drift test can pin them to `LEGACY_ALIASES`. */

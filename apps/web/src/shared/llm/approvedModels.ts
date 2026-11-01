@@ -585,7 +585,8 @@ export function normalizeNodeBenchRuntimeModel(
     return candidate;
   }
 
-  return fallback;
+  // Mirrors modelResolver.ts (Homen D1): a known model the profile does not allow is refused, not swapped.
+  throw new Error(`Model "${candidate}" is not allowed on the ${profile} profile and is never swapped for that profile's default (${fallback})`);
 }
 
 export function isApprovedModel(model: string): model is ApprovedModel {

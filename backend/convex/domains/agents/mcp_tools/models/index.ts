@@ -52,6 +52,7 @@ export {
   // Normalization
   normalizeModelInput,
   normalizeNodeBenchRuntimeModel,
+  pickNodeBenchLaneModel,
   normalizeFastAgentModel,
   isApprovedModel,
 

@@ -41,14 +41,26 @@ describe("web approvedModels mirrors modelResolver", () => {
     expect(web.NODEBENCH_BACKGROUND_MODELS).toEqual(backend.NODEBENCH_BACKGROUND_MODELS);
   });
 
-  it("normalizes every approved id to the same lane model", () => {
+  it("normalizes every approved id to the same lane model, or refuses it on both sides", () => {
+    // A known model the profile does not allow is refused by both (Homen D1, PR #662 round 14); it used to
+    // come back as the profile default on both, and this test compared those defaults.
+    const outcome = (normalize: () => string) => {
+      try {
+        return normalize();
+      } catch (error) {
+        void error;
+        return "refused";
+      }
+    };
+    let refused = 0;
     for (const profile of ["advisor", "executor", "background"] as const) {
       for (const id of backend.APPROVED_MODELS) {
-        expect(web.normalizeNodeBenchRuntimeModel(id, profile), `${profile}/${id}`).toBe(
-          backend.normalizeNodeBenchRuntimeModel(id, profile),
-        );
+        const expected = outcome(() => backend.normalizeNodeBenchRuntimeModel(id, profile));
+        if (expected === "refused") refused += 1;
+        expect(outcome(() => web.normalizeNodeBenchRuntimeModel(id, profile)), `${profile}/${id}`).toBe(expected);
       }
     }
+    expect(refused).toBeGreaterThan(0);
   });
 
   it("pins every selector option, including the auto-free literal, to the backend route resolver", () => {

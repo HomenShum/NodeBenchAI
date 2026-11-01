@@ -434,8 +434,8 @@ describe("D1: SPEC-v9 1.2 OpenRouter and Bedrock wire ids, and registry OpenRout
   });
 });
 
-// Homen D1 for the 15 live `:free` ids of SPEC-v9 section 1.2 (PR #662 review round 6, P2). This catalog has no
-// OpenRouter branch until PR 2: it serves the free lane's own wire id as asked and refuses the other 14 with a
+// Homen D1 for the live `:free` ids (15 on 2026-10-10, 14 after apodex left the public list) of SPEC-v9 section 1.2 (PR #662 review round 6, P2). This catalog has no
+// OpenRouter branch until PR 2: it serves the free lane's own wire id as asked and refuses the other 13 with a
 // reason. It never answers a request for a known free id with a different model.
 describe("D1: the SPEC-v9 1.2 live :free ids through getModelWithFailover", () => {
   beforeEach(() => {
@@ -448,7 +448,7 @@ describe("D1: the SPEC-v9 1.2 live :free ids through getModelWithFailover", () =
   });
 
   it("each is served as itself or refused with a reason, and none comes back as another model", () => {
-    expect(SPEC_LIVE_FREE_WIRE_IDS.size).toBe(15);
+    expect(SPEC_LIVE_FREE_WIRE_IDS.size).toBe(14); // was 15 until apodex left the public list (2026-10-31, round 14)
     for (const id of SPEC_LIVE_FREE_WIRE_IDS) {
       if (id === FREE_LANE_WIRE_ID) {
         expect(getModelWithFailover(id), id).toEqual({ model: FREE_LANE_WIRE_ID, provider: "openrouter", isFallback: false });

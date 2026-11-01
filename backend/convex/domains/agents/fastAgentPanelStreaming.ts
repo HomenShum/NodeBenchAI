@@ -442,6 +442,7 @@ import {
   getLanguageModelSafe,
   normalizeModelInput,
   normalizeNodeBenchRuntimeModel,
+  pickNodeBenchLaneModel,
   normalizeFastAgentModel,
   isFreeModel,
   DEFAULT_MODEL,
@@ -3231,7 +3232,8 @@ export const streamAsync = internalAction({
       : null;
     const usageSessionId = args.usageSessionId ?? (isAnonymous ? args.anonymousSessionId : undefined);
 
-    let activeModel: ApprovedModel = normalizeNodeBenchRuntimeModel(
+    // Pre-route value, overwritten by the route below: the lane (not the caller) picks the model here.
+    let activeModel: ApprovedModel = pickNodeBenchLaneModel(
       args.model,
       args.useCoordinator !== false ? "advisor" : "executor",
     );

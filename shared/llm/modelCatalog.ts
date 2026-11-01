@@ -714,18 +714,18 @@ export function specOtherTransportWireId(input: string): string | null {
 }
 
 /**
- * The 15 live `:free` ids of SPEC-v9 section 1.2 (read 2026-10-10), the only free ids Part A may
- * write. Re-checked 2026-10-31 against the public list: `nvidia/nemotron-3-super-120b-a12b:free` is no
- * longer listed, so it is not LIVE and is no longer in this set (it stays known, see
- * `refuseRetiredFreeWireId`); `recursive/flint-v1.0:free` (the free lane) takes its slot. The two laguna
- * rows stay because they are registered aliases on `main`.
+ * The live `:free` ids of SPEC-v9 section 1.2 (15 when read 2026-10-10), the only free ids Part A may
+ * write. Re-checked 2026-10-31 (23:53Z and 2026-11-01 00:07Z fetches of the public list, 452 rows):
+ * `nvidia/nemotron-3-super-120b-a12b:free` and `apodex/apodex-1.1-mini:free` are no longer listed, so
+ * neither is LIVE and neither is in this set (14 ids); both stay known and are refused, see
+ * `refuseRetiredFreeWireId`. `recursive/flint-v1.0:free` (the free lane) took nemotron's slot. The two
+ * laguna rows are also absent from the list but stay because they are registered aliases on `main`.
  *
  * Homen D1: each is known, so a request for one is never rerouted to the free lane. The
  * resolver sends the unregistered ones unchanged on OpenRouter; this catalog has no OpenRouter
  * branch until PR 2, so it refuses them with a reason (`FREE_LANE_WIRE_ID` is the one it serves).
  */
 export const SPEC_LIVE_FREE_WIRE_IDS: ReadonlySet<string> = new Set([
-  "apodex/apodex-1.1-mini:free",
   "dots-studio/dots-3-note-preview:free",
   "liquid/lfm-2.5-2.6b:free",
   "nvidia/nemotron-3.5-lightning:free",
@@ -742,18 +742,22 @@ export const SPEC_LIVE_FREE_WIRE_IDS: ReadonlySet<string> = new Set([
   "recursive/flint-v1.0:free",
 ]);
 
-/** The input, trimmed and lower-cased, when it is one of the 15 live free ids; else null. */
+/** The input, trimmed and lower-cased, when it is one of the live free ids; else null. */
 export function specLiveFreeWireId(input: string): string | null {
   const normalized = input.trim().toLowerCase();
   return SPEC_LIVE_FREE_WIRE_IDS.has(normalized) ? normalized : null;
 }
 
 /**
- * The first free pick, listed in SPEC-v9 section 1.2 and therefore KNOWN (Homen D1), that left the public
- * OpenRouter list on 2026-10-31. Re-picking the free lane replaces it only as the lane's target: a request
- * for it is refused with the reason at every boundary, never rerouted to `recursive/flint-v1.0:free`.
+ * SPEC-v9 section 1.2 `:free` ids, KNOWN (Homen D1), that are not in the public OpenRouter list on
+ * 2026-10-31: the first free pick (nemotron; the 2026-10-31 re-pick replaces it only as the lane's target)
+ * and apodex. A request for one is refused with the reason at every boundary, never rerouted to
+ * `recursive/flint-v1.0:free` or sent to OpenRouter as a model that is not served.
  */
-const SPEC_RETIRED_FREE_WIRE_IDS: ReadonlySet<string> = new Set(["nvidia/nemotron-3-super-120b-a12b:free"]);
+const SPEC_RETIRED_FREE_WIRE_IDS: ReadonlySet<string> = new Set([
+  "nvidia/nemotron-3-super-120b-a12b:free",
+  "apodex/apodex-1.1-mini:free",
+]);
 
 /** Throws `RefusedModelError` ("retired upstream") when the input is a retired section 1.2 `:free` id. */
 export function refuseRetiredFreeWireId(input: string): void {
