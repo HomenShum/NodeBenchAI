@@ -115,6 +115,7 @@ jobs:
           backend/convex/domains/product/extendedThinking.requestShape.test.ts
           backend/convex/providerCopies.requestShape.test.ts
           backend/convex/domains/agents/runtimeRouting.test.ts
+          backend/convex/domains/agents/fastAgentPanelStreaming.swarmThread.test.ts
           backend/convex/domains/verification/instagramClaimVerification.test.ts
           backend/convex/domains/agents/agentChatActions.failClosed.test.ts
           backend/convex/domains/research/dailyBriefModelBoundary.test.ts

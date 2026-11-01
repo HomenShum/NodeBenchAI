@@ -2306,7 +2306,10 @@ export const createThreadForUserInternal = internalAction({
     model: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<Id<"chatThreadsStream">> => {
-    const modelName = normalizeNodeBenchRuntimeModel(args.model, "advisor");
+    // The swarm's tasks run the requested `args.model` (executeSwarmInternal -> scheduleDelegations); this thread
+    // only holds the team's output, so its own model is the advisor-profile pick (an unknown id still throws).
+    // The refusing normalizeNodeBenchRuntimeModel would make createSwarm's default 'claude-sonnet-4.6' throw here.
+    const modelName = pickNodeBenchLaneModel(args.model, "advisor");
     const chatAgent = createChatAgent(modelName);
     const title = (args.title ?? "").trim() || "Research Thread";
 

@@ -138,13 +138,13 @@ const SLASH_COMMANDS: SlashCommand[] = [
 
 // Import from SINGLE SOURCE OF TRUTH for models
 import {
-  getModelUIList,
+  getSelectableModelUIList,
   MODEL_UI_INFO,
   type ApprovedModel,
 } from '@shared/llm/approvedModels';
 
-// Get models from shared module
-const APPROVED_MODEL_LIST = getModelUIList();
+// Only models the advisor profile this panel sends accepts (plus free ones); see getSelectableModelUIList.
+const APPROVED_MODEL_LIST = getSelectableModelUIList("advisor");
 
 // Document context item supplied by a verified upstream surface.
 export interface DocumentContextItem {

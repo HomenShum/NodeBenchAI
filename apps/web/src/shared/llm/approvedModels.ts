@@ -553,6 +553,18 @@ const NODEBENCH_EXECUTOR_ALLOWED = new Set<ApprovedModel>([
 
 const NODEBENCH_BACKGROUND_ALLOWED = new Set<ApprovedModel>(NODEBENCH_BACKGROUND_MODELS);
 
+/** A free model keeps its cost class in every profile; a paid one must be in the profile's allowlist (mirrors modelResolver.ts). */
+export function isAllowedInProfile(model: ApprovedModel, profile: NodeBenchRuntimeProfile): boolean {
+  if (MODEL_UI_INFO[model].isFree) return true;
+  return (
+    profile === "advisor"
+      ? NODEBENCH_ADVISOR_ALLOWED
+      : profile === "background"
+        ? NODEBENCH_BACKGROUND_ALLOWED
+        : NODEBENCH_EXECUTOR_ALLOWED
+  ).has(model);
+}
+
 export function normalizeNodeBenchRuntimeModel(
   input: string | undefined | null,
   profile: NodeBenchRuntimeProfile = "advisor",
@@ -570,18 +582,7 @@ export function normalizeNodeBenchRuntimeModel(
     return fallback;
   }
 
-  // A free model keeps its cost class in every profile (mirrors modelResolver.ts).
-  if (MODEL_UI_INFO[candidate].isFree) {
-    return candidate;
-  }
-
-  if (profile === "advisor" && NODEBENCH_ADVISOR_ALLOWED.has(candidate)) {
-    return candidate;
-  }
-  if (profile === "executor" && NODEBENCH_EXECUTOR_ALLOWED.has(candidate)) {
-    return candidate;
-  }
-  if (profile === "background" && NODEBENCH_BACKGROUND_ALLOWED.has(candidate)) {
+  if (isAllowedInProfile(candidate, profile)) {
     return candidate;
   }
 
@@ -599,6 +600,16 @@ export function getModelsByProvider(provider: Provider): ApprovedModel[] {
 
 export function getModelUIList(): ModelUIInfo[] {
   return APPROVED_MODELS.map((model) => MODEL_UI_INFO[model]);
+}
+
+/**
+ * The models a signed-in user can actually start a thread or send on. The FastAgent panel sends the
+ * `advisor` profile (createThread, initiateAsyncStreaming with useCoordinator: true) and the backend
+ * refuses a known paid model that profile does not allow (Homen D1), so the picker offers only the models
+ * the profile accepts plus the free ones. The other 19 used to be answered silently by kimi-k2.6.
+ */
+export function getSelectableModelUIList(profile: NodeBenchRuntimeProfile = "advisor"): ModelUIInfo[] {
+  return APPROVED_MODELS.filter((model) => isAllowedInProfile(model, profile)).map((model) => MODEL_UI_INFO[model]);
 }
 
 export const PROVIDER_COLORS: Record<

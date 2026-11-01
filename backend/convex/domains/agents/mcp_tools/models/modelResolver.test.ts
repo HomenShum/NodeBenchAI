@@ -500,6 +500,15 @@ describe("normalizeNodeBenchRuntimeModel is the first resolver and fails closed"
     expect(() => pickNodeBenchLaneModel("gpt-9-ultra", "advisor")).toThrow(UnknownModelError);
   });
 
+  it("swarm thread container: every approved model, including the createSwarm and liveApiSmoke defaults, passes the lane pick", () => {
+    // createThreadForUserInternal stores pickNodeBenchLaneModel(model, "advisor"); the swarm's tasks run the requested model.
+    for (const id of APPROVED_MODELS) {
+      expect(() => pickNodeBenchLaneModel(id, "advisor"), id).not.toThrow();
+    }
+    expect(pickNodeBenchLaneModel("claude-sonnet-4.6", "advisor")).toBe("kimi-k2.6");
+    expect(pickNodeBenchLaneModel("claude-haiku-4.5", "advisor")).toBe("kimi-k2.6");
+  });
+
   it("allowPaidFallback turns an unknown id into the profile-checked DEFAULT_MODEL", () => {
     expect(normalizeNodeBenchRuntimeModel("gpt-9-ultra", "advisor", { allowPaidFallback: true })).toBe(DEFAULT_MODEL);
   });

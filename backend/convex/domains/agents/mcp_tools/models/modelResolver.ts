@@ -265,7 +265,7 @@ function profileDefaultModel(profile: NodeBenchRuntimeProfile): ApprovedModel {
 }
 
 /** A free model keeps its cost class in every profile; a paid one must be in the profile's allowlist. */
-function isAllowedInProfile(model: ApprovedModel, profile: NodeBenchRuntimeProfile): boolean {
+export function isAllowedInProfile(model: ApprovedModel, profile: NodeBenchRuntimeProfile): boolean {
   if (isFreeModel(model)) return true;
   return (
     profile === "advisor"
@@ -302,8 +302,10 @@ export function normalizeNodeBenchRuntimeModel(
  * Lane routing only (`chooseNodeBenchRuntimeRoute`, and the streamAsync pre-route value it overwrites): the
  * prompt, not the caller, picks the lane, so a requested model the lane does not allow takes the lane default
  * and the returned route reports the model it chose. Validation is the same as `normalizeNodeBenchRuntimeModel`
- * (an unknown id still throws). Everything that STORES or starts a thread on a requested model uses the
- * refusing function above.
+ * (an unknown id still throws). Also the swarm thread container (`createThreadForUserInternal`): the thread is
+ * where the team's output is shown, the swarm's tasks run the model the caller requested, so the thread's own
+ * model is the profile pick and nothing is run on it under the requested name. A thread the USER types into
+ * (`createThread`, `initiateAsyncStreaming`) uses the refusing function above.
  */
 export function pickNodeBenchLaneModel(
   input: string | undefined | null,
