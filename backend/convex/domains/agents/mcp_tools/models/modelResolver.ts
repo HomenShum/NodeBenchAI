@@ -915,7 +915,7 @@ export const LEGACY_ALIASES: Record<string, ApprovedModel> = {
   // Free lane: the OpenRouter wire id resolves to the typed alias (SPEC-v9 A.2.10 PR 1).
   // nvidia/nemotron-3-super-120b-a12b:free (the first pick) left the public list on 2026-10-31 and has no
   // row: it is a known section 1.2 id that is retired upstream, which refuseRetiredFreeWireId refuses.
-  "recursive/flint-v1.0:free": "flint-v1-free",
+  [FREE_LANE_WIRE_ID]: FREE_LANE_CATALOG_ID,
   // Current free model aliases (verified July 22, 2026)
   "poolside/laguna-s-2.1:free": "laguna-s-2.1-free",
   "poolside/laguna-s-2.1": "laguna-s-2.1-free",

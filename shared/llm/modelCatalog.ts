@@ -714,6 +714,18 @@ export function specOtherTransportWireId(input: string): string | null {
 }
 
 /**
+ * The verified free lane's OpenRouter wire id, typed once: modelResolver.ts imports it for
+ * `MODEL_SPECS[FREE_LANE_MODEL].sdkId`. SPEC-v9 A.2.10: the alias `flint-v1-free`
+ * never reaches a provider.
+ */
+export const FREE_LANE_WIRE_ID = "recursive/flint-v1.0:free";
+
+/**
+ * The verified free lane's alias, typed once: modelResolver.ts imports it as `FREE_LANE_MODEL`.
+ */
+export const FREE_LANE_CATALOG_ID = "flint-v1-free";
+
+/**
  * The live `:free` ids of SPEC-v9 section 1.2 (15 when read 2026-10-10), the only free ids Part A may
  * write. Re-checked 2026-10-31 (23:53Z and 2026-11-01 00:07Z fetches of the public list, 452 rows):
  * `nvidia/nemotron-3-super-120b-a12b:free` and `apodex/apodex-1.1-mini:free` are no longer listed, so
@@ -739,7 +751,7 @@ export const SPEC_LIVE_FREE_WIRE_IDS: ReadonlySet<string> = new Set([
   "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
   "google/gemma-4-26b-a4b-it:free",
   "google/gemma-4-31b-it:free",
-  "recursive/flint-v1.0:free",
+  FREE_LANE_WIRE_ID,
 ]);
 
 /** The input, trimmed and lower-cased, when it is one of the live free ids; else null. */
@@ -1072,13 +1084,6 @@ export function getEquivalentModel(modelName: string, targetProvider: LlmProvide
 }
 
 /**
- * The verified free lane's OpenRouter wire id, typed once: modelResolver.ts imports it for
- * `MODEL_SPECS[FREE_LANE_MODEL].sdkId`. SPEC-v9 A.2.10: the alias `flint-v1-free`
- * never reaches a provider.
- */
-export const FREE_LANE_WIRE_ID = "recursive/flint-v1.0:free";
-
-/**
  * The string to put in a provider request. Callers of `getModelWithFailover`
  * send `model` straight to the provider SDK, so for Anthropic it must be the
  * wire id, not the dotted catalog alias (api.anthropic.com 404s on
@@ -1090,11 +1095,6 @@ function toProviderWireId(model: string, provider: LlmProvider): string {
   if (provider === "openrouter" && model === FREE_LANE_CATALOG_ID) return FREE_LANE_WIRE_ID;
   return provider === "anthropic" ? (anthropicWireId(model) ?? model) : model;
 }
-
-/**
- * The verified free lane's alias, typed once: modelResolver.ts imports it as `FREE_LANE_MODEL`.
- */
-export const FREE_LANE_CATALOG_ID = "flint-v1-free";
 
 /** The free route aliases; mirrors `routeAliasToModel` (routeTier "free") in modelResolver.ts. */
 const FREE_ROUTE_ALIASES = new Set(["free", "auto-free", "nodebench:auto-free", "kilo-auto/free", "openrouter/free"]);
