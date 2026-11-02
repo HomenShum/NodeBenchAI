@@ -20,7 +20,7 @@ import {
   mergeBranchResults,
   planResearchBranches,
   shouldTriggerResearchCell,
-} from "./researchCell";
+} from "./researchCellPolicy";
 
 // ---------------------------------------------------------------------------
 // Fixtures

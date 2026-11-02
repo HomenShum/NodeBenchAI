@@ -1,643 +1,492 @@
-#!/usr/bin/env npx tsx
-/**
- * DeepTrace Canary Benchmark — Real Investigation Measurement
- *
- * Closes the optimizer loop by running actual DeepTrace investigations
- * against fixture entities and measuring real throughput + quality metrics.
- *
- * Flow:
- *   1. Load canary fixtures (entity key, expected outputs, ground truth)
- *   2. For each fixture: run investigation → measure time/completion/evidence
- *   3. Optionally run LLM judge for quality scoring
- *   4. Return ThroughputMetrics + QualityMetrics for optimizer consumption
- *
- * Two modes:
- *   - "measure" — run investigations, output metrics JSON
- *   - "compare" — run baseline code vs candidate code, output delta
- *
- * Pattern follows enterprise-investigation-eval.ts:
- *   - Fixture-based (no live data)
- *   - Deterministic scoring dimensions
- *   - Bounded concurrency
- *   - LLM judge for quality validation
- *   - Event streaming
- */
-
-import { performance } from "node:perf_hooks";
-import * as fs from "node:fs";
-import * as path from "node:path";
+/** Source-bound comparison of production policy on fixed synthetic state; no agent/model execution. */
+import { execFile } from "node:child_process";
+import { createHash, randomUUID } from "node:crypto";
+import { readFileSync, statSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-
-import {
-  shouldTriggerResearchCell,
-  planResearchBranches,
-  judgeBranches,
-  mergeBranchResults,
-  RESEARCH_CELL_DEFAULTS,
-  type TriggerInput,
-  type BranchResult,
-  type ResearchCellOutput,
-} from "../../../backend/convex/domains/deepTrace/researchCell.js";
-
-import type { ThroughputMetrics, QualityMetrics, CostEntry } from "./optimizerTypes.js";
-import { computeCostUsd } from "./optimizerTypes.js";
-
-// ---------------------------------------------------------------------------
-// Configuration
-// ---------------------------------------------------------------------------
-
-const CURRENT_DIR = path.dirname(fileURLToPath(import.meta.url));
-const FIXTURES_DIR = path.join(CURRENT_DIR, "canary-fixtures");
-const RESULTS_DIR = path.join(CURRENT_DIR, "canary-results");
-
-// ---------------------------------------------------------------------------
-// Fixture types
-// ---------------------------------------------------------------------------
-
-export interface CanaryFixture {
-  fixtureId: string;
-  entityKey: string;
-  entityName: string;
-  entityType?: string;
-  /** Simulated dimension profile state for this entity */
-  dimensionProfile: {
-    confidence: number;
-    coverageRatio: number;
-    durableSourceCount: number;
-  };
-  /** Simulated signals for the entity */
-  existingFacts: string[];
-  /** Ground truth expectations */
-  expectations: {
-    shouldTrigger: boolean;
-    minBranches: number;
-    expectedStrategies: string[];
-    /** Expected minimum usefulness from at least one branch */
-    minUsefulnessAny: number;
-    /** Expected facts/relationships in merged output */
-    minMergedFacts: number;
-    minMergedRelationships: number;
-  };
-  /** Simulated branch execution results (for offline mode) */
-  simulatedBranchResults?: BranchResult[];
-}
-
-export interface CanaryResult {
-  fixtureId: string;
-  entityKey: string;
-  /** Wall clock for the full investigation */
-  wallClockMs: number;
-  /** Whether the research cell triggered */
-  triggered: boolean;
-  /** Number of branches planned */
-  branchCount: number;
-  /** Branch strategies used */
-  strategies: string[];
-  /** Merged output stats */
-  mergedFactCount: number;
-  mergedRelationshipCount: number;
-  mergedEvidenceCount: number;
-  /** Quality assessment */
-  triggerCorrect: boolean;
-  branchCountCorrect: boolean;
-  strategiesCorrect: boolean;
-  usefulnessAboveFloor: boolean;
-  factsAboveFloor: boolean;
-  relationshipsAboveFloor: boolean;
-  /** Overall score (0-1) */
-  score: number;
-  /** LLM judge assessment (if available) */
-  judgeScore?: number;
-  judgeReasoning?: string;
-  judgeCostUsd?: number;
-}
-
-// ---------------------------------------------------------------------------
-// Built-in canary fixtures
-// ---------------------------------------------------------------------------
-
-export const CANARY_FIXTURES: CanaryFixture[] = [
-  {
-    fixtureId: "public-company-high-confidence",
-    entityKey: "company:anthropic",
-    entityName: "Anthropic",
-    entityType: "public_company",
-    dimensionProfile: { confidence: 0.85, coverageRatio: 0.82, durableSourceCount: 12 },
-    existingFacts: [
-      "Revenue: $850M ARR estimated",
-      "Funding: $7.3B raised total",
-      "Headcount: ~1000 employees",
-      "Product: Claude AI assistant family",
-      "Competition: OpenAI, Google DeepMind",
-    ],
-    expectations: {
-      shouldTrigger: false,
-      minBranches: 0,
-      expectedStrategies: [],
-      minUsefulnessAny: 0,
-      minMergedFacts: 0,
-      minMergedRelationships: 0,
-    },
-  },
-  {
-    fixtureId: "startup-low-confidence",
-    entityKey: "company:stealth-ai-startup",
-    entityName: "Stealth AI Startup",
-    entityType: "private_startup",
-    dimensionProfile: { confidence: 0.35, coverageRatio: 0.40, durableSourceCount: 1 },
-    existingFacts: ["Seed funding: $2M from Y Combinator"],
-    expectations: {
-      shouldTrigger: true,
-      minBranches: 2,
-      expectedStrategies: ["evidence_gap_fill", "counter_hypothesis", "dimension_coverage"],
-      minUsefulnessAny: 0.1,
-      minMergedFacts: 1,
-      minMergedRelationships: 0,
-    },
-    simulatedBranchResults: [
-      {
-        branchId: "branch-0",
-        strategy: "evidence_gap_fill",
-        observedFacts: ["1 evidence rows found, 1 unavailable"],
-        relationships: [],
-        hypothesis: "Entity stealth-ai-startup has sparse evidence — may need external ingestion.",
-        counterHypothesis: null,
-        evidenceRefs: [{ label: "Y Combinator batch page", kind: "news" }],
-        usefulness: 0.22,
-        toolCallCount: 2,
-        wallClockMs: 450,
-      },
-      {
-        branchId: "branch-1",
-        strategy: "counter_hypothesis",
-        observedFacts: ["Signal: seed_funding = $2M"],
-        relationships: [],
-        hypothesis: "Primary narrative: early-stage with minimal traction.",
-        counterHypothesis: "No alternative causal chain available — single-narrative risk.",
-        evidenceRefs: [],
-        usefulness: 0.30,
-        toolCallCount: 2,
-        wallClockMs: 380,
-      },
-      {
-        branchId: "branch-2",
-        strategy: "dimension_coverage",
-        observedFacts: [
-          "time: 1/4 metrics available",
-          "capital: 1/4 metrics available",
-          "people: 0/5 metrics available",
-          "market: 0/4 metrics available",
-        ],
-        relationships: [],
-        hypothesis: "Dimension family 'people' has coverage gaps that may reduce profile reliability.",
-        counterHypothesis: null,
-        evidenceRefs: [],
-        usefulness: 0.18,
-        toolCallCount: 1,
-        wallClockMs: 200,
-      },
-    ],
-  },
-  {
-    fixtureId: "person-sparse-data",
-    entityKey: "person:jane-doe-cto",
-    entityName: "Jane Doe",
-    entityType: "person",
-    dimensionProfile: { confidence: 0.50, coverageRatio: 0.30, durableSourceCount: 2 },
-    existingFacts: ["Role: CTO at TechCo", "Previously: Staff Engineer at Google"],
-    expectations: {
-      shouldTrigger: true,
-      minBranches: 2,
-      expectedStrategies: ["evidence_gap_fill", "dimension_coverage"],
-      minUsefulnessAny: 0.1,
-      minMergedFacts: 1,
-      minMergedRelationships: 0,
-    },
-    simulatedBranchResults: [
-      {
-        branchId: "branch-0",
-        strategy: "evidence_gap_fill",
-        observedFacts: ["2 evidence rows found, 0 unavailable"],
-        relationships: [
-          { fromEntity: "person:jane-doe-cto", toEntity: "company:techco", type: "executive", confidence: 0.8, evidence: "CTO since 2024" },
-          { fromEntity: "person:jane-doe-cto", toEntity: "company:google", type: "alumni", confidence: 0.9, evidence: "Staff Engineer 2019-2024" },
-        ],
-        hypothesis: "Entity has documented career trajectory with 2 relationship edges.",
-        counterHypothesis: null,
-        evidenceRefs: [
-          { label: "LinkedIn profile", kind: "social" },
-          { label: "TechCo about page", kind: "website" },
-        ],
-        usefulness: 0.52,
-        toolCallCount: 2,
-        wallClockMs: 500,
-      },
-      {
-        branchId: "branch-1",
-        strategy: "dimension_coverage",
-        observedFacts: [
-          "people: 2/5 metrics available",
-          "network: 1/4 metrics available",
-          "narrative: 0/3 metrics available",
-        ],
-        relationships: [],
-        hypothesis: "Dimension family 'narrative' has zero coverage — credibility assessment impossible.",
-        counterHypothesis: null,
-        evidenceRefs: [],
-        usefulness: 0.15,
-        toolCallCount: 1,
-        wallClockMs: 220,
-      },
-    ],
-  },
-  {
-    fixtureId: "operator-forced-review",
-    entityKey: "company:well-covered-corp",
-    entityName: "Well Covered Corp",
-    entityType: "public_company",
-    dimensionProfile: { confidence: 0.90, coverageRatio: 0.88, durableSourceCount: 15 },
-    existingFacts: [
-      "Revenue: $5B annual",
-      "Market cap: $25B",
-      "Employees: 5000",
-      "Industry: Enterprise SaaS",
-      "Recent: Q4 earnings beat",
-    ],
-    expectations: {
-      shouldTrigger: false,
-      minBranches: 0,
-      expectedStrategies: [],
-      minUsefulnessAny: 0,
-      minMergedFacts: 0,
-      minMergedRelationships: 0,
-    },
-  },
-  {
-    fixtureId: "borderline-confidence",
-    entityKey: "company:mid-stage-fintech",
-    entityName: "Mid-Stage Fintech",
-    entityType: "private_startup",
-    dimensionProfile: { confidence: 0.54, coverageRatio: 0.65, durableSourceCount: 4 },
-    existingFacts: [
-      "Series B: $40M raised",
-      "Revenue: ~$10M ARR",
-      "Headcount: 80",
-    ],
-    expectations: {
-      shouldTrigger: true,
-      minBranches: 1,
-      expectedStrategies: ["counter_hypothesis"],
-      minUsefulnessAny: 0.1,
-      minMergedFacts: 1,
-      minMergedRelationships: 0,
-    },
-    simulatedBranchResults: [
-      {
-        branchId: "branch-0",
-        strategy: "counter_hypothesis",
-        observedFacts: [
-          "Signal: series_b_funding = $40M",
-          "Signal: arr = $10M",
-          "Signal: headcount = 80",
-        ],
-        relationships: [],
-        hypothesis: "Primary causal narrative: growth-stage fintech with product-market fit signals.",
-        counterHypothesis: "Alternative: burn rate may be unsustainable — $40M raise with $10M ARR suggests 4x burn ratio.",
-        evidenceRefs: [{ label: "Crunchbase funding page", kind: "database" }],
-        usefulness: 0.42,
-        toolCallCount: 2,
-        wallClockMs: 350,
-      },
-    ],
-  },
-];
-
-// ---------------------------------------------------------------------------
-// Scoring dimensions (deterministic)
-// ---------------------------------------------------------------------------
-
-interface ScoringDimension {
-  name: string;
-  weight: number;
-  evaluate: (fixture: CanaryFixture, result: RunResult) => number;
-}
-
-interface RunResult {
-  triggered: boolean;
-  branches: ReturnType<typeof planResearchBranches>;
-  branchResults: BranchResult[];
-  ranked: BranchResult[];
-  merged: ReturnType<typeof mergeBranchResults>;
-  wallClockMs: number;
-}
-
-const SCORING_DIMENSIONS: ScoringDimension[] = [
-  {
-    name: "trigger_accuracy",
-    weight: 0.25,
-    evaluate: (fixture, result) =>
-      fixture.expectations.shouldTrigger === result.triggered ? 1.0 : 0.0,
-  },
-  {
-    name: "branch_coverage",
-    weight: 0.20,
-    evaluate: (fixture, result) => {
-      if (!fixture.expectations.shouldTrigger) return result.branches.length === 0 ? 1.0 : 0.5;
-      const expected = fixture.expectations.expectedStrategies;
-      const actual = result.branches.map((b) => b.strategy);
-      const hits = expected.filter((s) => actual.includes(s as any)).length;
-      return expected.length > 0 ? hits / expected.length : 1.0;
-    },
-  },
-  {
-    name: "usefulness_quality",
-    weight: 0.20,
-    evaluate: (fixture, result) => {
-      if (!fixture.expectations.shouldTrigger) return 1.0;
-      const maxUsefulness = Math.max(0, ...result.ranked.map((r) => r.usefulness));
-      return maxUsefulness >= fixture.expectations.minUsefulnessAny ? 1.0 : maxUsefulness / Math.max(fixture.expectations.minUsefulnessAny, 0.01);
-    },
-  },
-  {
-    name: "evidence_completeness",
-    weight: 0.20,
-    evaluate: (fixture, result) => {
-      if (!fixture.expectations.shouldTrigger) return 1.0;
-      const factScore = result.merged.observedFacts.length >= fixture.expectations.minMergedFacts ? 1.0 : result.merged.observedFacts.length / Math.max(fixture.expectations.minMergedFacts, 1);
-      const relScore = result.merged.relationships.length >= fixture.expectations.minMergedRelationships ? 1.0 : (fixture.expectations.minMergedRelationships === 0 ? 1.0 : result.merged.relationships.length / fixture.expectations.minMergedRelationships);
-      return (factScore + relScore) / 2;
-    },
-  },
-  {
-    name: "execution_efficiency",
-    weight: 0.15,
-    evaluate: (_fixture, result) => {
-      // Under 5s is perfect, degrades linearly to 0 at 90s
-      if (result.wallClockMs < 5000) return 1.0;
-      if (result.wallClockMs > 90000) return 0.0;
-      return 1.0 - (result.wallClockMs - 5000) / 85000;
-    },
-  },
-];
-
-// ---------------------------------------------------------------------------
-// Runner — executes research cell logic against fixtures
-// ---------------------------------------------------------------------------
-
-function runFixtureOffline(fixture: CanaryFixture): RunResult {
-  const startMs = performance.now();
-
-  // 1. Trigger evaluation
-  const triggerInput: TriggerInput = {
-    confidence: fixture.dimensionProfile.confidence,
-    dimensionCoverage: fixture.dimensionProfile.coverageRatio,
-    durableSourceCount: fixture.dimensionProfile.durableSourceCount,
-    operatorRequested: false,
-    entityType: fixture.entityType,
-  };
-
-  const { trigger, reason } = shouldTriggerResearchCell(triggerInput);
-
-  if (!trigger) {
-    return {
-      triggered: false,
-      branches: [],
-      branchResults: [],
-      ranked: [],
-      merged: mergeBranchResults([], fixture.entityKey),
-      wallClockMs: performance.now() - startMs,
-    };
-  }
-
-  // 2. Branch planning
-  const branches = planResearchBranches(
-    reason!,
-    fixture.entityKey,
-    fixture.existingFacts,
-    RESEARCH_CELL_DEFAULTS.maxBranches,
-  );
-
-  // 3. Execute branches (use simulated results or generate empty ones)
-  const branchResults: BranchResult[] = fixture.simulatedBranchResults ?? branches.map((b) => ({
-    branchId: b.branchId,
-    strategy: b.strategy,
-    observedFacts: [],
-    relationships: [],
-    hypothesis: null,
-    counterHypothesis: null,
-    evidenceRefs: [],
-    usefulness: 0,
-    toolCallCount: 0,
-    wallClockMs: 0,
-  }));
-
-  // 4. Judge and merge
-  const ranked = judgeBranches(branchResults);
-  const merged = mergeBranchResults(ranked, fixture.entityKey);
-
-  return {
-    triggered: true,
-    branches,
-    branchResults,
-    ranked,
-    merged,
-    wallClockMs: performance.now() - startMs,
-  };
-}
-
-function scoreFixture(fixture: CanaryFixture, result: RunResult): CanaryResult {
-  const dimensionScores = SCORING_DIMENSIONS.map((dim) => ({
-    name: dim.name,
-    weight: dim.weight,
-    score: dim.evaluate(fixture, result),
-  }));
-
-  const overallScore = dimensionScores.reduce((sum, d) => sum + d.weight * d.score, 0);
-
-  return {
-    fixtureId: fixture.fixtureId,
-    entityKey: fixture.entityKey,
-    wallClockMs: result.wallClockMs,
-    triggered: result.triggered,
-    branchCount: result.branches.length,
-    strategies: result.branches.map((b) => b.strategy),
-    mergedFactCount: result.merged.observedFacts.length,
-    mergedRelationshipCount: result.merged.relationships.length,
-    mergedEvidenceCount: result.merged.evidenceBundle.length,
-    triggerCorrect: fixture.expectations.shouldTrigger === result.triggered,
-    branchCountCorrect: result.branches.length >= fixture.expectations.minBranches,
-    strategiesCorrect: fixture.expectations.expectedStrategies.every(
-      (s) => result.branches.some((b) => b.strategy === s),
-    ),
-    usefulnessAboveFloor: result.ranked.some((r) => r.usefulness >= fixture.expectations.minUsefulnessAny),
-    factsAboveFloor: result.merged.observedFacts.length >= fixture.expectations.minMergedFacts,
-    relationshipsAboveFloor: result.merged.relationships.length >= fixture.expectations.minMergedRelationships,
-    score: overallScore,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Metrics aggregation — converts canary results to optimizer metrics
-// ---------------------------------------------------------------------------
-
-export function aggregateToMetrics(results: CanaryResult[]): {
-  throughput: ThroughputMetrics;
-  quality: QualityMetrics;
-} {
-  const n = results.length;
-  if (n === 0) {
-    return {
-      throughput: { taskCompletionRate: 0, timeToFirstDraftMs: 0, humanEditDistance: 0, wallClockMs: 0, toolCallCount: 0 },
-      quality: { factualPrecision: 0, relationshipPrecision: 0, evidenceLinkage: 0, receiptCompleteness: 0, falseConfidenceRate: 0, canaryRelativeUplift: 0 },
-    };
-  }
-
-  // Throughput — aggregated from fixture results
-  const taskCompletionRate = results.filter((r) => r.triggerCorrect && r.strategiesCorrect).length / n;
-  const avgWallClockMs = results.reduce((s, r) => s + r.wallClockMs, 0) / n;
-  const avgScore = results.reduce((s, r) => s + r.score, 0) / n;
-
-  // Human edit distance proxy: (1 - score) * 500 base chars
-  // Higher score = less editing needed
-  const humanEditDistance = Math.round((1 - avgScore) * 500);
-
-  // Tool calls: sum of branch counts across fixtures that triggered
-  const totalBranches = results.reduce((s, r) => s + r.branchCount, 0);
-
-  // Quality — derived from scoring dimensions
-  const triggerAccuracy = results.filter((r) => r.triggerCorrect).length / n;
-  const strategyAccuracy = results.filter((r) => r.strategiesCorrect).length / n;
-  const evidenceRate = results.filter((r) => r.factsAboveFloor && r.relationshipsAboveFloor).length / n;
-  const usefulnessRate = results.filter((r) => r.usefulnessAboveFloor || !results.find((f) => f.fixtureId === r.fixtureId)).length / n;
-
-  // False confidence: triggered when shouldn't have, or missed when should have
-  const falsePositives = results.filter((r) => !r.triggerCorrect && r.triggered).length;
-  const falseConfidenceRate = falsePositives / n;
-
-  return {
-    throughput: {
-      taskCompletionRate,
-      timeToFirstDraftMs: avgWallClockMs,
-      humanEditDistance,
-      wallClockMs: avgWallClockMs,
-      toolCallCount: totalBranches,
-    },
-    quality: {
-      factualPrecision: triggerAccuracy,
-      relationshipPrecision: strategyAccuracy,
-      evidenceLinkage: evidenceRate,
-      receiptCompleteness: avgScore,
-      falseConfidenceRate,
-      canaryRelativeUplift: 0, // Set by optimizer relative to baseline
-    },
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Suite runner
-// ---------------------------------------------------------------------------
-
-export interface CanarySuiteResult {
-  suiteId: string;
-  fixtures: CanaryResult[];
-  metrics: { throughput: ThroughputMetrics; quality: QualityMetrics };
-  costEntries: CostEntry[];
-  wallClockMs: number;
-  timestamp: string;
-}
-
-export function runCanarySuite(
-  fixtures: CanaryFixture[] = CANARY_FIXTURES,
-): CanarySuiteResult {
-  const suiteStart = performance.now();
-  const costEntries: CostEntry[] = [];
-
-  const fixtureResults = fixtures.map((fixture) => {
-    const result = runFixtureOffline(fixture);
-    return scoreFixture(fixture, result);
-  });
-
-  const metrics = aggregateToMetrics(fixtureResults);
-
-  costEntries.push({
-    phase: "benchmark",
-    model: "deterministic",
-    inputTokens: 0,
-    outputTokens: 0,
-    costUsd: 0,
-    timestamp: new Date().toISOString(),
-  });
-
-  return {
-    suiteId: `canary-${Date.now()}`,
-    fixtures: fixtureResults,
-    metrics,
-    costEntries,
-    wallClockMs: performance.now() - suiteStart,
-    timestamp: new Date().toISOString(),
-  };
-}
-
-// ---------------------------------------------------------------------------
-// CLI
-// ---------------------------------------------------------------------------
-
-function ensureResultsDir() {
-  if (!fs.existsSync(RESULTS_DIR)) {
-    fs.mkdirSync(RESULTS_DIR, { recursive: true });
-  }
-}
-
-async function main() {
-  console.log("Running DeepTrace canary benchmark...\n");
-
-  const suite = runCanarySuite();
-
-  console.log(`Suite: ${suite.suiteId}`);
-  console.log(`Fixtures: ${suite.fixtures.length}`);
-  console.log(`Wall clock: ${suite.wallClockMs.toFixed(0)}ms\n`);
-
-  console.log("--- Per-Fixture Results ---");
-  for (const r of suite.fixtures) {
-    const status = r.triggerCorrect ? "✓" : "✗";
-    console.log(`  ${status} ${r.fixtureId} — score=${r.score.toFixed(3)}, triggered=${r.triggered}, branches=${r.branchCount}, facts=${r.mergedFactCount}, rels=${r.mergedRelationshipCount}`);
-  }
-
-  console.log("\n--- Aggregated Metrics ---");
-  console.log("Throughput:", JSON.stringify(suite.metrics.throughput, null, 2));
-  console.log("Quality:", JSON.stringify(suite.metrics.quality, null, 2));
-
-  // Persist
-  ensureResultsDir();
-  const outPath = path.join(RESULTS_DIR, `${suite.suiteId}.json`);
-  fs.writeFileSync(outPath, JSON.stringify(suite, null, 2));
-  console.log(`\nResults saved: ${outPath}`);
-
-  // Also output as a baseline-compatible metrics file
-  const metricsPath = path.join(RESULTS_DIR, "latest-metrics.json");
-  fs.writeFileSync(metricsPath, JSON.stringify({
-    throughputMetrics: suite.metrics.throughput,
-    qualityMetrics: suite.metrics.quality,
-    measuredAt: suite.timestamp,
-    suiteId: suite.suiteId,
-  }, null, 2));
-  console.log(`Metrics file: ${metricsPath}`);
-}
+import { resolve } from "node:path";
+import { isDeepStrictEqual } from "node:util";
+import type {
+  BranchResult,
+  TriggerInput,
+} from "../../../backend/convex/domains/deepTrace/researchCellPolicy.js";
 
 const CURRENT_FILE = fileURLToPath(import.meta.url);
-function isExecutedDirectly(): boolean {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const normalize = (p: string) => {
-    const resolved = path.resolve(p);
-    return process.platform === "win32" ? resolved.toLowerCase() : resolved;
-  };
-  return normalize(entry) === normalize(CURRENT_FILE);
+const WORKER_FILE = fileURLToPath(
+  new URL("./research-policy-worker.mjs", import.meta.url),
+);
+const MAX_SOURCE_BYTES = 64 * 1024;
+const MAX_OUTPUT_BYTES = 2 * 1024 * 1024;
+const WORKER_TIMEOUT_MS = 10_000;
+let activeComparisons = 0;
+
+function readBounded(file: string, maxBytes: number): string {
+  if (!statSync(file).isFile() || statSync(file).size > maxBytes)
+    throw new Error("Invalid or oversized file: " + file);
+  const value = readFileSync(file, "utf8");
+  if (Buffer.byteLength(value) > maxBytes)
+    throw new Error("File grew beyond limit: " + file);
+  return value;
 }
 
-if (isExecutedDirectly()) {
-  main().catch((err) => {
-    console.error(err);
-    process.exit(1);
+function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_key, item) =>
+    item && typeof item === "object" && !Array.isArray(item)
+      ? Object.fromEntries(
+          Object.keys(item)
+            .sort()
+            .map((key) => [key, item[key]]),
+        )
+      : item,
+  );
+}
+
+type Reference = BranchResult["evidenceRefs"][number];
+interface PolicyCase {
+  persona: string;
+  input: {
+    caseId: string;
+    entityKey: string;
+    repetitions: number;
+    triggerInput: TriggerInput;
+    existingFacts: string[];
+    storedResults: Record<string, Partial<BranchResult>>;
+  };
+  expected: {
+    trigger: boolean;
+    reason: string | null;
+    strategies: string[];
+    rankedBranchIds: string[];
+    evidence: Reference[];
+    facts: string[];
+    hypothesis: string | null;
+  };
+}
+
+function policyCases(): PolicyCase[] {
+  const healthy = {
+    confidence: 0.85,
+    dimensionCoverage: 0.8,
+    durableSourceCount: 4,
+    operatorRequested: false,
+  };
+  const routing = (
+    caseId: string,
+    persona: string,
+    triggerInput: TriggerInput,
+    reason: string | null,
+    strategies: string[],
+    rankedBranchIds: string[],
+  ): PolicyCase => ({
+    persona,
+    input: {
+      caseId,
+      entityKey: "company/example",
+      repetitions: 1,
+      triggerInput,
+      existingFacts: [],
+      storedResults: {},
+    },
+    expected: {
+      trigger: reason !== null,
+      reason,
+      strategies,
+      rankedBranchIds,
+      evidence: [],
+      facts: [],
+      hypothesis: null,
+    },
   });
+  const first = {
+    label: "Quarterly report|https://archive.example/source",
+    href: "https://publisher.example/report",
+    kind: "filing",
+  };
+  const second = {
+    label: "Quarterly report",
+    href: "https://archive.example/source|https://publisher.example/report",
+    kind: "archive",
+  };
+  const normal = {
+    label: "Board report",
+    href: "https://board.example/report",
+    kind: "filing",
+  };
+  const evidence = (
+    caseId: string,
+    persona: string,
+    refs: Reference[],
+    expected: Reference[],
+    repetitions = 1,
+  ): PolicyCase => ({
+    persona,
+    input: {
+      caseId,
+      entityKey: "company/example",
+      repetitions,
+      triggerInput: { ...healthy, durableSourceCount: 1 },
+      existingFacts: ["An existing source needs review."],
+      storedResults: {
+        source_diversification: {
+          evidenceRefs: refs,
+          observedFacts: [
+            "Stored source remains available.",
+            "Stored source remains available.",
+          ],
+          usefulness: 0.8,
+          hypothesis: "Stored sources require analyst review.",
+        },
+      },
+    },
+    expected: {
+      trigger: true,
+      reason: "durableSources 1 < 3",
+      strategies: ["evidence_gap_fill", "source_diversification"],
+      rankedBranchIds: ["branch-1", "branch-0"],
+      evidence: expected,
+      facts: ["Stored source remains available."],
+      hypothesis: "Stored sources require analyst review.",
+    },
+  });
+  const many = Array.from({ length: 128 }, (_, i) => ({
+    label: "Archived filing " + i,
+    href: "https://archive.example/filing/" + i,
+    kind: "filing",
+  }));
+  return [
+    routing(
+      "healthy",
+      "An analyst avoids needless re-analysis of a well-covered company.",
+      healthy,
+      null,
+      [],
+      [],
+    ),
+    routing(
+      "low-confidence",
+      "A reviewer asks for competing explanations when confidence is low.",
+      { ...healthy, confidence: 0.4 },
+      "confidence 0.40 < 0.65",
+      ["counter_hypothesis", "source_diversification"],
+      ["branch-0", "branch-1"],
+    ),
+    routing(
+      "coverage-gap",
+      "An analyst with reliable but incomplete data needs missing dimensions surfaced.",
+      { ...healthy, dimensionCoverage: 0.4 },
+      "dimensionCoverage 0.40 < 0.7",
+      ["dimension_coverage", "source_diversification"],
+      ["branch-0", "branch-1"],
+    ),
+    routing(
+      "sparse-sources",
+      "A researcher with few durable sources needs an evidence-gap branch.",
+      { ...healthy, durableSourceCount: 1 },
+      "durableSources 1 < 3",
+      ["evidence_gap_fill", "source_diversification"],
+      ["branch-0", "branch-1"],
+    ),
+    routing(
+      "operator-request",
+      "An operator requests a review despite otherwise healthy inputs.",
+      { ...healthy, operatorRequested: true },
+      "operator_requested",
+      ["dimension_coverage", "counter_hypothesis", "source_diversification"],
+      ["branch-1", "branch-0", "branch-2"],
+    ),
+    routing(
+      "threshold-boundary",
+      "A reviewer at the documented thresholds avoids an unnecessary run.",
+      {
+        ...healthy,
+        confidence: 0.65,
+        dimensionCoverage: 0.7,
+        durableSourceCount: 3,
+      },
+      null,
+      [],
+      [],
+    ),
+    evidence(
+      "duplicate-source",
+      "An analyst sees one citation when two branches return the same source.",
+      [normal, normal],
+      [normal],
+    ),
+    evidence(
+      "distinct-source-tuples",
+      "An imported archive contains separator characters; the analyst must retain both distinct citations.",
+      [first, second, first],
+      [first, second],
+    ),
+    evidence(
+      "missing-url",
+      "A reviewer retains a labeled offline record while collapsing its identical repeat.",
+      [{ label: "Offline record" }, { label: "Offline record", href: "" }],
+      [{ label: "Offline record" }],
+    ),
+    evidence(
+      "archive-burst",
+      "An analyst merges 128 distinct archived filings with repeated references.",
+      [...many, ...many],
+      many,
+    ),
+    evidence(
+      "sustained-review",
+      "An operator repeats the same review 128 times without losing sources or accumulating state.",
+      [first, second, normal, first],
+      [first, second, normal],
+      128,
+    ),
+  ];
+}
+
+const CASES = policyCases();
+const EVALUATOR_SOURCE = readBounded(CURRENT_FILE, MAX_SOURCE_BYTES);
+const WORKER_SOURCE = readBounded(WORKER_FILE, MAX_SOURCE_BYTES);
+
+type RecordValue = Record<string, unknown>;
+function record(value: unknown): RecordValue {
+  if (value === null || typeof value !== "object" || Array.isArray(value))
+    throw new Error("Malformed policy observation");
+  return value as RecordValue;
+}
+
+function grade(raw: unknown, cases: PolicyCase[]) {
+  if (!Array.isArray(raw) || raw.length !== cases.length)
+    throw new Error("Wrong observation count");
+  return cases.map((fixture, index) => {
+    const row = record(raw[index]);
+    if (
+      row.caseId !== fixture.input.caseId ||
+      !Array.isArray(row.observations) ||
+      row.observations.length !== fixture.input.repetitions
+    ) {
+      throw new Error("Wrong case identity or repetition count");
+    }
+    const repetitions = row.observations.map((value) => {
+      const observed = record(value);
+      const merged = record(observed.merged);
+      if (
+        typeof observed.trigger !== "boolean" ||
+        !Array.isArray(observed.branches) ||
+        !Array.isArray(observed.rankedBranchIds) ||
+        !Array.isArray(merged.evidenceBundle) ||
+        !Array.isArray(merged.observedFacts) ||
+        !Array.isArray(merged.relationships) ||
+        !Array.isArray(merged.receipts)
+      ) {
+        throw new Error("Malformed policy output");
+      }
+      const strategies = observed.branches.map(
+        (branch) => record(branch).strategy,
+      );
+      const expected = fixture.expected;
+      return {
+        trigger: observed.trigger === expected.trigger,
+        reason: observed.reason === expected.reason,
+        strategies: isDeepStrictEqual(strategies, expected.strategies),
+        branchBound: observed.branches.length <= 3,
+        ranking: isDeepStrictEqual(
+          observed.rankedBranchIds,
+          expected.rankedBranchIds,
+        ),
+        evidence: isDeepStrictEqual(merged.evidenceBundle, expected.evidence),
+        facts: isDeepStrictEqual(merged.observedFacts, expected.facts),
+        relationships: merged.relationships.length === 0,
+        hypothesis: merged.strongestHypothesis === expected.hypothesis,
+        counterHypothesis: merged.counterHypothesis === null,
+        receipts: isDeepStrictEqual(
+          merged.receipts.map((receipt) => record(receipt).branchId),
+          expected.rankedBranchIds,
+        ),
+      };
+    });
+    const checks = Object.keys(repetitions[0]).map((name) => ({
+      id: fixture.input.caseId + "." + name,
+      passed: repetitions.every(
+        (repetition) => repetition[name as keyof typeof repetition],
+      ),
+    }));
+    return {
+      caseId: fixture.input.caseId,
+      repetitions: repetitions.length,
+      passed: checks.every((check) => check.passed),
+      checks,
+    };
+  });
+}
+
+async function executePolicy(source: string, inputs: PolicyCase["input"][]) {
+  const request = JSON.stringify({ source, inputs });
+  if (Buffer.byteLength(request) > 256 * 1024)
+    throw new Error("Policy request exceeds 256 KiB");
+  const started = performance.now();
+  const stdout = await new Promise<string>((accept, reject) => {
+    const child = execFile(
+      process.execPath,
+      [
+        "--disable-warning=ExperimentalWarning",
+        "--input-type=module",
+        "--eval",
+        WORKER_SOURCE,
+      ],
+      {
+        timeout: WORKER_TIMEOUT_MS,
+        maxBuffer: MAX_OUTPUT_BYTES,
+        encoding: "utf8",
+        windowsHide: true,
+        // No provider secrets or inherited loader configuration is required.
+        env: {
+          SystemRoot: process.env.SystemRoot,
+          TEMP: process.env.TEMP,
+          TMP: process.env.TMP,
+        },
+      },
+      (error, output, stderr) =>
+        error
+          ? reject(
+              new Error(
+                "Policy execution failed: " +
+                  (stderr.slice(0, 1200) || error.message),
+              ),
+            )
+          : accept(output),
+    );
+    child.stdin?.on("error", reject);
+    child.stdin?.end(request);
+  });
+  return {
+    raw: JSON.parse(stdout) as unknown,
+    workerElapsedMs: performance.now() - started,
+  };
+}
+
+export async function comparePolicies(
+  baselineFile: string,
+  candidateFile: string,
+) {
+  if (activeComparisons >= 4)
+    throw new Error("At most four policy comparisons may run concurrently");
+  activeComparisons++;
+  try {
+    const baselineSource = readBounded(baselineFile, MAX_SOURCE_BYTES);
+    const candidateSource = readBounded(candidateFile, MAX_SOURCE_BYTES);
+    const cases: PolicyCase[] = structuredClone(CASES);
+    const inputs = cases.map((fixture) => fixture.input);
+    const identity = {
+      baseline: { path: resolve(baselineFile), sha256: sha256(baselineSource) },
+      candidate: {
+        path: resolve(candidateFile),
+        sha256: sha256(candidateSource),
+      },
+      evaluatorSha256: sha256(EVALUATOR_SOURCE),
+      workerSha256: sha256(WORKER_SOURCE),
+      fixturesSha256: sha256(canonicalJson(cases)),
+      nodeVersion: process.version,
+    };
+    const baseline = await executePolicy(baselineSource, inputs);
+    const candidate = await executePolicy(candidateSource, inputs);
+    if (
+      readBounded(baselineFile, MAX_SOURCE_BYTES) !== baselineSource ||
+      readBounded(candidateFile, MAX_SOURCE_BYTES) !== candidateSource ||
+      readBounded(CURRENT_FILE, MAX_SOURCE_BYTES) !== EVALUATOR_SOURCE ||
+      readBounded(WORKER_FILE, MAX_SOURCE_BYTES) !== WORKER_SOURCE
+    ) {
+      throw new Error("Source or evaluator changed during comparison");
+    }
+    const baselineCases = grade(baseline.raw, cases);
+    const candidateCases = grade(candidate.raw, cases);
+    const before = baselineCases.flatMap((row) => row.checks);
+    const after = candidateCases.flatMap((row) => row.checks);
+    const fixed = after
+      .filter((check, i) => check.passed && !before[i].passed)
+      .map((check) => check.id);
+    const regressions = after
+      .filter((check, i) => !check.passed && before[i].passed)
+      .map((check) => check.id);
+    const allPassed = after.every((check) => check.passed);
+    const verdict = regressions.length
+      ? "regressed"
+      : allPassed && fixed.length
+        ? "policy-improved"
+        : isDeepStrictEqual(before, after)
+          ? "equivalent"
+          : "inconclusive";
+    return {
+      schema: "deeptrace-policy-comparison/v1",
+      runId: randomUUID(),
+      timestamp: new Date().toISOString(),
+      scope: "production policy on fixed synthetic stored state",
+      evidenceStatus: "measured-policy",
+      releaseEligible: false,
+      agentExecuted: false,
+      modelExecuted: false,
+      acceptedBaselineChanged: false,
+      identity,
+      verdict,
+      fixed,
+      regressions,
+      candidateAllChecksPassed: allPassed,
+      counts: {
+        cases: cases.length,
+        checks: before.length,
+        baselinePassed: before.filter((check) => check.passed).length,
+        candidatePassed: after.filter((check) => check.passed).length,
+      },
+      cases,
+      baseline: { ...baseline, cases: baselineCases },
+      candidate: { ...candidate, cases: candidateCases },
+    };
+  } finally {
+    activeComparisons--;
+  }
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === CURRENT_FILE) {
+  const args = process.argv.slice(2);
+  const flags = new Map<string, string>();
+  try {
+    if (args.length !== 6)
+      throw new Error(
+        "Usage: node canary-benchmark.ts --baseline-policy <file.ts> --candidate-policy <file.ts> --out <new-report.json>",
+      );
+    for (let i = 0; i < args.length; i += 2) {
+      if (
+        !["--baseline-policy", "--candidate-policy", "--out"].includes(
+          args[i],
+        ) ||
+        flags.has(args[i])
+      )
+        throw new Error("Unknown or duplicate flag");
+      flags.set(args[i], args[i + 1]);
+    }
+    const result = await comparePolicies(
+      flags.get("--baseline-policy")!,
+      flags.get("--candidate-policy")!,
+    );
+    writeFileSync(flags.get("--out")!, JSON.stringify(result, null, 2) + "\n", {
+      flag: "wx",
+    });
+    console.log(
+      JSON.stringify({
+        verdict: result.verdict,
+        counts: result.counts,
+        fixed: result.fixed,
+        regressions: result.regressions,
+        releaseEligible: false,
+      }),
+    );
+    if (!result.candidateAllChecksPassed || result.verdict === "inconclusive")
+      process.exitCode = 1;
+  } catch (error) {
+    console.error(
+      "Policy comparison inconclusive: " +
+        (error instanceof Error ? error.message : String(error)),
+    );
+    process.exitCode = 1;
+  }
 }
