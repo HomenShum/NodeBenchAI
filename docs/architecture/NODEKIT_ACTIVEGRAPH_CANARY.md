@@ -333,7 +333,7 @@ authority-bearing combined identity snapshot.
 This proves the boundary on one deterministic representative corpus. It does
 not satisfy the owner-authorized multi-run adoption experiment.
 
-### Gate 3b — representative owner-authorized corpus: implemented, live result required
+### Gate 3b — representative owner-authorized corpus: closed with `reject`
 
 The repository now provides a fixed 20-scenario collector and bounded corpus
 runner:
@@ -373,6 +373,37 @@ Passing all stop rules yields only `eligible-for-adr`; it does not adopt
 ActiveGraph. A reject result closes this adoption experiment while preserving
 the offline diagnostic canary.
 
+The owner-authorized production run completed on 2026-07-30. It evaluated 20
+unique, complete exports across the fixed workflow classes, including a
+fail-safe terminal run. All 20 exports retained exact persistence/reload
+parity. The first production-shaped run also exposed a compatibility defect:
+the Python evaluator and JSON Schema did not yet accept the native-session
+identity snapshot and graph lifecycle events that the JavaScript boundary and
+production exporter already supported. Commit
+`e910276c6c6a6cfc0f309d9ff36bed2b040cd176` aligned all three validators and
+added production-shaped identity, lifecycle, and stale-identity scenarios.
+
+The corrected corpus produced:
+
+- canonical validation median: `0.144125 ms`;
+- ActiveGraph canary median: `2018.27055 ms`;
+- latency ratio: `14003.6118×`, above the predefined `2×` stop threshold;
+- material explanatory value observed: `false`;
+- persistence/reload parity: `20/20`;
+- adoption verdict: `reject`.
+
+The private source report is bound by
+`sha256:46b00a19d00f83be131ffa574f02def8577918032b9bab90a166756611778559`.
+The committed
+[sanitized production corpus receipt](evidence/nodekit-activegraph-production-corpus-2026-07-30.json)
+contains the non-sensitive measurements, source and evaluator commit bindings,
+and sandbox image attestation. It intentionally excludes owner identifiers,
+run identifiers, exported events, databases, and evidence-directory contents.
+
+This result closes the adoption experiment. ActiveGraph remains useful only as
+an optional offline diagnostic canary. It is not eligible for an ADR proposing
+production runtime adoption.
+
 ### Gate 4 — production bridge: not authorized
 
 A production bridge would still require a threat model, owner and tenant
@@ -399,7 +430,6 @@ This slice does not add:
 - an MCP ingestion path;
 - a Temporal backend;
 - a production worker or dual-write;
-- a corpus-based adoption decision; or
 - any ActiveGraph role in user-visible answers or approval decisions.
 
 ## Reproduction
