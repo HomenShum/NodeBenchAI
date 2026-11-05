@@ -474,7 +474,7 @@ wss.on("connection", (ws) => {
 
     // Synthesize with Cartesia (streaming)
     const ttsResponse = await cartesia.tts.sse({
-      modelId: "sonic-english",
+      modelId: "sonic-3.6",
       transcript: llmResponse,
       voice: { mode: "id", id: "a0e99841-438c-4a64-b679-ae501e7d6091" },
       output_format: { container: "raw", encoding: "pcm_s16le", sample_rate: 24000 },
