@@ -36,8 +36,15 @@ jobs:
           package-manager-cache: false
           node-version-file: ".nvmrc"
 
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
+      # These checks consume the deployed app, not its build/media toolchain.
+      # Keep ESM imports and existing npm scripts resolving from the repo root.
+      - name: Install verification dependencies
+        run: |
+          npm ci --prefix scripts/post-deploy-deps --no-audit --no-fund
+          ln -s "$PWD/scripts/post-deploy-deps/node_modules" node_modules
+
+      - name: Verify dependency and failure contracts
+        run: node --test scripts/post-deploy-contracts.node.mjs
 
       - name: Install Playwright browser
         run: npx playwright install chromium --with-deps
