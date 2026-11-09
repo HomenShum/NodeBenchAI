@@ -28,21 +28,27 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "=== GitHub Stars & Forks ==="
-          curl -s -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/HomenShum/nodebench-ai" | jq '{stars: .stargazers_count, forks: .forks_count, watchers: .subscribers_count, open_issues: .open_issues_count}'
+          # The repo's own name, not a literal: after the nodebench-ai -> NodeBenchAI rename the old URL answered 301 and
+          # every stat came back null. -L follows any later redirect too.
+          curl -sL -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/${{ github.repository }}" | jq '{stars: .stargazers_count, forks: .forks_count, watchers: .subscribers_count, open_issues: .open_issues_count}'
           echo ""
           echo "=== Recent Release Downloads ==="
-          curl -s -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/HomenShum/nodebench-ai/releases/latest" | jq '{tag: .tag_name, published: .published_at}'
+          curl -sL -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/${{ github.repository }}/releases/latest" | jq '{tag: .tag_name, published: .published_at, message}'
 
       - name: Check directory listings
         run: |
-          echo "=== Cline Marketplace Issue ==="
-          curl -s "https://api.github.com/repos/cline/mcp-marketplace/issues/801" | jq '{state, title: .title[0:60], labels: [.labels[].name]}'
-          echo ""
-          echo "=== awesome-mcp-servers Issue ==="
-          curl -s "https://api.github.com/repos/punkpeye/awesome-mcp-servers/issues/2788" | jq '{state, title: .title[0:60], labels: [.labels[].name]}'
-          echo ""
-          echo "=== mcp.so Issue ==="
-          curl -s "https://api.github.com/repos/chatmcp/mcpso/issues/693" | jq '{state, title: .title[0:60], labels: [.labels[].name]}'
+          # A listing that moves or closes is a finding to print, not a failure: an error body (404/410) has no
+          # title or labels, so read both null-safe and show GitHub's message.
+          issue() {
+            echo "=== $1 ==="
+            curl -sL "https://api.github.com/repos/$2" | jq '{state, title: ((.title // "")[0:60]), labels: [(.labels // [])[].name], message}'
+            echo ""
+          }
+          issue "Cline Marketplace Issue" cline/mcp-marketplace/issues/801
+          issue "mcp.so Issue" chatmcp/mcpso/issues/693
+          # awesome-mcp-servers turned Issues off (issue 2788 answers 410); the list itself is the listing.
+          echo "=== awesome-mcp-servers README ==="
+          echo "lines mentioning NodeBench: $(curl -sL https://raw.githubusercontent.com/punkpeye/awesome-mcp-servers/main/README.md | grep -ci nodebench || true)"
 
       - name: Summary
         run: |
