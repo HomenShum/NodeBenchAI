@@ -43,9 +43,10 @@ android/local.properties
 *.sln
 *.sw?
 
-# Keep nested package lock policy; the root lock is required by worker npm ci.
+# npm ci requires the worker root lock and the isolated verifier lock.
 package-lock.json
 !/package-lock.json
+!/scripts/post-deploy-deps/package-lock.json
 *storybook.log
 storybook-static
 

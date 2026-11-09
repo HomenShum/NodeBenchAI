@@ -1,5 +1,21 @@
 # NodeBench Agent Workflow
 
+## Post-deploy verification dependencies
+
+The deployed-app verifier needs only `tsx` and `@playwright/test`. Its locked
+toolchain lives in `scripts/post-deploy-deps`; installing the whole application
+made verification depend on an unrelated `ffmpeg-static` binary download.
+Refresh this lock in an empty directory to retain every OS-specific optional package.
+Keep Playwright's browser install and all three checks enabled. Run
+`node --test scripts/post-deploy-contracts.node.mjs` after changing this workflow.
+Fixture contract passes do not establish that production verification passed.
+
+Full-application Linux CI uses `.github/actions/install-dependencies`: retain
+ordinary npm lifecycle scripts, but provide `ffmpeg-static` a real system
+`FFMPEG_BIN`. Validate MP4 encoding/JPEG extraction before installing, verify
+the package binding afterward, and persist the path for later runtime steps.
+Do not replace the binary with a dummy or disable all install scripts.
+
 **New to this repository? Read `docs/START_HERE.md` first.** It follows one
 question from the keypress to the answer, step by step through the real files,
 and tells you what you can run without a Convex deployment. Everything below

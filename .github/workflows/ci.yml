@@ -46,7 +46,7 @@ jobs:
         run: node scripts/validate-tours.mjs
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        uses: ./.github/actions/install-dependencies
 
       - name: Convex bundle analysis (codegen)
         # `npx convex codegen` runs the same evaluate_push static analyzer
@@ -80,7 +80,7 @@ jobs:
           node-version-file: ".nvmrc"
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        uses: ./.github/actions/install-dependencies
 
       - name: Workflow event data scenarios
         run: node --test scripts/nodebench-packet-contracts.node.mjs
@@ -151,7 +151,7 @@ jobs:
           node-version-file: ".nvmrc"
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        uses: ./.github/actions/install-dependencies
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
@@ -183,7 +183,7 @@ jobs:
           node-version-file: ".nvmrc"
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        uses: ./.github/actions/install-dependencies
 
       - name: Production build
         run: npm run build

@@ -67,7 +67,7 @@ jobs:
           node-version-file: ".nvmrc"
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        uses: ./.github/actions/install-dependencies
 
       - name: Detect Vercel-relevant changes
         id: relevant
