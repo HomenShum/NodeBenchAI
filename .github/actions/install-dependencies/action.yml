@@ -1,0 +1,37 @@
+name: Install application dependencies
+description: Keep npm lifecycle scripts enabled while using a validated system FFmpeg in Linux CI.
+runs:
+  using: composite
+  steps:
+    - name: Dependency installation contracts
+      shell: bash
+      run: node --test scripts/ci/install-dependencies.node.mjs
+
+    - name: Install with system FFmpeg
+      shell: bash
+      run: |
+        set -euo pipefail
+        if ! command -v ffmpeg >/dev/null; then
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install --yes --no-install-recommends ffmpeg
+        fi
+        export FFMPEG_BIN="$(command -v ffmpeg)"
+        test -f "$FFMPEG_BIN"
+        test -x "$FFMPEG_BIN"
+        "$FFMPEG_BIN" -version
+
+        # Exercise the codecs/container used by scripts/ui's actual consumers.
+        probe_dir="$(mktemp -d "$RUNNER_TEMP/nodebench-ffmpeg.XXXXXX")"
+        trap 'rm -f "$probe_dir/probe.mp4" "$probe_dir/frame.jpg"; rmdir "$probe_dir"' EXIT
+        "$FFMPEG_BIN" -nostdin -v error -f lavfi -i color=c=black:s=32x32:r=1 \
+          -frames:v 1 -c:v libx264 -pix_fmt yuv420p -movflags +faststart "$probe_dir/probe.mp4"
+        "$FFMPEG_BIN" -nostdin -v error -i "$probe_dir/probe.mp4" -frames:v 1 "$probe_dir/frame.jpg"
+        test -s "$probe_dir/probe.mp4"
+        test -s "$probe_dir/frame.jpg"
+
+        # The supported override avoids only ffmpeg-static's external binary
+        # download. Every npm lifecycle script and install error remains active.
+        npm install --no-audit --no-fund
+        node -e 'require("node:assert/strict").equal(require("ffmpeg-static"), process.env.FFMPEG_BIN)'
+        # The runtime loader needs the same override in subsequent job steps.
+        printf 'FFMPEG_BIN=%s\n' "$FFMPEG_BIN" >> "$GITHUB_ENV"
