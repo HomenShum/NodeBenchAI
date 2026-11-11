@@ -172,4 +172,24 @@ describe("useStreamingSearch", () => {
 
     expect(result.current.sourcePreview[0]?.label).toBe("Fresh source");
   });
+
+  it("shows an explicit terminal research failure without completing or retrying over JSON", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(
+      'event: error\ndata: {"message":"A research provider returned an invalid response","failure":{"code":"INVALID_PROVIDER_RESPONSE","stage":"analyze"}}\n\n',
+      { status: 200, headers: { "Content-Type": "text/event-stream" } },
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+    const onError = vi.fn();
+    const onComplete = vi.fn();
+    const { result } = renderHook(() => useStreamingSearch());
+    await act(async () => {
+      result.current.startStream("Acme robotics", "founder", { onError, onComplete });
+    });
+    await waitFor(() => expect(onError).toHaveBeenCalledTimes(1));
+    expect(result.current.error).toBe("A research provider returned an invalid response");
+    expect(result.current.result).toBeNull();
+    expect(result.current.isStreaming).toBe(false);
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

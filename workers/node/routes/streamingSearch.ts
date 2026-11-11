@@ -15,6 +15,9 @@ import {
   runSearchPipeline,
   stateToResultPacket,
   type PipelineProgressEvent,
+  getPipelineAdmissionFailure,
+  getPipelineFailure,
+  pipelineFailureHttpStatus,
 } from "../pipeline/searchPipeline.js";
 import { createEnvelopeFromPipelineState } from "../lib/workflowEnvelope.js";
 import { trajectoryFromPipelineState, saveSearchTrajectory } from "../lib/trajectoryStore.js";
@@ -29,7 +32,7 @@ function emitSSE(
   event: string,
   data: Record<string, unknown>,
 ): void {
-  if (res.writableEnded) return;
+  if (res.writableEnded || res.destroyed) return;
   res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
@@ -108,6 +111,13 @@ export function createStreamingSearchRouter(): Router {
       return;
     }
 
+    const admission = getPipelineAdmissionFailure();
+    if (admission) { res.status(pipelineFailureHttpStatus(admission.code)!).json({ error: true, message: admission.safeMessage, failure: admission }); return; }
+    const controller = new AbortController();
+    const onAborted = () => controller.abort();
+    const onClosed = () => { if (!res.writableEnded) controller.abort(); };
+    req.once("aborted", onAborted); res.once("close", onClosed);
+
     // SSE headers
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -153,7 +163,7 @@ export function createStreamingSearchRouter(): Router {
 
       // ── Run pipeline with real-time progress callback ──────────
       const onProgress = (event: PipelineProgressEvent): void => {
-        if (res.writableEnded) return;
+        if (res.writableEnded || res.destroyed || controller.signal.aborted || getPipelineFailure(event.state)) return;
         const meta = STAGE_META[event.stage] ?? { tool: event.stage, provider: "local", reason: event.stage };
 
         if (event.phase === "start") {
@@ -179,7 +189,10 @@ export function createStreamingSearchRouter(): Router {
         }
       };
 
-      const state = await runSearchPipeline(query, lens, onProgress, contextHint);
+      const state = await runSearchPipeline(query, lens, onProgress, contextHint, controller.signal);
+      if (controller.signal.aborted || res.destroyed) return;
+      const failure = getPipelineFailure(state);
+      if (failure) { emitSSE(res, "error", { message: failure.safeMessage, failure, step: stepCounter }); return; }
 
       // ── Assemble result packet ─────────────────────────────────
       const packet = stateToResultPacket(state);
@@ -248,10 +261,11 @@ export function createStreamingSearchRouter(): Router {
       // ERR_CONNECTION_RESET after the response has logically completed.
       await new Promise((resolve) => setTimeout(resolve, 20));
 
-    } catch (err) {
-      emitSSE(res, "error", { message: (err as Error).message ?? "Search failed", step: stepCounter });
+    } catch {
+      if (!controller.signal.aborted) emitSSE(res, "error", { message: "Research could not be completed", step: stepCounter });
     } finally {
-      if (!res.writableEnded) res.end();
+      req.removeListener("aborted", onAborted); res.removeListener("close", onClosed);
+      if (!res.writableEnded && !res.destroyed) res.end();
     }
   };
 

@@ -32,6 +32,9 @@ vi.mock("./pipeline/searchPipeline.js", () => ({
   createInitialPipelineState: createInitialPipelineStateMock,
   runSearchPipeline: runSearchPipelineMock,
   stateToResultPacket: stateToResultPacketMock,
+  getPipelineAdmissionFailure: () => null,
+  getPipelineFailure: () => null,
+  pipelineFailureHttpStatus: () => 502,
 }));
 
 vi.mock("./lib/workflowEnvelope.js", () => ({
@@ -163,6 +166,7 @@ describe("createStreamingSearchRouter", () => {
       "investor",
       expect.any(Function),
       "investor | concise | citation heavy",
+      expect.any(AbortSignal),
     );
   });
 
@@ -190,6 +194,7 @@ describe("createStreamingSearchRouter", () => {
       "founder",
       expect.any(Function),
       "founder | bilingual | prep mode",
+      expect.any(AbortSignal),
     );
   });
 });

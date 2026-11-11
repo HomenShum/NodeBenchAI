@@ -9,6 +9,7 @@
  */
 
 import type { SearchSource } from "../pipeline/searchPipeline.js";
+import { createPipelineBudget, fetchPipelineJson, PipelineHttpError, PIPELINE_PROVIDER_ROW_LIMIT } from "./pipelineHttp.js";
 
 // ── Provider configs (from env) ──────────────────────────────────────
 
@@ -32,19 +33,22 @@ interface RawSource {
   provider: string;
 }
 
+function validateProviderItems(items: unknown, textFields: string[]): void {
+  if (!Array.isArray(items) || items.length > PIPELINE_PROVIDER_ROW_LIMIT || items.some((item) =>
+    !item || typeof item !== "object" || Array.isArray(item) ||
+    textFields.some((field) => item[field] != null && typeof item[field] !== "string")
+  )) throw new PipelineHttpError("INVALID_PROVIDER_RESPONSE");
+}
+
 // ── Linkup search ────────────────────────────────────────────────────
 
 async function searchLinkup(query: string, signal: AbortSignal): Promise<RawSource[]> {
   if (!LINKUP_KEY) return [];
-  try {
-    const resp = await fetch("https://api.linkup.so/v1/search", {
+  const data = await fetchPipelineJson("https://api.linkup.so/v1/search", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${LINKUP_KEY}` },
       body: JSON.stringify({ q: query, depth: "standard", outputType: "sourcedAnswer" }),
-      signal,
-    });
-    if (!resp.ok) return [];
-    const data = await resp.json() as {
+    }, 1_048_576, signal, 10_000) as {
       results?: Array<{
         name?: string;
         title?: string;
@@ -62,6 +66,7 @@ async function searchLinkup(query: string, signal: AbortSignal): Promise<RawSour
       images?: Array<{ thumbnailUrl?: string; thumbnail?: string; imageUrl?: string; url?: string }>;
     }>;
   };
+    validateProviderItems(data.results, ["name", "title", "url", "content", "snippet"]);
     return (data.results ?? []).map((r) => ({
       name: r.name ?? r.title ?? r.url ?? "",
       url: r.url ?? "",
@@ -78,64 +83,52 @@ async function searchLinkup(query: string, signal: AbortSignal): Promise<RawSour
       siteName: r.siteName ?? r.site_name,
       provider: "linkup",
     }));
-  } catch { return []; }
 }
 
 // ── Brave Search ─────────────────────────────────────────────────────
 
 async function searchBrave(query: string, signal: AbortSignal): Promise<RawSource[]> {
   if (!BRAVE_KEY) return [];
-  try {
-    const resp = await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=10`, {
+  const data = await fetchPipelineJson(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=10`, {
       headers: { "X-Subscription-Token": BRAVE_KEY, Accept: "application/json" },
-      signal,
-    });
-    if (!resp.ok) return [];
-    const data = await resp.json() as { web?: { results?: Array<{ title?: string; url?: string; description?: string }> } };
+    }, 1_048_576, signal, 10_000) as { web?: { results?: Array<{ title?: string; url?: string; description?: string }> } };
+    validateProviderItems(data.web?.results, ["title", "url", "description"]);
     return (data.web?.results ?? []).map((r) => ({
       name: r.title ?? r.url ?? "",
       url: r.url ?? "",
       content: (r.description ?? "").slice(0, 2000),
       provider: "brave",
     }));
-  } catch { return []; }
 }
 
 // ── Serper (Google SERP) ─────────────────────────────────────────────
 
 async function searchSerper(query: string, signal: AbortSignal): Promise<RawSource[]> {
   if (!SERPER_KEY) return [];
-  try {
-    const resp = await fetch("https://google.serper.dev/search", {
+  const data = await fetchPipelineJson("https://google.serper.dev/search", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-API-KEY": SERPER_KEY },
       body: JSON.stringify({ q: query, num: 10 }),
-      signal,
-    });
-    if (!resp.ok) return [];
-    const data = await resp.json() as { organic?: Array<{ title?: string; link?: string; snippet?: string }> };
+    }, 1_048_576, signal, 10_000) as { organic?: Array<{ title?: string; link?: string; snippet?: string }> };
+    validateProviderItems(data.organic, ["title", "link", "snippet"]);
     return (data.organic ?? []).map((r) => ({
       name: r.title ?? r.link ?? "",
       url: r.link ?? "",
       content: (r.snippet ?? "").slice(0, 2000),
       provider: "serper",
     }));
-  } catch { return []; }
 }
 
 // ── Tavily ───────────────────────────────────────────────────────────
 
 async function searchTavily(query: string, signal: AbortSignal): Promise<RawSource[]> {
   if (!TAVILY_KEY) return [];
-  try {
-    const resp = await fetch("https://api.tavily.com/search", {
+  const data = await fetchPipelineJson("https://api.tavily.com/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ api_key: TAVILY_KEY, query, search_depth: "basic", max_results: 10 }),
-      signal,
-    });
-    if (!resp.ok) return [];
-    const data = await resp.json() as { results?: Array<{ title?: string; url?: string; content?: string; score?: number }> };
+    }, 1_048_576, signal, 10_000) as { results?: Array<{ title?: string; url?: string; content?: string; score?: number }> };
+    validateProviderItems(data.results, ["title", "url", "content"]);
     return (data.results ?? []).map((r) => ({
       name: r.title ?? r.url ?? "",
       url: r.url ?? "",
@@ -143,7 +136,6 @@ async function searchTavily(query: string, signal: AbortSignal): Promise<RawSour
       relevanceScore: r.score,
       provider: "tavily",
     }));
-  } catch { return []; }
 }
 
 // ── Multi-provider parallel search ───────────────────────────────────
@@ -152,27 +144,40 @@ export interface MultiSearchResult {
   sources: RawSource[];
   providers: string[];
   totalBeforeDedup: number;
+  successfulProviderCount: number;
+  failures: Array<{ provider: string; code: "UPSTREAM_FAILURE" | "INVALID_PROVIDER_RESPONSE"; upstreamStatus?: number }>;
 }
 
-export async function multiSearch(query: string, timeoutMs = 10000): Promise<MultiSearchResult> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+export async function multiSearch(query: string, timeoutMs = 10000, signal?: AbortSignal): Promise<MultiSearchResult> {
+  return runProviders(query, timeoutMs, signal, true);
+}
+
+/** Secondary evidence never repeats the already exhausted paid variants. */
+export async function searchFreeProviders(query: string, timeoutMs: number, signal?: AbortSignal): Promise<MultiSearchResult> {
+  return runProviders(query, timeoutMs, signal, false);
+}
+
+async function runProviders(query: string, timeoutMs: number, signal: AbortSignal | undefined, includePaid: boolean): Promise<MultiSearchResult> {
+  const budget = createPipelineBudget(signal, timeoutMs);
 
   const providers: Array<{ name: string; fn: () => Promise<RawSource[]> }> = [];
 
   // Free providers first. Linkup is paid and only enabled by explicit env.
-  if (BRAVE_KEY) providers.push({ name: "brave", fn: () => searchBrave(query, controller.signal) });
-  if (SERPER_KEY) providers.push({ name: "serper", fn: () => searchSerper(query, controller.signal) });
-  if (TAVILY_KEY) providers.push({ name: "tavily", fn: () => searchTavily(query, controller.signal) });
-  if (ALLOW_PAID_SEARCH && LINKUP_KEY) providers.push({ name: "linkup", fn: () => searchLinkup(query, controller.signal) });
+  if (BRAVE_KEY) providers.push({ name: "brave", fn: () => searchBrave(query, budget.signal) });
+  if (SERPER_KEY) providers.push({ name: "serper", fn: () => searchSerper(query, budget.signal) });
+  if (TAVILY_KEY) providers.push({ name: "tavily", fn: () => searchTavily(query, budget.signal) });
+  if (includePaid && ALLOW_PAID_SEARCH && LINKUP_KEY) providers.push({ name: "linkup", fn: () => searchLinkup(query, budget.signal) });
 
   // Run all in parallel
-  const results = await Promise.allSettled(providers.map((p) => p.fn()));
-  clearTimeout(timer);
+  let results: PromiseSettledResult<RawSource[]>[];
+  try { budget.signal.throwIfAborted(); results = await Promise.allSettled(providers.map((p) => p.fn())); }
+  finally { budget.dispose(); }
+  signal?.throwIfAborted();
 
   // Merge results
   const allSources: RawSource[] = [];
   const activeProviders: string[] = [];
+  const failures: MultiSearchResult["failures"] = [];
 
   for (let i = 0; i < results.length; i++) {
     const result = results[i]!;
@@ -180,6 +185,7 @@ export async function multiSearch(query: string, timeoutMs = 10000): Promise<Mul
       allSources.push(...result.value);
       activeProviders.push(providers[i]!.name);
     }
+    if (result.status === "rejected") failures.push({ provider: providers[i]!.name, code: result.reason instanceof PipelineHttpError ? result.reason.code : "UPSTREAM_FAILURE", upstreamStatus: result.reason instanceof PipelineHttpError ? result.reason.upstreamStatus : undefined });
   }
 
   const totalBeforeDedup = allSources.length;
@@ -202,6 +208,8 @@ export async function multiSearch(query: string, timeoutMs = 10000): Promise<Mul
     sources: [...byDomain.values()].slice(0, 30),
     providers: activeProviders,
     totalBeforeDedup,
+    successfulProviderCount: results.filter((result) => result.status === "fulfilled").length,
+    failures,
   };
 }
 

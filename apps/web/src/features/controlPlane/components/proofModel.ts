@@ -226,7 +226,7 @@ function normalizeSource(
     excerpt:
       source.excerpt ??
       `${packet.entityName} evidence item ${index + 1} retained during the final answer assembly.`,
-    confidence: source.confidence ?? Math.max(55, packet.confidence - index * 4),
+    ...(typeof source.confidence === "number" && Number.isFinite(source.confidence) ? { confidence: Math.max(0, Math.min(100, source.confidence)) } : {}),
   };
 }
 
@@ -243,7 +243,6 @@ function buildSyntheticSources(packet: ResultPacket): ResultSourceRef[] {
       status,
       domain: "nodebench memory",
       excerpt,
-      confidence: Math.max(55, packet.confidence - sources.length * 3),
     });
   };
 
@@ -788,7 +787,8 @@ function buildFallbackProgressionProfile(
   const hiddenRisks = strategicAngles
     .filter((angle) => angle.status !== "strong")
     .map((angle) => `${angle.title}: ${angle.summary}`);
-  const readinessScore = packet.readinessScore ?? Math.max(40, packet.confidence - hiddenRisks.length * 4);
+  // Existing fallback heuristic; it does not establish calibrated certainty.
+  const readinessScore = packet.readinessScore ?? Math.max(0, packet.confidence - hiddenRisks.length * 4);
   const currentStage =
     readinessScore >= 82 ? "scale" :
     readinessScore >= 70 ? "leverage" :
